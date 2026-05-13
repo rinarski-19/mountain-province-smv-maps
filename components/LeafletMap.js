@@ -90,7 +90,6 @@ export default function LeafletMap({
     bauko: null,
     barangays: null,
     zones: null,
-    osmRoads: null,
     valuations: null,
     monamonSurRoads: null,
     monamonNorteRoads: null,
@@ -113,7 +112,6 @@ export default function LeafletMap({
         const valuationsFile =
           municipality?.dataFiles?.valuations ?? "/data/bauko_valuations.json";
         const zonesFile = municipality?.dataFiles?.zones ?? "/data/bauko_zones.geojson";
-        const osmRoadsFile = municipality?.dataFiles?.osmRoads;
         const barangayFile =
           sources.has_custom_barangays && customBarangaysFile
             ? customBarangaysFile
@@ -123,7 +121,6 @@ export default function LeafletMap({
           barangays,
           valuations,
           zones,
-          osmRoads,
           monamonSurRoads,
           monamonNorteRoads,
         ] = await Promise.all([
@@ -132,11 +129,6 @@ export default function LeafletMap({
           fetch(valuationsFile).then((r) => r.json()),
           sources.has_zones && zonesFile
             ? fetch(zonesFile).then((r) => r.json())
-            : Promise.resolve(EMPTY_FC),
-          osmRoadsFile
-            ? fetch(osmRoadsFile)
-                .then((r) => (r.ok ? r.json() : EMPTY_FC))
-                .catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
           municipality?.slug === "bauko"
             ? fetch("/data/bauko_monamon_sur_roads_highlight.geojson")
@@ -155,7 +147,6 @@ export default function LeafletMap({
           barangays,
           valuations,
           zones,
-          osmRoads,
           monamonSurRoads,
           monamonNorteRoads,
         });
@@ -254,11 +245,6 @@ export default function LeafletMap({
     activeClass?.subClass === "C-3" &&
     activeBarangaySlug === "monamon-norte" &&
     (data.monamonNorteRoads?.features?.length ?? 0) > 0;
-  const showSagadaRoadStrokes =
-    municipality?.slug === "sagada" &&
-    !drawMode &&
-    layers.zones &&
-    (data.osmRoads?.features?.length ?? 0) > 0;
 
   return (
     <div className="leaflet-shell">
@@ -387,16 +373,6 @@ export default function LeafletMap({
             pane="roads-pane"
             interactive={false}
             style={() => c3RoadStyle(activeClass?.color, mapZoom)}
-          />
-        )}
-
-        {showSagadaRoadStrokes && (
-          <GeoJSON
-            key="sagada-roads-static"
-            data={data.osmRoads}
-            pane="roads-pane"
-            interactive={false}
-            style={() => sagadaRoadStrokeStyle(mapZoom)}
           />
         )}
 
@@ -667,18 +643,6 @@ function c3RoadStyle(color, zoom) {
     color: color ?? "#ef4444",
     weight,
     opacity: ACTIVE_SMV_OPACITY,
-    lineCap: "round",
-    lineJoin: "round",
-  };
-}
-
-function sagadaRoadStrokeStyle(zoom) {
-  const z = Number.isFinite(zoom) ? zoom : DEFAULT_ZOOM;
-  const weight = z >= 16 ? 5 : z >= 15 ? 4 : z >= 14 ? 3 : z >= 13 ? 2.4 : 1.8;
-  return {
-    color: "#f59e0b",
-    weight,
-    opacity: 0.55,
     lineCap: "round",
     lineJoin: "round",
   };
