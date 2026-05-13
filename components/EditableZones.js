@@ -797,20 +797,78 @@ export default function EditableZones({
     URL.revokeObjectURL(url);
   };
 
-  // Save the current zones straight into public/data/bauko_zones.geojson
-  // via the dev-only API route. Avoids the export-then-move-file dance.
+  // Save the current zones into public/data/<slug>_zones.geojson via the
+  // /api/zones/save route. In local dev, the route writes straight to
+  // the filesystem. On the deployed Vercel build, it commits the file
+  // to GitHub via the Contents API, which triggers a rebuild — every
+  // browser refreshing within ~90s sees the new zones, and local devs
+  // can `git pull` to pick up the change.
+  //
+  // The route requires Authorization: Bearer <SAVE_PASSWORD>. We cache
+  // the password in localStorage after the first successful save so
+  // returning editors don't have to retype it each time.
+  const SAVE_PW_KEY = "zones-save-password-v1";
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
+  const promptForSavePassword = (reason) => {
+    if (typeof window === "undefined") return null;
+    const stored = window.localStorage.getItem(SAVE_PW_KEY) || "";
+    const pw = window.prompt(
+      `${reason ? reason + "\n\n" : ""}Save password (shared with your team):`,
+      stored
+    );
+    if (pw == null) return null;
+    if (pw) {
+      try {
+        window.localStorage.setItem(SAVE_PW_KEY, pw);
+      } catch {}
+    }
+    return pw;
+  };
   const saveToProject = async () => {
     const group = groupRef.current;
     if (!group) return;
     setSaveStatus("saving");
+
+    // First-time use prompts for the password; subsequent saves reuse it.
+    let pw = "";
+    try {
+      pw = window.localStorage.getItem(SAVE_PW_KEY) || "";
+    } catch {}
+    if (!pw) {
+      pw = promptForSavePassword("Enter the team save password to publish your edits.");
+      if (!pw) {
+        setSaveStatus("idle");
+        return;
+      }
+    }
+
     try {
       const fc = group.toGeoJSON();
-      const res = await fetch(`/api/zones/save?slug=${encodeURIComponent(saveSlug)}`, {
+      let res = await fetch(`/api/zones/save?slug=${encodeURIComponent(saveSlug)}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pw}`,
+        },
         body: JSON.stringify(fc),
       });
+
+      // If the password is wrong, give the user one retry.
+      if (res.status === 401) {
+        const retryPw = promptForSavePassword(
+          "Save password rejected. Try again:"
+        );
+        if (!retryPw) throw new Error("Authentication cancelled.");
+        res = await fetch(`/api/zones/save?slug=${encodeURIComponent(saveSlug)}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${retryPw}`,
+          },
+          body: JSON.stringify(fc),
+        });
+      }
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         throw new Error(data.error || `HTTP ${res.status}`);
@@ -824,9 +882,10 @@ export default function EditableZones({
     } catch (e) {
       console.error("Save to project failed:", e);
       alert(
-        "Could not save to project file. " +
+        "Could not save to project file.\n" +
           e.message +
-          "\n(Note: this only works in `npm run dev` mode.)"
+          "\n\nLocal dev: make sure `npm run dev` is running.\n" +
+          "Deployed: confirm SAVE_PASSWORD + GITHUB_* env vars are set on Vercel."
       );
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 2400);
