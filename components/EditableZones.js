@@ -414,6 +414,9 @@ export default function EditableZones({
             const key = roadFeatureKey(feature);
             byKey.set(key, { feature, leafletLayer });
             leafletLayer.on("click", (ev) => {
+              // Road selection is intentionally gated by Shift+click so
+              // ordinary clicks don't accidentally tag segments.
+              if (!ev?.originalEvent?.shiftKey) return;
               L.DomEvent.stopPropagation(ev);
               setSelectedRoadKeys((prev) => {
                 const next = new Set(prev);
@@ -1091,7 +1094,7 @@ export default function EditableZones({
         } selected — click a class`
       : editorState.hasSelection
         ? "Reassign zone"
-        : "Draw zone, or click a road";
+        : "Draw zone, or Shift+click a road";
 
   return (
     <div ref={panelRefCallback} style={panelStyle}>
@@ -1495,6 +1498,7 @@ export default function EditableZones({
         Pick a class, then use the toolbar (top-left). The{" "}
         <b>polyline tool</b> traces a road and auto-buffers it; the{" "}
         <b>polygon / rectangle tools</b> draw freeform zones.{" "}
+        <b>Shift+click a road</b> to select road segments for class tagging.{" "}
         <b>Click a zone to select it</b> — clicking a class chip while
         something is selected reassigns it. Optional{" "}
         <b>Secondary / Tertiary class</b> lets one zone illustrate overlap
