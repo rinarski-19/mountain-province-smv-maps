@@ -1,0 +1,109 @@
+{
+  "municipality": "BARLIG",
+  "document_title": "SCHEDULE OF BASE UNIT MARKET VALUES FOR RESIDENTIAL AND COMMERCIAL LANDS",
+  "revision_year": 2027,
+  "standard_depth": {
+    "residential_lands": "30 meters",
+    "commercial_lands": "30 meters"
+  },
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "location_description": "Commercial lots located along National Road.",
+          "unit_value_2027_per_sqm": 1950,
+          "sub_classification": "C-1",
+          "barangays": [
+            "Gawana",
+            "Fiangtin",
+            "Lingoy (Upper)"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Residential Lands",
+      "items": [
+        {
+          "location_description": "Residential lots located along National Road (Barlig - Natonin Road).",
+          "unit_value_2027_per_sqm": 1950,
+          "sub_classification": "R-1",
+          "barangays": [
+            "Gawana",
+            "Fiangtin",
+            "Lingoy (Upper)"
+          ]
+        },
+        {
+          "location_description": "Residential lots along Bauman's Road (Gawana), Fiangtins Barangay Road, and Lingoy Barangay Road.",
+          "unit_value_2027_per_sqm": 1610,
+          "sub_classification": "R-2",
+          "barangays": [
+            "Gawana",
+            "Fiangtin",
+            "Lingoy (Upper)"
+          ]
+        },
+        {
+          "location_description": "Residential lots along Lias Silangan Barangay Road, Chupac Barangay Road, and Lunas Barangay Road.",
+          "unit_value_2027_per_sqm": 1320,
+          "sub_classification": "R-3",
+          "barangays": [
+            "Lias Silangan",
+            "Chupac",
+            "Lunas"
+          ]
+        },
+        {
+          "location_description": "Residential lots within the inner part of Barangays Gawana and Fiangtin.",
+          "unit_value_2027_per_sqm": 1090,
+          "sub_classification": "R-4",
+          "barangays": [
+            "Gawana",
+            "Fiangtin"
+          ]
+        },
+        {
+          "location_description": "Inner lots of Lias Silangan, Lias Kanluran, Macalana, Latang, Chupac, Lunas, and Upper Lingoy.",
+          "unit_value_2027_per_sqm": 890,
+          "sub_classification": "R-5",
+          "barangays": [
+            "Lias Silangan",
+            "Lias Kanluran",
+            "Macalana",
+            "Latang",
+            "Chupac",
+            "Lunas",
+            "Lingoy (Upper)"
+          ]
+        },
+        {
+          "location_description": "Residential lots located within Barangay Kaleo.",
+          "unit_value_2027_per_sqm": 700,
+          "sub_classification": "R-6",
+          "barangays": [
+            "Kaleo"
+          ]
+        },
+        {
+          "location_description": "Residential lots within Barangays Ogo-og and lower Lingoy.",
+          "unit_value_2027_per_sqm": 520,
+          "sub_classification": "R-7",
+          "barangays": [
+            "Ogo-og",
+            "Lingoy (Lower)"
+          ]
+        },
+        {
+          "location_description": "Residential lot located within Sitio Mog-ao of Lunas.",
+          "unit_value_2027_per_sqm": 410,
+          "sub_classification": "R-8",
+          "barangays": [
+            "Lunas (Sitio Mog-ao)"
+          ]
+        }
+      ]
+    }
+  ]
+}

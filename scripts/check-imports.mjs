@@ -1,0 +1,13 @@
+import { getMunicipalityConfig, MUNICIPALITY_OPTIONS } from "../lib/municipalities.js";
+const cfg = getMunicipalityConfig("barlig");
+console.log("slug:", cfg.slug, "name:", cfg.name, "enabled:", cfg.enabled);
+console.log("classes:", cfg.schedule.classifications.length);
+console.log("commercial:", cfg.schedule.commercial.length);
+console.log("residential:", cfg.schedule.residential.length);
+console.log("barangays:", cfg.schedule.barangays.length);
+console.log("slugForName('Gawana'):", cfg.schedule.slugForName("Gawana"));
+console.log("slugForName('Gawana (Pob.)'):", cfg.schedule.slugForName("Gawana (Pob.)"));
+console.log("slugForName('Lias Silangan'):", cfg.schedule.slugForName("Lias Silangan"));
+console.log("getBarangayBySlug('gawana'):", cfg.schedule.getBarangayBySlug("gawana")?.name);
+console.log("uniqueBarangaysForClass(c-1):", cfg.schedule.getUniqueBarangaysForClass(cfg.schedule.classifications[0]));
+console.log("enabled options:", MUNICIPALITY_OPTIONS.filter(o => o.enabled).map(o => o.slug));

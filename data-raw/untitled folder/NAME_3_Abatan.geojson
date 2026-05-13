@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "NAME_3_Abatan",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"xy_coordinate_resolution": 1e-15,
+"features": [
+{ "type": "Feature", "properties": { "fid": 27049, "GID_3": "PHL.50.2.1_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Abatan", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.872528077000084, 16.981170655000085 ], [ 120.841499328000054, 16.985919953000064 ], [ 120.845771789000196, 16.998880386000167 ], [ 120.866043091000051, 16.993299484000033 ], [ 120.867691040000068, 16.988229751000063 ], [ 120.872528077000084, 16.981170655000085 ] ] ] ] } }
+]
+}

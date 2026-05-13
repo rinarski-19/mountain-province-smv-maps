@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "NAME_3_Otucan Sur",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"xy_coordinate_resolution": 1e-15,
+"features": [
+{ "type": "Feature", "properties": { "fid": 27066, "GID_3": "PHL.50.2.18_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Otucan Sur", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.894233704000044, 16.985759736000091 ], [ 120.881187438000097, 16.988529205000134 ], [ 120.881561280000142, 16.994970322000086 ], [ 120.901618958000086, 16.995780945000092 ], [ 120.901687621000178, 16.992019654000046 ], [ 120.90174102800006, 16.988550186 ], [ 120.901397705000136, 16.983930588000078 ], [ 120.894233704000044, 16.985759736000091 ] ] ] ] } }
+]
+}

@@ -1,0 +1,51 @@
+{
+  "name": "leaflet-test-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "tiles:bauko": "node scripts/download-tiles.mjs --bbox bauko --zooms 10-16",
+    "tiles:bauko:hires": "node scripts/download-tiles.mjs --bbox bauko --zooms 10-17",
+    "tiles:mp": "node scripts/download-tiles.mjs --bbox mp --zooms 10-14",
+    "tiles:list": "node scripts/download-tiles.mjs --list-bboxes",
+    "import:shapefile": "node scripts/convert-shapefile.mjs",
+    "barangays:merge": "node scripts/merge-barangays.mjs",
+    "boundaries:fetch": "node scripts/fetch-psa-boundaries.mjs",
+    "boundaries:fetch:barlig": "node scripts/fetch-psa-boundaries.mjs barlig",
+    "boundaries:fetch:tadian": "node scripts/fetch-psa-boundaries.mjs tadian",
+    "boundaries:fetch:sagada": "node scripts/fetch-psa-boundaries.mjs sagada",
+    "tiles:barlig": "node scripts/download-tiles.mjs --bbox barlig --zooms 10-16",
+    "tiles:tadian": "node scripts/download-tiles.mjs --bbox tadian --zooms 10-16",
+    "tiles:sagada": "node scripts/download-tiles.mjs --bbox sagada --zooms 10-16",
+    "zones:auto:bauko": "node scripts/build-road-corridors.mjs bauko",
+    "zones:auto:barlig": "node scripts/build-road-corridors.mjs barlig",
+    "zones:auto:tadian": "node scripts/build-road-corridors.mjs tadian",
+    "zones:auto:sagada": "node scripts/build-road-corridors.mjs sagada",
+    "roads:fetch:bauko": "node scripts/fetch-osm-roads.mjs bauko",
+    "roads:fetch:barlig": "node scripts/fetch-osm-roads.mjs barlig",
+    "roads:fetch:tadian": "node scripts/fetch-osm-roads.mjs tadian",
+    "roads:fetch:sagada": "node scripts/fetch-osm-roads.mjs sagada",
+    "offline:prepare": "npm run boundaries:fetch && npm run tiles:bauko && npm run build",
+    "offline:prepare:quick": "npm run boundaries:fetch && node scripts/download-tiles.mjs --bbox bauko --zooms 10-14 && npm run build"
+  },
+  "dependencies": {
+    "next": "^16.2.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^5.0.0",
+    "@geoman-io/leaflet-geoman-free": "^2.19.3",
+    "@turf/turf": "^7.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.2.6",
+    "shapefile": "^0.6.6"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
+  }
+}

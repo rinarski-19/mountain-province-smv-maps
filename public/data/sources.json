@@ -1,0 +1,5 @@
+{
+  "_comment": "Tells the app which custom override files exist in this directory. The merge script flips has_custom_barangays automatically.",
+  "has_custom_barangays": false,
+  "has_zones": true
+}

@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "NAME_3_Mount Data",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"xy_coordinate_resolution": 1e-15,
+"features": [
+{ "type": "Feature", "properties": { "fid": 27064, "GID_3": "PHL.50.2.16_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Mount Data", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.858337402000075, 16.867080689000147 ], [ 120.880187989000092, 16.873510361000115 ], [ 120.895050050000123, 16.863519670000073 ], [ 120.883087159000183, 16.851360319999969 ], [ 120.875923156000113, 16.860420227000077 ], [ 120.849838256000112, 16.849720001000037 ], [ 120.858337402000075, 16.867080689000147 ] ] ] ] } }
+]
+}

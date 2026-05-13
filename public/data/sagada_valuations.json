@@ -1,0 +1,198 @@
+{
+  "municipality": "SAGADA",
+  "document_title": "SCHEDULE OF BASE UNIT MARKET VALUES FOR RESIDENTIAL, COMMERCIAL, AND INDUSTRIAL LANDS",
+  "revision_year": 2026,
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "location_description": "Commercial lots along all-weather roads of Patay, Dagdag, Demang, and Ambasing.",
+          "unit_value_2026_per_sqm": 6200,
+          "sub_classification": "C-1",
+          "barangays": [
+            "Patay",
+            "Dagdag",
+            "Demang",
+            "Ambasing"
+          ]
+        },
+        {
+          "location_description": "Commercial inner lots of Patay, Dagdag, Demang, and Ambasing.",
+          "unit_value_2026_per_sqm": 5100,
+          "sub_classification": "C-2",
+          "barangays": [
+            "Patay",
+            "Dagdag",
+            "Demang",
+            "Ambasing"
+          ]
+        },
+        {
+          "location_description": "Commercial lots along all-weather roads of Antadao, Kilong, Ankileng, Suyo, Taccong, and Balugan.",
+          "unit_value_2026_per_sqm": 5100,
+          "sub_classification": "C-2",
+          "barangays": [
+            "Antadao",
+            "Kilong",
+            "Ankileng",
+            "Suyo",
+            "Taccong",
+            "Balugan"
+          ]
+        },
+        {
+          "location_description": "Commercial inner lots of Antadao, Kilong, Ankileng, Suyo, and Balugan.",
+          "unit_value_2026_per_sqm": 4150,
+          "sub_classification": "C-3",
+          "barangays": [
+            "Antadao",
+            "Kilong",
+            "Ankileng",
+            "Suyo",
+            "Balugan"
+          ]
+        },
+        {
+          "location_description": "Commercial lots along all-weather roads of Tetep-an Norte, Tetep-an Sur, Madongo, Banga-an, Aguid, Fedilisan, and Pide.",
+          "unit_value_2026_per_sqm": 4150,
+          "sub_classification": "C-3",
+          "barangays": [
+            "Tetep-an Norte",
+            "Tetep-an Sur",
+            "Madongo",
+            "Banga-an",
+            "Aguid",
+            "Fedilisan",
+            "Pide"
+          ]
+        },
+        {
+          "location_description": "Commercial inner lots of Tetep-an Norte, Tetep-an Sur, Madongo, Banga-an, Aguid, Fedilisan, and Pide.",
+          "unit_value_2026_per_sqm": 3550,
+          "sub_classification": "C-4",
+          "barangays": [
+            "Tetep-an Norte",
+            "Tetep-an Sur",
+            "Madongo",
+            "Banga-an",
+            "Aguid",
+            "Fedilisan",
+            "Pide"
+          ]
+        },
+        {
+          "location_description": "Commercial lots of Nacagang, Pide, and Tanulong.",
+          "unit_value_2026_per_sqm": 3550,
+          "sub_classification": "C-4",
+          "barangays": [
+            "Nacagang",
+            "Pide",
+            "Tanulong"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Residential Lands",
+      "items": [
+        {
+          "location_description": "Residential lots along all-weather roads of Patay, Dagdag, Demang, and Ambasing.",
+          "unit_value_2026_per_sqm": 6150,
+          "sub_classification": "R-1",
+          "barangays": [
+            "Patay",
+            "Dagdag",
+            "Demang",
+            "Ambasing"
+          ]
+        },
+        {
+          "location_description": "Residential inner lots of Patay, Dagdag, Demang, and Ambasing.",
+          "unit_value_2026_per_sqm": 3000,
+          "sub_classification": "R-2",
+          "barangays": [
+            "Patay",
+            "Dagdag",
+            "Demang",
+            "Ambasing"
+          ]
+        },
+        {
+          "location_description": "Residential lots along all-weather roads of Antadao, Kilong, Ambasing, Ankileng, Balugan, Suyo, and Taccong.",
+          "unit_value_2026_per_sqm": 3000,
+          "sub_classification": "R-2",
+          "barangays": [
+            "Antadao",
+            "Kilong",
+            "Ambasing",
+            "Ankileng",
+            "Balugan",
+            "Suyo",
+            "Taccong"
+          ]
+        },
+        {
+          "location_description": "Residential inner lots of Antadao, Kilong, Ambasing, Ankileng, Balugan, Suyo, and Taccong.",
+          "unit_value_2026_per_sqm": 2500,
+          "sub_classification": "R-3",
+          "barangays": [
+            "Antadao",
+            "Kilong",
+            "Ambasing",
+            "Ankileng",
+            "Balugan",
+            "Suyo",
+            "Taccong"
+          ]
+        },
+        {
+          "location_description": "Residential lots along all-weather roads of Tetep-an Sur, Tetep-an Norte, Madongo, Banga-an, Aguid, and Fedilisan.",
+          "unit_value_2026_per_sqm": 2000,
+          "sub_classification": "R-4",
+          "barangays": [
+            "Tetep-an Sur",
+            "Tetep-an Norte",
+            "Madongo",
+            "Banga-an",
+            "Aguid",
+            "Fedilisan"
+          ]
+        },
+        {
+          "location_description": "Residential inner lots of Tetep-an Sur, Tetep-an Norte, Madongo, Banga-an, Aguid, and Fedilisan.",
+          "unit_value_2026_per_sqm": 1650,
+          "sub_classification": "R-5",
+          "barangays": [
+            "Tetep-an Sur",
+            "Tetep-an Norte",
+            "Madongo",
+            "Banga-an",
+            "Aguid",
+            "Fedilisan"
+          ]
+        },
+        {
+          "location_description": "Residential lots along barangay roads of Nacagang, Pide, and Tanulong.",
+          "unit_value_2026_per_sqm": 1300,
+          "sub_classification": "R-6",
+          "barangays": [
+            "Nacagang",
+            "Pide",
+            "Tanulong"
+          ]
+        },
+        {
+          "location_description": "Residential inner lots of Nacagang, Pide, and Tanulong.",
+          "unit_value_2026_per_sqm": 1050,
+          "sub_classification": "R-7",
+          "barangays": [
+            "Nacagang",
+            "Pide",
+            "Tanulong"
+          ]
+        }
+      ]
+    }
+  ]
+}

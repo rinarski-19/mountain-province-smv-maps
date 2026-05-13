@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "NAME_3_Lagawa",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"xy_coordinate_resolution": 1e-15,
+"features": [
+{ "type": "Feature", "properties": { "fid": 27058, "GID_3": "PHL.50.2.10_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Lagawa", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.891876221000302, 16.973459243999969 ], [ 120.894233704000044, 16.985759736000091 ], [ 120.901397705000136, 16.983930588000078 ], [ 120.900718688000211, 16.974079133000032 ], [ 120.899986266000155, 16.966249466000136 ], [ 120.891876221000302, 16.973459243999969 ] ] ] ] } }
+]
+}

@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "NAME_3_Monamon Norte",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"xy_coordinate_resolution": 1e-15,
+"features": [
+{ "type": "Feature", "properties": { "fid": 27062, "GID_3": "PHL.50.2.14_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Monamon Norte", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.895973206000122, 16.908630371000186 ], [ 120.902481078000164, 16.921409607999976 ], [ 120.919692992000023, 16.896490097000026 ], [ 120.928329467000026, 16.874160765999989 ], [ 120.937538146000179, 16.862789154000041 ], [ 120.943328857000097, 16.8505306240001 ], [ 120.910980224000127, 16.8505306240001 ], [ 120.915908813000101, 16.864740372000028 ], [ 120.901321411000026, 16.892250061000027 ], [ 120.895973206000122, 16.908630371000186 ] ] ] ] } }
+]
+}

@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "NAME_3_Guinzadan Central",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"xy_coordinate_resolution": 1e-15,
+"features": [
+{ "type": "Feature", "properties": { "fid": 27055, "GID_3": "PHL.50.2.7_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Guinzadan Central", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.878776550000111, 16.981029511000088 ], [ 120.879837037000016, 16.969779969000115 ], [ 120.877822875000334, 16.969930649000162 ], [ 120.846458435000159, 16.951860426999986 ], [ 120.840393066000047, 16.960010529000044 ], [ 120.835998535000158, 16.966609956000127 ], [ 120.878776550000111, 16.981029511000088 ] ] ] ] } }
+]
+}

@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "bauko_sinto",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "fid": 27069, "GID_3": "PHL.50.2.21_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Sinto", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA", "test": null, "test2": null, "test3": null, "smv": null }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.855087280000248, 16.83867073100015 ], [ 120.85414886600006, 16.839979172000142 ], [ 120.853378295000198, 16.84103965700001 ], [ 120.852348327000072, 16.842519761000119 ], [ 120.850273132000211, 16.846149444000105 ], [ 120.849838256000112, 16.849720001000037 ], [ 120.875923156000113, 16.860420227000077 ], [ 120.883087159000183, 16.851360319999969 ], [ 120.855087280000248, 16.83867073100015 ] ] ] ] } }
+]
+}

@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "NAME_3_Tapapan",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"xy_coordinate_resolution": 1e-15,
+"features": [
+{ "type": "Feature", "properties": { "fid": 27070, "GID_3": "PHL.50.2.22_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Tapapan", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.894348145000208, 16.957229614000084 ], [ 120.898979187, 16.956150056000126 ], [ 120.879837037000016, 16.951810837000153 ], [ 120.846458435000159, 16.951860426999986 ], [ 120.880943299000023, 16.961650848000147 ], [ 120.88643646200012, 16.961969376000013 ], [ 120.894348145000208, 16.957229614000084 ] ] ] ] } }
+]
+}

@@ -1,0 +1,160 @@
+{
+  "municipality": "TADIAN",
+  "document_title": "SCHEDULE OF BASE UNIT MARKET VALUES FOR RESIDENTIAL, COMMERCIAL AND INDUSTRIAL LANDS",
+  "revision_year": 2027,
+  "standard_depth": {
+    "residential_lands": "30 meters",
+    "commercial_lands": "30 meters"
+  },
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "location_description": "Commercial lots along all-weather roads of Poblacion and along the national road from Malupa – Cabunagan to Poblacion.",
+          "unit_value_2027_per_sqm": 6000,
+          "sub_classification": "C-1",
+          "barangays": [
+            "Poblacion"
+          ]
+        },
+        {
+          "location_description": "Commercial lots along all-weather roads for all barangays, and commercial inner lots of Poblacion.",
+          "unit_value_2027_per_sqm": 4900,
+          "sub_classification": "C-2",
+          "barangays": [
+            "Balaoa",
+            "Banaao",
+            "Bantey",
+            "Batayan",
+            "Bunga",
+            "Cadad-anan",
+            "Cagubatan",
+            "Dacudac",
+            "Duagan",
+            "Kayan East",
+            "Kayan West",
+            "Lenga",
+            "Lubon",
+            "Mabalite",
+            "Masla",
+            "Pandayan",
+            "Poblacion",
+            "Sumadel",
+            "Tue"
+          ]
+        },
+        {
+          "location_description": "Commercial inner lots for all barangays.",
+          "unit_value_2027_per_sqm": 4000,
+          "sub_classification": "C-3",
+          "barangays": [
+            "Balaoa",
+            "Banaao",
+            "Bantey",
+            "Batayan",
+            "Bunga",
+            "Cadad-anan",
+            "Cagubatan",
+            "Dacudac",
+            "Duagan",
+            "Kayan East",
+            "Kayan West",
+            "Lenga",
+            "Lubon",
+            "Mabalite",
+            "Masla",
+            "Pandayan",
+            "Poblacion",
+            "Sumadel",
+            "Tue"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Residential Lands",
+      "items": [
+        {
+          "location_description": "Residential lots along all-weather roads of Poblacion and along the national road from Malupa – Cabunagan to Poblacion.",
+          "unit_value_2027_per_sqm": 6000,
+          "sub_classification": "R-1",
+          "barangays": [
+            "Poblacion"
+          ]
+        },
+        {
+          "location_description": "Residential lots along all-weather roads of Kayan West, Kayan East, Bunga, Tue, Balaoa, Lubon, and Masla; and inner lots of Poblacion.",
+          "unit_value_2027_per_sqm": 3300,
+          "sub_classification": "R-2",
+          "barangays": [
+            "Kayan West",
+            "Kayan East",
+            "Bunga",
+            "Tue",
+            "Balaoa",
+            "Lubon",
+            "Masla",
+            "Poblacion"
+          ]
+        },
+        {
+          "location_description": "Residential lots along all-weather roads of Cagubatan, Banaao, Pandayan, Cadad-anan, Lenga, Dacudac, Sumadel, Batayan, Bantey, and Duagan.",
+          "unit_value_2027_per_sqm": 2600,
+          "sub_classification": "R-3",
+          "barangays": [
+            "Cagubatan",
+            "Banaao",
+            "Pandayan",
+            "Cadad-anan",
+            "Lenga",
+            "Dacudac",
+            "Sumadel",
+            "Batayan",
+            "Bantey",
+            "Duagan"
+          ]
+        },
+        {
+          "location_description": "Residential inner lots of Kayan West, Kayan East, Bunga, Tue, Balaoa, Lubon, and Masla.",
+          "unit_value_2027_per_sqm": 2150,
+          "sub_classification": "R-4",
+          "barangays": [
+            "Kayan West",
+            "Kayan East",
+            "Bunga",
+            "Tue",
+            "Balaoa",
+            "Lubon",
+            "Masla"
+          ]
+        },
+        {
+          "location_description": "Residential inner lots of Cagubatan, Banaao, Pandayan, Cadad-anan, Lenga, Dacudac, Sumadel, Batayan, Bantey, and Duagan.",
+          "unit_value_2027_per_sqm": 1650,
+          "sub_classification": "R-5",
+          "barangays": [
+            "Cagubatan",
+            "Banaao",
+            "Pandayan",
+            "Cadad-anan",
+            "Lenga",
+            "Dacudac",
+            "Sumadel",
+            "Batayan",
+            "Bantey",
+            "Duagan"
+          ]
+        },
+        {
+          "location_description": "Residential lots in Mabalite, including sitios Iland, Madange, and Pasnadan.",
+          "unit_value_2027_per_sqm": 1100,
+          "sub_classification": "R-6",
+          "barangays": [
+            "Mabalite"
+          ]
+        }
+      ]
+    }
+  ]
+}

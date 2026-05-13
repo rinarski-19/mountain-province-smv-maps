@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+.DS_Store
+*.log
+.env*.local
+
+# Offline OSM tile pack — hundreds of MB, generated per-machine via
+# `npm run tiles:bauko` / `npm run tiles:barlig` etc. Cloned repo
+# defaults to Online mode, so missing tiles never break the app.
+public/tiles/
+
+# Build/cache artifacts that don't belong in version control.
+*.tsbuildinfo
+.vercel/

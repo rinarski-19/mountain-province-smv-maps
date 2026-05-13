@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "NAME_3_Sadsadan",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"xy_coordinate_resolution": 1e-15,
+"features": [
+{ "type": "Feature", "properties": { "fid": 27068, "GID_3": "PHL.50.2.20_1", "GID_0": "PHL", "COUNTRY": "Philippines", "GID_1": "PHL.50_1", "NAME_1": "Mountain Province", "NL_NAME_1": "NA", "GID_2": "PHL.50.2_1", "NAME_2": "Bauko", "NL_NAME_2": "NA", "NAME_3": "Sadsadan", "VARNAME_3": "NA", "NL_NAME_3": "NA", "TYPE_3": "Barangay", "ENGTYPE_3": "Village", "CC_3": "NA", "HASC_3": "NA" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 120.869438172000173, 16.9183406840001 ], [ 120.878509522000058, 16.919950485000129 ], [ 120.885856629000159, 16.911060332999966 ], [ 120.895973206000122, 16.908630371000186 ], [ 120.901321411000026, 16.892250061000027 ], [ 120.897140503000173, 16.886720657000126 ], [ 120.886627198000042, 16.89048004100016 ], [ 120.865570069000114, 16.885749817000089 ], [ 120.876098632000094, 16.908489227000075 ], [ 120.869438172000173, 16.9183406840001 ] ] ] ] } }
+]
+}
