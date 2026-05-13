@@ -11,23 +11,26 @@ const DEFAULT_BUNDLED_ZONES_URL = "/data/bauko_zones.geojson";
 const CLASS_KEYS = Object.keys(CLASSIFICATION_INFO);
 const DUAL_CLASS_KEYS = CLASS_KEYS.filter((k) => k !== "UNCLASSIFIED");
 
-// Visual styles for the chipped OSM road layer in edit mode. Default
-// is a quiet grey; hover bumps weight + saturation; selected is a
-// bright orange so a multi-segment selection reads at a glance.
+// Visual styles for the chipped OSM road layer in edit mode. Bright
+// blue at rest so the layer is unmistakable against any basemap;
+// amber on hover; saturated orange when selected.
 const ROAD_STYLE_DEFAULT = {
-  color: "#64748b",
-  weight: 2.5,
-  opacity: 0.55,
+  color: "#2563eb",
+  weight: 4,
+  opacity: 0.85,
+  dashArray: "6 4",
 };
 const ROAD_STYLE_HOVER = {
   color: "#f59e0b",
-  weight: 4,
-  opacity: 0.9,
+  weight: 5,
+  opacity: 1,
+  dashArray: null,
 };
 const ROAD_STYLE_SELECTED = {
   color: "#ea580c",
-  weight: 5,
+  weight: 6,
   opacity: 1,
+  dashArray: null,
 };
 
 // Clamp helper for the draggable editor panel — keeps the panel from
@@ -829,44 +832,50 @@ export default function EditableZones({
     if (!group) return;
     setSaveStatus("saving");
 
-    // First-time use prompts for the password; subsequent saves reuse it.
-    let pw = "";
-    try {
-      pw = window.localStorage.getItem(SAVE_PW_KEY) || "";
-    } catch {}
-    if (!pw) {
-      pw = promptForSavePassword("Enter the team save password to publish your edits.");
-      if (!pw) {
-        setSaveStatus("idle");
-        return;
-      }
-    }
-
-    try {
-      const fc = group.toGeoJSON();
-      let res = await fetch(`/api/zones/save?slug=${encodeURIComponent(saveSlug)}`, {
+    const url = `/api/zones/save?slug=${encodeURIComponent(saveSlug)}`;
+    const fc = group.toGeoJSON();
+    const body = JSON.stringify(fc);
+    const send = (pw) =>
+      fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${pw}`,
+          ...(pw ? { Authorization: `Bearer ${pw}` } : {}),
         },
-        body: JSON.stringify(fc),
+        body,
       });
 
-      // If the password is wrong, give the user one retry.
+    // Strategy: send with whatever password is in localStorage (or none).
+    // On localhost the dev server accepts no-auth, so this succeeds with
+    // zero friction. In production, the server returns 401 → we prompt
+    // the user once, retry, then surface a hard error if still rejected.
+    let cachedPw = "";
+    try {
+      cachedPw = window.localStorage.getItem(SAVE_PW_KEY) || "";
+    } catch {}
+
+    try {
+      let res = await send(cachedPw);
+
       if (res.status === 401) {
-        const retryPw = promptForSavePassword(
-          "Save password rejected. Try again:"
+        const promptedPw = promptForSavePassword(
+          cachedPw
+            ? "Save password rejected. Try again:"
+            : "Enter the team save password to publish your edits:"
         );
-        if (!retryPw) throw new Error("Authentication cancelled.");
-        res = await fetch(`/api/zones/save?slug=${encodeURIComponent(saveSlug)}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${retryPw}`,
-          },
-          body: JSON.stringify(fc),
-        });
+        if (!promptedPw) {
+          setSaveStatus("idle");
+          return;
+        }
+        res = await send(promptedPw);
+        if (res.status === 401) {
+          // Wrong password the second time too — clear the cache so the
+          // next save attempt starts fresh.
+          try {
+            window.localStorage.removeItem(SAVE_PW_KEY);
+          } catch {}
+          throw new Error("Save password rejected.");
+        }
       }
 
       const data = await res.json().catch(() => ({}));
