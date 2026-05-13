@@ -11,14 +11,13 @@ const DEFAULT_BUNDLED_ZONES_URL = "/data/bauko_zones.geojson";
 const CLASS_KEYS = Object.keys(CLASSIFICATION_INFO);
 const DUAL_CLASS_KEYS = CLASS_KEYS.filter((k) => k !== "UNCLASSIFIED");
 
-// Visual styles for the chipped OSM road layer in edit mode. Bright
-// blue at rest so the layer is unmistakable against any basemap;
-// amber on hover; saturated orange when selected.
+// Visual styles for the chipped OSM road layer in edit mode.
+// Keep lines solid (no dash pattern) to match the Bauko presentation style.
 const ROAD_STYLE_DEFAULT = {
   color: "#2563eb",
   weight: 4,
   opacity: 0.85,
-  dashArray: "6 4",
+  dashArray: null,
 };
 const ROAD_STYLE_HOVER = {
   color: "#f59e0b",

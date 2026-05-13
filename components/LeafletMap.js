@@ -254,42 +254,11 @@ export default function LeafletMap({
     activeClass?.subClass === "C-3" &&
     activeBarangaySlug === "monamon-norte" &&
     (data.monamonNorteRoads?.features?.length ?? 0) > 0;
-  const activeClassBarangaySlugs = useMemo(
-    () =>
-      new Set(
-        (activeClass?.locationGroups ?? []).flatMap((group) => group.barangays ?? [])
-      ),
-    [activeClass]
-  );
-  const sagadaRoadsForActive = useMemo(() => {
-    if (
-      municipality?.slug !== "sagada" ||
-      !activeClass ||
-      !data.osmRoads?.features?.length
-    ) {
-      return EMPTY_FC;
-    }
-
-    const roads = data.osmRoads.features;
-    if (activeBarangaySlug) {
-      const byBarangay = roads.filter(
-        (feature) => feature?.properties?.barangay_slug === activeBarangaySlug
-      );
-      if (byBarangay.length) {
-        return { type: "FeatureCollection", features: byBarangay };
-      }
-    }
-
-    const byClass = roads.filter((feature) =>
-      activeClassBarangaySlugs.has(feature?.properties?.barangay_slug)
-    );
-    return { type: "FeatureCollection", features: byClass };
-  }, [municipality?.slug, activeClass, activeBarangaySlug, data.osmRoads, activeClassBarangaySlugs]);
   const showSagadaRoadStrokes =
     municipality?.slug === "sagada" &&
     !drawMode &&
-    Boolean(activeClass) &&
-    (sagadaRoadsForActive.features?.length ?? 0) > 0;
+    layers.zones &&
+    (data.osmRoads?.features?.length ?? 0) > 0;
 
   return (
     <div className="leaflet-shell">
@@ -423,11 +392,11 @@ export default function LeafletMap({
 
         {showSagadaRoadStrokes && (
           <GeoJSON
-            key={`sagada-active-roads-${activeClass?.id ?? "none"}-${activeBarangaySlug ?? "all"}`}
-            data={sagadaRoadsForActive}
+            key="sagada-roads-static"
+            data={data.osmRoads}
             pane="roads-pane"
             interactive={false}
-            style={() => sagadaRoadStrokeStyle(activeClass?.color, mapZoom)}
+            style={() => sagadaRoadStrokeStyle(mapZoom)}
           />
         )}
 
@@ -703,13 +672,13 @@ function c3RoadStyle(color, zoom) {
   };
 }
 
-function sagadaRoadStrokeStyle(color, zoom) {
+function sagadaRoadStrokeStyle(zoom) {
   const z = Number.isFinite(zoom) ? zoom : DEFAULT_ZOOM;
   const weight = z >= 16 ? 5 : z >= 15 ? 4 : z >= 14 ? 3 : z >= 13 ? 2.4 : 1.8;
   return {
-    color: color ?? "#ef4444",
+    color: "#f59e0b",
     weight,
-    opacity: ACTIVE_SMV_OPACITY,
+    opacity: 0.55,
     lineCap: "round",
     lineJoin: "round",
   };
