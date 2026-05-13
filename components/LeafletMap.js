@@ -90,6 +90,7 @@ export default function LeafletMap({
     bauko: null,
     barangays: null,
     zones: null,
+    osmRoads: null,
     valuations: null,
     monamonSurRoads: null,
     monamonNorteRoads: null,
@@ -112,6 +113,7 @@ export default function LeafletMap({
         const valuationsFile =
           municipality?.dataFiles?.valuations ?? "/data/bauko_valuations.json";
         const zonesFile = municipality?.dataFiles?.zones ?? "/data/bauko_zones.geojson";
+        const osmRoadsFile = municipality?.dataFiles?.osmRoads;
         const barangayFile =
           sources.has_custom_barangays && customBarangaysFile
             ? customBarangaysFile
@@ -121,6 +123,7 @@ export default function LeafletMap({
           barangays,
           valuations,
           zones,
+          osmRoads,
           monamonSurRoads,
           monamonNorteRoads,
         ] = await Promise.all([
@@ -129,6 +132,11 @@ export default function LeafletMap({
           fetch(valuationsFile).then((r) => r.json()),
           sources.has_zones && zonesFile
             ? fetch(zonesFile).then((r) => r.json())
+            : Promise.resolve(EMPTY_FC),
+          osmRoadsFile
+            ? fetch(osmRoadsFile)
+                .then((r) => (r.ok ? r.json() : EMPTY_FC))
+                .catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
           municipality?.slug === "bauko"
             ? fetch("/data/bauko_monamon_sur_roads_highlight.geojson")
@@ -147,6 +155,7 @@ export default function LeafletMap({
           barangays,
           valuations,
           zones,
+          osmRoads,
           monamonSurRoads,
           monamonNorteRoads,
         });
@@ -245,6 +254,42 @@ export default function LeafletMap({
     activeClass?.subClass === "C-3" &&
     activeBarangaySlug === "monamon-norte" &&
     (data.monamonNorteRoads?.features?.length ?? 0) > 0;
+  const activeClassBarangaySlugs = useMemo(
+    () =>
+      new Set(
+        (activeClass?.locationGroups ?? []).flatMap((group) => group.barangays ?? [])
+      ),
+    [activeClass]
+  );
+  const sagadaRoadsForActive = useMemo(() => {
+    if (
+      municipality?.slug !== "sagada" ||
+      !activeClass ||
+      !data.osmRoads?.features?.length
+    ) {
+      return EMPTY_FC;
+    }
+
+    const roads = data.osmRoads.features;
+    if (activeBarangaySlug) {
+      const byBarangay = roads.filter(
+        (feature) => feature?.properties?.barangay_slug === activeBarangaySlug
+      );
+      if (byBarangay.length) {
+        return { type: "FeatureCollection", features: byBarangay };
+      }
+    }
+
+    const byClass = roads.filter((feature) =>
+      activeClassBarangaySlugs.has(feature?.properties?.barangay_slug)
+    );
+    return { type: "FeatureCollection", features: byClass };
+  }, [municipality?.slug, activeClass, activeBarangaySlug, data.osmRoads, activeClassBarangaySlugs]);
+  const showSagadaRoadStrokes =
+    municipality?.slug === "sagada" &&
+    !drawMode &&
+    Boolean(activeClass) &&
+    (sagadaRoadsForActive.features?.length ?? 0) > 0;
 
   return (
     <div className="leaflet-shell">
@@ -373,6 +418,16 @@ export default function LeafletMap({
             pane="roads-pane"
             interactive={false}
             style={() => c3RoadStyle(activeClass?.color, mapZoom)}
+          />
+        )}
+
+        {showSagadaRoadStrokes && (
+          <GeoJSON
+            key={`sagada-active-roads-${activeClass?.id ?? "none"}-${activeBarangaySlug ?? "all"}`}
+            data={sagadaRoadsForActive}
+            pane="roads-pane"
+            interactive={false}
+            style={() => sagadaRoadStrokeStyle(activeClass?.color, mapZoom)}
           />
         )}
 
@@ -639,6 +694,18 @@ function MapZoomBridge({ onZoomChange }) {
 function c3RoadStyle(color, zoom) {
   const z = Number.isFinite(zoom) ? zoom : DEFAULT_ZOOM;
   const weight = z >= 16 ? 6 : z >= 15 ? 5 : z >= 14 ? 4 : z >= 13 ? 3 : 2;
+  return {
+    color: color ?? "#ef4444",
+    weight,
+    opacity: ACTIVE_SMV_OPACITY,
+    lineCap: "round",
+    lineJoin: "round",
+  };
+}
+
+function sagadaRoadStrokeStyle(color, zoom) {
+  const z = Number.isFinite(zoom) ? zoom : DEFAULT_ZOOM;
+  const weight = z >= 16 ? 5 : z >= 15 ? 4 : z >= 14 ? 3 : z >= 13 ? 2.4 : 1.8;
   return {
     color: color ?? "#ef4444",
     weight,
