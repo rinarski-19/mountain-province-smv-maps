@@ -132,7 +132,7 @@ export default function Home() {
       setBarangayIdx(0);
       setFocusRequestId((n) => n + 1);
     },
-    [clear]
+    [clear, classifications]
   );
 
   // Click a specific barangay under a class → jump to the first group inside
