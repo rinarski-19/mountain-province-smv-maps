@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
 import * as turf from "@turf/turf";
@@ -8,8 +8,7 @@ import { CLASSIFICATION_INFO, styleForClass } from "@/lib/classifications";
 
 const DEFAULT_STORAGE_KEY = "bauko-zones-v1";
 const DEFAULT_BUNDLED_ZONES_URL = "/data/bauko_zones.geojson";
-const CLASS_KEYS = Object.keys(CLASSIFICATION_INFO);
-const DUAL_CLASS_KEYS = CLASS_KEYS.filter((k) => k !== "UNCLASSIFIED");
+const DEFAULT_CLASS_KEYS = Object.keys(CLASSIFICATION_INFO);
 
 // Visual styles for the chipped OSM road layer in edit mode.
 // Keep lines solid (no dash pattern) to match the Bauko presentation style.
@@ -117,6 +116,7 @@ export default function EditableZones({
   saveSlug = "bauko",
   savePathLabel = "public/data/bauko_zones.geojson",
   roadsUrl = null,
+  classKeys = null,
 }) {
   const map = useMap();
   const groupRef = useRef(null);
@@ -142,6 +142,21 @@ export default function EditableZones({
     canRedo: false,
     hasSelection: false,
   });
+  const availableClassKeys = useMemo(() => {
+    const incoming = Array.isArray(classKeys)
+      ? classKeys
+          .map((key) => normaliseClassKey(key))
+          .filter(Boolean)
+      : [];
+    const ordered = incoming.length ? incoming : DEFAULT_CLASS_KEYS;
+    const deduped = Array.from(new Set(ordered));
+    if (!deduped.includes("UNCLASSIFIED")) deduped.push("UNCLASSIFIED");
+    return deduped;
+  }, [classKeys]);
+  const dualClassKeys = useMemo(
+    () => availableClassKeys.filter((k) => k !== "UNCLASSIFIED"),
+    [availableClassKeys]
+  );
 
   // Re-render the floating toolbar when feature edits happen.
   const refresh = () => force((n) => n + 1);
@@ -1144,7 +1159,7 @@ export default function EditableZones({
         </button>
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
-        {CLASS_KEYS.map((k) => {
+        {availableClassKeys.map((k) => {
           const info = CLASSIFICATION_INFO[k];
           const isActive = activeClass === k;
           return (
@@ -1267,7 +1282,7 @@ export default function EditableZones({
           }}
         >
           <option value="">None</option>
-          {DUAL_CLASS_KEYS.map((k) => (
+          {dualClassKeys.map((k) => (
             <option key={`secondary-${k}`} value={k}>
               {k}
             </option>
@@ -1343,7 +1358,7 @@ export default function EditableZones({
           }}
         >
           <option value="">None</option>
-          {DUAL_CLASS_KEYS.map((k) => (
+          {dualClassKeys.map((k) => (
             <option key={`tertiary-${k}`} value={k}>
               {k}
             </option>

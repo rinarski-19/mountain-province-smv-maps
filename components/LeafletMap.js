@@ -430,6 +430,7 @@ export default function LeafletMap({
             saveSlug={municipality?.zones?.saveSlug ?? municipality?.slug}
             savePathLabel={municipality?.zones?.savePathLabel}
             roadsUrl={municipality?.dataFiles?.osmRoads}
+            classKeys={municipality?.schedule?.classifications?.map((row) => row?.subClass)}
           />
         )}
       </MapContainer>
