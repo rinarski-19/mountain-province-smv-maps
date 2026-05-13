@@ -117,11 +117,15 @@ export default function Home() {
   }, []);
 
   // Click a class in the sidebar → focus its first group + first barangay.
-  // Idempotent: clicking the already-active class does nothing (so the user
-  // can keep their position when poking around).
+  // Clicking the already-active class toggles it closed (clears selection)
+  // so parent rows feel responsive as an accordion control.
   const selectClass = useCallback(
     (id) => {
       if (id == null) {
+        clear();
+        return;
+      }
+      if (active?.id === id) {
         clear();
         return;
       }
@@ -132,7 +136,7 @@ export default function Home() {
       setBarangayIdx(0);
       setFocusRequestId((n) => n + 1);
     },
-    [clear, classifications]
+    [active?.id, clear, classifications]
   );
 
   // Click a specific barangay under a class → jump to the first group inside
