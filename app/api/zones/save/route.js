@@ -22,9 +22,13 @@ import path from "node:path";
 
 const TARGETS_BY_SLUG = {
   bauko: "bauko_zones.geojson",
+  "bauko-dxf": "bauko_zones_dxf.geojson",
   barlig: "barlig_zones.geojson",
   tadian: "tadian_zones.geojson",
   sagada: "sagada_zones.geojson",
+  "sagada-dxf": "sagada_zones_dxf.geojson",
+  bontoc: "bontoc_zones.geojson",
+  "bontoc-dxf": "bontoc_zones_dxf.geojson",
 };
 
 function isFeatureCollection(value) {

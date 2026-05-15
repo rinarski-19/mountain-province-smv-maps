@@ -1,0 +1,218 @@
+{
+  "municipality": "Bauko",
+  "province": "Mountain Province",
+  "schedule_year": 2027,
+  "title": "Schedule of Base Unit Market Values for Residential, Commercial and Industrial Lands",
+  "barangays": [
+    "Abatan",
+    "Mabaay",
+    "Sinto",
+    "Sadsadan",
+    "Poblacion",
+    "Mount Data",
+    "Monamon Sur",
+    "Monamon Norte",
+    "Banao",
+    "Otucan Sur",
+    "Otucan Norte",
+    "Bila",
+    "Guinzadan Sur",
+    "Guinzadan Central",
+    "Guinzadan Norte",
+    "Tapapan",
+    "Leseb",
+    "Lagawa",
+    "Bagnen Oriente",
+    "Bagnen Proper",
+    "Mayag",
+    "Balintaugan"
+  ],
+  "classifications": [
+    {
+      "subClass": "C-1",
+      "category": "commercial",
+      "value_2027": 6240,
+      "location_groups": [
+        {
+          "label": "Commercial lots along Provincial and National Roads of Abatan.",
+          "barangays": ["Abatan"]
+        }
+      ]
+    },
+    {
+      "subClass": "C-2",
+      "category": "commercial",
+      "value_2027": 5140,
+      "location_groups": [
+        {
+          "label": "Commercial lots along National Road of Mabaay, Sinto, Sadsadan and Poblacion.",
+          "barangays": ["Mabaay", "Poblacion", "Sadsadan", "Sinto"]
+        },
+        {
+          "label": "Commercial inner lots of Abatan.",
+          "barangays": ["Abatan"]
+        }
+      ]
+    },
+    {
+      "subClass": "C-3",
+      "category": "commercial",
+      "value_2027": 4030,
+      "location_groups": [
+        {
+          "label": "Commercial lots along all-weather roads of Mount Data, Monamon Sur, Monamon Norte, Banao, Otucan Sur, Otucan Norte, Bila, Guinzadan Sur, Guinzadan Central, Guinzadan Norte, Tapapan, Leseb, Lagawa, Bagnen Oriente, Bagnen Proper, Mayag and Balintaugan.",
+          "barangays": [
+            "Bagnen Oriente",
+            "Bagnen Proper",
+            "Balintaugan",
+            "Banao",
+            "Bila",
+            "Guinzadan Central",
+            "Guinzadan Norte",
+            "Guinzadan Sur",
+            "Lagawa",
+            "Leseb",
+            "Mayag",
+            "Monamon Norte",
+            "Monamon Sur",
+            "Mount Data",
+            "Otucan Norte",
+            "Otucan Sur",
+            "Tapapan"
+          ]
+        },
+        {
+          "label": "Commercial inner lots of all barangays except Abatan.",
+          "barangays": [
+            "Bagnen Oriente",
+            "Bagnen Proper",
+            "Balintaugan",
+            "Banao",
+            "Bila",
+            "Guinzadan Central",
+            "Guinzadan Norte",
+            "Guinzadan Sur",
+            "Lagawa",
+            "Leseb",
+            "Mabaay",
+            "Mayag",
+            "Monamon Norte",
+            "Monamon Sur",
+            "Mount Data",
+            "Otucan Norte",
+            "Otucan Sur",
+            "Poblacion",
+            "Sadsadan",
+            "Sinto",
+            "Tapapan"
+          ]
+        }
+      ]
+    },
+    {
+      "subClass": "R-1",
+      "category": "residential",
+      "value_2027": 6240,
+      "location_groups": [
+        {
+          "label": "Residential lots along Provincial and National Roads of Abatan.",
+          "barangays": ["Abatan"]
+        }
+      ]
+    },
+    {
+      "subClass": "R-2",
+      "category": "residential",
+      "value_2027": 5140,
+      "location_groups": [
+        {
+          "label": "Residential lots along National Road of Mabaay, Sinto, Sadsadan, Poblacion, Guinzadan Central, Guinzadan Sur, Monamon Sur and Mount Data.",
+          "barangays": [
+            "Guinzadan Central",
+            "Guinzadan Sur",
+            "Mabaay",
+            "Monamon Sur",
+            "Mount Data",
+            "Poblacion",
+            "Sadsadan",
+            "Sinto"
+          ]
+        },
+        {
+          "label": "Residential inner lots of Abatan.",
+          "barangays": ["Abatan"]
+        }
+      ]
+    },
+    {
+      "subClass": "R-3",
+      "category": "residential",
+      "value_2027": 4030,
+      "location_groups": [
+        {
+          "label": "Residential inner lots of Mabaay, Sinto, Sadsadan, Guinzadan Central, Guinzadan Sur, Mount Data, Monamon Sur and Poblacion.",
+          "barangays": [
+            "Guinzadan Central",
+            "Guinzadan Sur",
+            "Mabaay",
+            "Monamon Sur",
+            "Mount Data",
+            "Poblacion",
+            "Sadsadan",
+            "Sinto"
+          ]
+        },
+        {
+          "label": "Residential lots along all-weather roads within the barangays of Guinzadan Norte, Tapapan, Leseb, Lagawa and Bila.",
+          "barangays": ["Bila", "Guinzadan Norte", "Lagawa", "Leseb", "Tapapan"]
+        },
+        {
+          "label": "Residential lots along National Road and all-weather roads within Banao and Otucan Sur, except from Kapayawan Bridge to Saint Paul Parish Church, Pak-as.",
+          "barangays": ["Banao", "Otucan Sur"]
+        }
+      ]
+    },
+    {
+      "subClass": "R-4",
+      "category": "residential",
+      "value_2027": 3150,
+      "location_groups": [
+        {
+          "label": "Residential inner lots of Monamon Norte, Banao, Otucan Sur, Otucan Norte, Tapapan, Leseb and Lagawa.",
+          "barangays": [
+            "Banao",
+            "Lagawa",
+            "Leseb",
+            "Monamon Norte",
+            "Otucan Norte",
+            "Otucan Sur",
+            "Tapapan"
+          ]
+        },
+        {
+          "label": "Residential lots along National Road within Otucan Sur from Kapayawan Bridge to Saint Paul Parish Church, Pak-as.",
+          "barangays": ["Otucan Sur"]
+        },
+        {
+          "label": "Residential lots along all-weather roads and inner lots within Mayag.",
+          "barangays": ["Mayag"]
+        },
+        {
+          "label": "Residential lots along all-weather roads and inner lots within Bagnen Proper and Bagnen Oriente.",
+          "barangays": ["Bagnen Oriente", "Bagnen Proper"]
+        }
+      ]
+    },
+    {
+      "subClass": "R-5",
+      "category": "residential",
+      "value_2027": 2480,
+      "location_groups": [
+        {
+          "label": "Residential lots along all-weather roads and inner lots of Balintaugan.",
+          "barangays": ["Balintaugan"]
+        }
+      ]
+    }
+  ]
+}

@@ -34,6 +34,9 @@ export default function Home() {
     barangays: true,
     zones: true,
     smv: false,
+    // Off by default — it's a guide for editors, not a consultation
+    // overlay. Editors flip it on from the Layers panel while drawing.
+    frontageBands: false,
   });
   const [savedBarangayViews, setSavedBarangayViews] = useState({});
   const [focusRequestId, setFocusRequestId] = useState(0);

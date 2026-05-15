@@ -202,18 +202,57 @@ code {
   pointer-events: none;
 }
 
-/* C-1 chip mirrors the C-1 zone's terracotta hatched fill on the map.
-   Background-color stays the class color (set inline); this layer adds
-   the diagonal stripes on top. Applied via .is-hatch so the same rule
-   covers the sidebar chip and the bottom-bar chip. */
+
+/* Multi-vertex tool: custom vertex handles rendered when the user
+   toggles "Vertices: multi" on the editor panel. Click toggles solo
+   selection, Shift+click adds to selection, drag any selected handle
+   moves all selected together, Delete (or the panel button) removes
+   them. Replaces Geoman's single-vertex handles for the active layer. */
+.vertex-handle {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #1d4ed8;
+  cursor: grab;
+  box-sizing: border-box;
+  box-shadow: 0 0 2px 0.5px rgba(0, 0, 0, 0.45);
+  transition: background-color 80ms ease, border-color 80ms ease,
+    transform 80ms ease;
+}
+.vertex-handle:hover {
+  border-color: #1e40af;
+  background: #dbeafe;
+  transform: scale(1.15);
+}
+.vertex-handle.is-selected {
+  background: #1d4ed8;
+  border-color: #0c2a6b;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 0 4px 1px rgba(0, 0, 0, 0.45);
+}
+.vertex-handle:active {
+  cursor: grabbing;
+}
+
+/* C-1 chip mirrors the C-1 zone's translucent-red + bold-red-diagonals
+   fill on the map. Background-color stays the class color (set inline)
+   at full saturation so the chip is recognisable in the legend even
+   though the zone fill on the map is more translucent. The diagonal
+   stripes here use white at 35% so the chip reads at a glance — the
+   map version uses red diagonals on a paler red base, but the chip
+   only needs to evoke "stripey", not reproduce the exact rendering.
+   Applied via .is-hatch so the same rule covers the sidebar chip and
+   the bottom-bar chip. */
 .smv-row__chip.is-hatch,
 .smv-summary__chip.is-hatch {
   background-image: repeating-linear-gradient(
     45deg,
     transparent 0,
     transparent 2px,
-    rgba(255, 255, 255, 0.35) 2px,
-    rgba(255, 255, 255, 0.35) 4px,
+    rgba(255, 255, 255, 0.4) 2px,
+    rgba(255, 255, 255, 0.4) 4px,
     transparent 4px,
     transparent 6px
   );

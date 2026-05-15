@@ -37,6 +37,7 @@ const MUNICIPALITY_CONFIG = {
   barlig: { module: "../lib/barlig.js", slugFnExport: "slugForBarligName" },
   tadian: { module: "../lib/tadian.js", slugFnExport: "slugForTadianName" },
   sagada: { module: "../lib/sagada.js", slugFnExport: "slugForSagadaName" },
+  bontoc: { module: "../lib/bontoc.js", slugFnExport: "slugForBontocName" },
 };
 
 // Drop pre-chip ways shorter than this — OSM noise (driveways, dead

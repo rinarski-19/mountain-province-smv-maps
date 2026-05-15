@@ -18,6 +18,70 @@ const ROAD_STYLE_DEFAULT = {
   opacity: 0.85,
   dashArray: null,
 };
+
+// Frontage-band chip styles. Each chip is one road-segment's 30m or
+// 60m band polygon (built by scripts/build-frontage-bands.mjs).
+// Default is a translucent fill so the user can see them without
+// obscuring the basemap; selected goes bold + thicker stroke.
+const BAND_STYLE_0_30 = {
+  color: "#dc2626",
+  weight: 1.2,
+  opacity: 0.7,
+  fillColor: "#dc2626",
+  fillOpacity: 0.08,
+  dashArray: null,
+};
+const BAND_STYLE_0_30_HOVER = {
+  color: "#dc2626",
+  weight: 2,
+  opacity: 1,
+  fillColor: "#dc2626",
+  fillOpacity: 0.18,
+  dashArray: null,
+};
+const BAND_STYLE_0_30_SELECTED = {
+  color: "#7f1d1d",
+  weight: 2.5,
+  opacity: 1,
+  fillColor: "#dc2626",
+  fillOpacity: 0.35,
+  dashArray: null,
+};
+const BAND_STYLE_30_60 = {
+  color: "#f59e0b",
+  weight: 1,
+  opacity: 0.6,
+  fillColor: "#f59e0b",
+  fillOpacity: 0.05,
+  dashArray: "4 3",
+};
+const BAND_STYLE_30_60_HOVER = {
+  color: "#f59e0b",
+  weight: 1.8,
+  opacity: 1,
+  fillColor: "#f59e0b",
+  fillOpacity: 0.14,
+  dashArray: "4 3",
+};
+const BAND_STYLE_30_60_SELECTED = {
+  color: "#92400e",
+  weight: 2.4,
+  opacity: 1,
+  fillColor: "#f59e0b",
+  fillOpacity: 0.32,
+  dashArray: null,
+};
+
+function bandStyleFor(feature, selected) {
+  const band = feature?.properties?.band;
+  if (band === "0-30") return selected ? BAND_STYLE_0_30_SELECTED : BAND_STYLE_0_30;
+  return selected ? BAND_STYLE_30_60_SELECTED : BAND_STYLE_30_60;
+}
+function bandHoverStyleFor(feature) {
+  const band = feature?.properties?.band;
+  if (band === "0-30") return BAND_STYLE_0_30_HOVER;
+  return BAND_STYLE_30_60_HOVER;
+}
 const ROAD_STYLE_HOVER = {
   color: "#f59e0b",
   weight: 5,
@@ -49,6 +113,35 @@ function roadFeatureKey(feature) {
   return `${p.osm_way_id ?? "?"}|${p.barangay_slug ?? "?"}|${tag}`;
 }
 
+function flattenLayerCandidates(input, out = []) {
+  if (!input) return out;
+  if (Array.isArray(input)) {
+    for (const child of input) flattenLayerCandidates(child, out);
+    return out;
+  }
+  if (typeof input.eachLayer === "function") {
+    input.eachLayer((child) => flattenLayerCandidates(child, out));
+    return out;
+  }
+  if (typeof input.toGeoJSON === "function") out.push(input);
+  return out;
+}
+
+function extractCutResultLayers(event) {
+  const layers = [];
+  flattenLayerCandidates(event?.layer, layers);
+  flattenLayerCandidates(event?.layers, layers);
+  flattenLayerCandidates(event?.resultingLayers, layers);
+  const seen = new Set();
+  const unique = [];
+  for (const layer of layers) {
+    if (!layer || seen.has(layer)) continue;
+    seen.add(layer);
+    unique.push(layer);
+  }
+  return unique;
+}
+
 // Standard depth from the 2027 schedule: 30 m on each side of the road.
 const DEFAULT_BUFFER_METERS = 30;
 
@@ -59,30 +152,93 @@ const DEFAULT_BUFFER_METERS = 30;
 // cut-out (corridor returns to the old "fat strip" look).
 const ROAD_INSET_METERS = 4;
 
+// Flat-capped buffer of a (Multi)LineString. turf.buffer always uses
+// rounded end caps (the underlying jsts.BufferParameters defaults to
+// CAP_ROUND and the option isn't exposed), which makes corridor zones
+// look like pills — bulging past the actual road endpoint.
+//
+// To get the perpendicular-cut "frontage strip" look LGU surveyors
+// expect, we instead:
+//   1. Offset the line by +r and -r perpendicular (turf.lineOffset)
+//   2. Stitch the two parallel lines into a single closed ring,
+//      connected by straight segments at each end
+//
+// The straight connectors at start/end ARE the flat caps. Sharp angles
+// along the line can produce small self-intersections at offsets; we
+// run buffer(0) on the result to clean those up.
+function flatCapBuffer(input, halfWidthM) {
+  if (!input) return null;
+  // Accept either a Feature wrapper (what turf.multiLineString() and
+  // turf.lineString() return) or a raw geometry object.
+  const geom = input.type === "Feature" ? input.geometry : input;
+  if (!geom) return null;
+  const lines =
+    geom.type === "MultiLineString"
+      ? geom.coordinates
+      : geom.type === "LineString"
+        ? [geom.coordinates]
+        : null;
+  if (!lines || lines.length === 0) return null;
+
+  const polys = [];
+  for (const coords of lines) {
+    if (!Array.isArray(coords) || coords.length < 2) continue;
+    let leftRing;
+    let rightRing;
+    try {
+      const ls = turf.lineString(coords);
+      leftRing = turf.lineOffset(ls, halfWidthM, { units: "meters" })
+        ?.geometry?.coordinates;
+      rightRing = turf.lineOffset(ls, -halfWidthM, { units: "meters" })
+        ?.geometry?.coordinates;
+    } catch (e) {
+      console.warn("flatCapBuffer: lineOffset failed for one segment", e);
+      continue;
+    }
+    if (!leftRing?.length || !rightRing?.length) continue;
+    // Close the ring: left coords forward, right coords reversed,
+    // then back to the starting vertex.
+    const ring = [
+      ...leftRing,
+      ...rightRing.slice().reverse(),
+      leftRing[0],
+    ];
+    try {
+      let poly = turf.polygon([ring]);
+      // Sharp corners can produce self-intersecting offsets; buffer(0)
+      // normalises the geometry.
+      const cleaned = turf.buffer(poly, 0, { units: "meters" });
+      polys.push(cleaned ?? poly);
+    } catch (e) {
+      console.warn("flatCapBuffer: polygon assembly failed", e);
+    }
+  }
+  if (polys.length === 0) return null;
+  if (polys.length === 1) return polys[0];
+  try {
+    return turf.union(turf.featureCollection(polys));
+  } catch {
+    return polys[0];
+  }
+}
+
 // Buffer a line (or multilinestring) into a corridor with the road
 // itself cut out — two ribbons on each side, ROAD_INSET_METERS in
 // from the centerline. Falls back to the plain symmetric buffer if
 // outerHalfWidthM is too small for a meaningful inset, or if the
 // difference operation throws (rare, but turf's polygon-clipping can
 // trip on near-tangent geometry).
+//
+// Both the outer corridor edge AND the inner road-inset use flat caps
+// so the corridor terminates with a perpendicular cut at each end
+// rather than a rounded pill.
 function bufferAlongsideRoad(geom, outerHalfWidthM) {
-  let outer;
-  try {
-    outer = turf.buffer(geom, outerHalfWidthM, { units: "meters" });
-  } catch (e) {
-    console.warn("bufferAlongsideRoad: outer buffer failed", e);
-    return null;
-  }
+  const outer = flatCapBuffer(geom, outerHalfWidthM);
   if (!outer?.geometry) return null;
   if (ROAD_INSET_METERS <= 0 || outerHalfWidthM <= ROAD_INSET_METERS + 1) {
     return outer;
   }
-  let inner;
-  try {
-    inner = turf.buffer(geom, ROAD_INSET_METERS, { units: "meters" });
-  } catch {
-    return outer;
-  }
+  const inner = flatCapBuffer(geom, ROAD_INSET_METERS);
   if (!inner?.geometry) return outer;
   try {
     const diff = turf.difference(turf.featureCollection([outer, inner]));
@@ -97,6 +253,47 @@ function bufferAlongsideRoad(geom, outerHalfWidthM) {
 // of the map). Edit-mode polygons reference the same pattern so a C-1 zone
 // looks identical whether it's the static read-only layer or being edited.
 const C1_HATCH_FILL = "url(#bauko-c1-smv-hatch)";
+
+// ---- Multi-vertex helpers ----
+// A polygon's coords from layer.getLatLngs() are nested arrays of L.LatLng:
+//   - Polygon:        [[ring]]
+//   - Polygon+holes:  [[outer], [hole1], [hole2]]
+//   - MultiPolygon:   [[[outer1], [hole1a]], [[outer2]]]
+// We flatten this into a list of { path: "0", "0-1", "1-0", … ; ring: [latlng, …] }
+// so each vertex can be uniquely keyed as `${path}|${vertexIdx}`.
+function ringsFromLatLngs(latlngs) {
+  const out = [];
+  const isLatLng = (v) =>
+    v && typeof v.lat === "number" && typeof v.lng === "number";
+  const walk = (node, path) => {
+    if (!Array.isArray(node) || node.length === 0) return;
+    if (isLatLng(node[0])) {
+      out.push({ path, ring: node });
+    } else {
+      for (let i = 0; i < node.length; i++) {
+        walk(node[i], path === "" ? String(i) : `${path}-${i}`);
+      }
+    }
+  };
+  walk(latlngs, "");
+  return out;
+}
+
+function vertexKey(ringPath, vertexIdx) {
+  return `${ringPath}|${vertexIdx}`;
+}
+function parseVertexKey(key) {
+  const [ringPath, vIdxStr] = key.split("|");
+  return { ringPath, vertexIdx: parseInt(vIdxStr, 10) };
+}
+function getRingByPath(latlngs, ringPath) {
+  if (ringPath === "") return latlngs;
+  let cur = latlngs;
+  for (const i of ringPath.split("-").map(Number)) {
+    cur = cur?.[i];
+  }
+  return cur;
+}
 
 // A leaflet-geoman-driven layer for drawing/editing custom zones.
 // Loads the leaflet-geoman plugin client-side, attaches a feature group,
@@ -116,6 +313,8 @@ export default function EditableZones({
   saveSlug = "bauko",
   savePathLabel = "public/data/bauko_zones.geojson",
   roadsUrl = null,
+  frontageBandsUrl = null,
+  showFrontageBands = false,
   classKeys = null,
 }) {
   const map = useMap();
@@ -137,6 +336,43 @@ export default function EditableZones({
   const [selectedRoadKeys, setSelectedRoadKeys] = useState(() => new Set());
   const roadsLayerRef = useRef(null);
   const roadsByKeyRef = useRef(new Map()); // key → { feature, leafletLayer }
+  // Frontage-band selection — parallel to roads but each chip is already
+  // a polygon, so bake-to-zone uses the geometry directly (no buffer
+  // step). Set members are the chip_id from the bands file.
+  const [selectedBandKeys, setSelectedBandKeys] = useState(() => new Set());
+  const bandsLayerRef = useRef(null);
+  const bandsByKeyRef = useRef(new Map()); // chip_id → { feature, leafletLayer }
+  const selectedBandKeysRef = useRef(selectedBandKeys);
+  useEffect(() => {
+    selectedBandKeysRef.current = selectedBandKeys;
+  }, [selectedBandKeys]);
+
+  // ---- Multi-vertex select / move / delete ----
+  // When toggled on AND a polygon zone is selected, we hide Geoman's
+  // single-vertex handles and render our own. Click a vertex to select
+  // (single), Shift+click to add to selection, drag any selected vertex
+  // to move all selected together, Delete key (or "Delete vertices"
+  // button) removes all selected vertices.
+  //
+  // Off by default — leaves Geoman's stock per-layer editing intact
+  // (drag single vertex, right-click to remove, click edge to insert).
+  const [multiVertexMode, setMultiVertexMode] = useState(false);
+  const multiVertexModeRef = useRef(multiVertexMode);
+  useEffect(() => {
+    multiVertexModeRef.current = multiVertexMode;
+  }, [multiVertexMode]);
+  const [selectedVertexKeys, setSelectedVertexKeys] = useState(() => new Set());
+  const selectedVertexKeysRef = useRef(selectedVertexKeys);
+  useEffect(() => {
+    selectedVertexKeysRef.current = selectedVertexKeys;
+  }, [selectedVertexKeys]);
+  const vertexLayerRef = useRef(null);
+  const vertexMarkersByKeyRef = useRef(new Map()); // key → L.Marker
+  const vertexDragStateRef = useRef(null);
+  const cutScopedGroupRef = useRef(null);
+  // Bumped on every selectLayer call so the multi-vertex effect can
+  // rebuild handles when the user switches between polygons.
+  const [selectedLayerVersion, setSelectedLayerVersion] = useState(0);
   const [editorState, setEditorState] = useState({
     canUndo: false,
     canRedo: false,
@@ -186,10 +422,24 @@ export default function EditableZones({
       // we never instantiate vertex markers for the other ~hundreds
       // of holes across all the other corridors. Massive perf win
       // vs leaflet-geoman's global edit mode.
+      //
+      // We skip this when multi-vertex mode is active — our own marker
+      // layer takes over (rendered by the effect below). Toggling
+      // multi-vertex off restores Geoman's per-layer handles.
       try {
-        if (layer.pm && !layer.pm.enabled?.()) {
+        if (
+          layer.pm &&
+          !layer.pm.enabled?.() &&
+          !multiVertexModeRef.current
+        ) {
           layer.pm.enable({
-            allowSelfIntersection: false,
+            // Loosened from `false` because Geoman would silently
+            // reject vertex moves on complex polygons-with-holes
+            // (e.g. a baked frontage corridor with the road carved
+            // out): the user would drag the vertex but it would snap
+            // back and look like "the vertex won't move". Allow the
+            // move; we can validate at save time if it ever bites.
+            allowSelfIntersection: true,
             preventMarkerRemoval: false,
             snappable: true,
           });
@@ -209,6 +459,11 @@ export default function EditableZones({
       setSecondaryClass("");
       setTertiaryClass("");
     }
+    // Bump the version so the multi-vertex effect rebuilds its handles
+    // for the newly-selected polygon. Also clear any vertex selection
+    // — selections don't carry across polygons.
+    setSelectedLayerVersion((v) => v + 1);
+    setSelectedVertexKeys(new Set());
     syncEditorState();
   };
 
@@ -410,7 +665,21 @@ export default function EditableZones({
         const layer = L.geoJSON(fc, {
           pane: "osm-roads-pane",
           style: () => ROAD_STYLE_DEFAULT,
+          // pmIgnore on the parent group + every child line tells
+          // leaflet-geoman to skip the road network entirely. Without
+          // this, the global snap (snapDistance: 8px) latches a
+          // dragged zone vertex onto whichever road centerline is
+          // closest, which routinely produces weird "bent into the
+          // road" shapes when editing corridor polygons that hug a
+          // road.
+          pmIgnore: true,
           onEachFeature: (feature, leafletLayer) => {
+            // Belt-and-suspenders: also flag each child line. The
+            // parent group's pmIgnore is enough for Geoman 2.19+, but
+            // some snap probes still walk children directly.
+            leafletLayer.options = leafletLayer.options || {};
+            leafletLayer.options.pmIgnore = true;
+            leafletLayer.options.snapIgnore = true;
             const key = roadFeatureKey(feature);
             byKey.set(key, { feature, leafletLayer });
             leafletLayer.on("click", (ev) => {
@@ -464,6 +733,323 @@ export default function EditableZones({
     };
   }, [roadsUrl, visible, map]);
 
+  // Fetch the chipped frontage-bands file when the bands toggle is on.
+  // Each chip is one road segment's 0–30 m or 30–60 m polygon. Shift+
+  // click toggles selection; the chip-onClick down below converts the
+  // selected band polygons directly into a zone (no buffering needed —
+  // they're already the right shape).
+  useEffect(() => {
+    if (!frontageBandsUrl || !visible || !map || !showFrontageBands) return;
+    let cancelled = false;
+    const byKey = new Map();
+    bandsByKeyRef.current = byKey;
+
+    // Pane below the roads layer so road centerlines still take click
+    // priority where they overlap with band fills.
+    if (!map.getPane("frontage-bands-edit-pane")) {
+      const pane = map.createPane("frontage-bands-edit-pane");
+      pane.style.zIndex = 435;
+    }
+
+    fetch(frontageBandsUrl, { cache: "force-cache" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((fc) => {
+        if (cancelled || !fc?.features) return;
+        const layer = L.geoJSON(fc, {
+          pane: "frontage-bands-edit-pane",
+          style: (feature) => bandStyleFor(feature, false),
+          // Bands are non-editable guides — keep them out of geoman's
+          // snap + edit pipeline.
+          pmIgnore: true,
+          onEachFeature: (feature, leafletLayer) => {
+            leafletLayer.options = leafletLayer.options || {};
+            leafletLayer.options.pmIgnore = true;
+            leafletLayer.options.snapIgnore = true;
+            const key = feature.properties?.chip_id;
+            if (!key) return;
+            byKey.set(key, { feature, leafletLayer });
+            leafletLayer.on("click", (ev) => {
+              // Same UX as road click — Shift gates the selection so
+              // ordinary clicks don't accidentally toggle bands when
+              // the user just wants to pan or click through to a zone.
+              if (!ev?.originalEvent?.shiftKey) return;
+              L.DomEvent.stopPropagation(ev);
+              setSelectedBandKeys((prev) => {
+                const next = new Set(prev);
+                if (next.has(key)) next.delete(key);
+                else next.add(key);
+                return next;
+              });
+            });
+            leafletLayer.on("mouseover", () => {
+              if (!selectedBandKeysRef.current.has(key)) {
+                leafletLayer.setStyle(bandHoverStyleFor(feature));
+              }
+            });
+            leafletLayer.on("mouseout", () => {
+              if (!selectedBandKeysRef.current.has(key)) {
+                leafletLayer.setStyle(bandStyleFor(feature, false));
+              }
+            });
+            const tip = [
+              feature.properties?.label,
+              feature.properties?.road_name || "(unnamed road)",
+              feature.properties?.road_highway,
+              feature.properties?.barangay_name,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            leafletLayer.bindTooltip(tip, { sticky: true });
+          },
+        });
+        layer.addTo(map);
+        bandsLayerRef.current = layer;
+      })
+      .catch(() => {
+        // Bands file missing — silently skip; bands just won't be
+        // available. Run `npm run bands:<slug>` to generate.
+      });
+
+    return () => {
+      cancelled = true;
+      if (bandsLayerRef.current) {
+        map.removeLayer(bandsLayerRef.current);
+        bandsLayerRef.current = null;
+      }
+      bandsByKeyRef.current = new Map();
+    };
+  }, [frontageBandsUrl, visible, map, showFrontageBands]);
+
+  // Restyle every band chip whenever the selection set changes.
+  useEffect(() => {
+    const byKey = bandsByKeyRef.current;
+    if (!byKey) return;
+    for (const [key, { feature, leafletLayer }] of byKey) {
+      leafletLayer.setStyle(bandStyleFor(feature, selectedBandKeys.has(key)));
+    }
+  }, [selectedBandKeys]);
+
+  // ---- Multi-vertex tool: render handles when toggled on ----
+  useEffect(() => {
+    // Tear down any previous markers + state.
+    const tearDown = () => {
+      if (vertexLayerRef.current) {
+        try {
+          map.removeLayer(vertexLayerRef.current);
+        } catch {}
+        vertexLayerRef.current = null;
+      }
+      vertexMarkersByKeyRef.current = new Map();
+      vertexDragStateRef.current = null;
+    };
+    tearDown();
+
+    const sel = selectedLayerRef.current;
+
+    // When multi-vertex mode is OFF, restore Geoman's per-layer edit
+    // on the currently-selected polygon (if any) so the user gets the
+    // built-in single-vertex drag + edge-insert behavior back.
+    if (!multiVertexMode) {
+      if (sel && sel.pm && !sel.pm.enabled?.()) {
+        try {
+          sel.pm.enable({
+            // Same loosening as in selectLayer — Geoman's intersection
+            // check silently rejects vertex moves on complex baked
+            // corridors, which the user perceives as "vertex won't
+            // move".
+            allowSelfIntersection: true,
+            preventMarkerRemoval: false,
+            snappable: true,
+          });
+        } catch {}
+      }
+      return;
+    }
+
+    if (!sel || typeof sel.getLatLngs !== "function") return;
+    // While our markers are active, suppress Geoman's vertex handles
+    // on the selected layer to avoid two sets of markers overlapping.
+    if (sel.pm?.enabled?.()) {
+      try {
+        sel.pm.disable();
+      } catch {}
+    }
+
+    // Dedicated pane so vertex handles always sit above the polygon
+    // fills and the labels overlay.
+    if (!map.getPane("vertex-pane")) {
+      const pane = map.createPane("vertex-pane");
+      pane.style.zIndex = 470;
+    }
+
+    const vGroup = L.layerGroup().addTo(map);
+    vertexLayerRef.current = vGroup;
+    const markers = new Map();
+    vertexMarkersByKeyRef.current = markers;
+
+    const rings = ringsFromLatLngs(sel.getLatLngs());
+    for (const { path, ring } of rings) {
+      for (let vi = 0; vi < ring.length; vi++) {
+        const ll = ring[vi];
+        const key = vertexKey(path, vi);
+        const isSel = selectedVertexKeysRef.current.has(key);
+        const marker = L.marker(ll, {
+          icon: L.divIcon({
+            className: `vertex-handle${isSel ? " is-selected" : ""}`,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6],
+          }),
+          pane: "vertex-pane",
+          draggable: true,
+          keyboard: false,
+          // We don't need geoman to track this layer.
+          pmIgnore: true,
+        });
+
+        marker.on("click", (e) => {
+          const shift = !!e.originalEvent?.shiftKey;
+          setSelectedVertexKeys((prev) => {
+            const next = new Set(prev);
+            if (shift) {
+              if (next.has(key)) next.delete(key);
+              else next.add(key);
+            } else {
+              // Plain click: select solo. If already the sole
+              // selection, deselect.
+              if (next.size === 1 && next.has(key)) {
+                next.clear();
+              } else {
+                next.clear();
+                next.add(key);
+              }
+            }
+            return next;
+          });
+        });
+
+        marker.on("contextmenu", (e) => {
+          e.originalEvent?.preventDefault?.();
+          // Right-click removes just this vertex.
+          removeVerticesByKey(new Set([key]));
+        });
+
+        marker.on("dragstart", () => {
+          // If the dragged vertex isn't already selected, treat the
+          // drag as a solo move (don't drag an unrelated selection).
+          const cur = selectedVertexKeysRef.current;
+          const dragSel = cur.has(key) ? cur : new Set([key]);
+          const layerLatLngs = sel.getLatLngs();
+          const startPositions = new Map();
+          for (const k of dragSel) {
+            const { ringPath, vertexIdx } = parseVertexKey(k);
+            const r = getRingByPath(layerLatLngs, ringPath);
+            const v = r?.[vertexIdx];
+            if (v) startPositions.set(k, L.latLng(v.lat, v.lng));
+          }
+          vertexDragStateRef.current = {
+            dragKey: key,
+            dragStartLatLng: marker.getLatLng(),
+            selection: dragSel,
+            startPositions,
+          };
+        });
+
+        marker.on("drag", () => {
+          const ds = vertexDragStateRef.current;
+          if (!ds) return;
+          const cur = marker.getLatLng();
+          const dLat = cur.lat - ds.dragStartLatLng.lat;
+          const dLng = cur.lng - ds.dragStartLatLng.lng;
+          const layerLatLngs = sel.getLatLngs();
+          for (const k of ds.selection) {
+            const start = ds.startPositions.get(k);
+            if (!start) continue;
+            const newLatLng = L.latLng(start.lat + dLat, start.lng + dLng);
+            const { ringPath, vertexIdx } = parseVertexKey(k);
+            const r = getRingByPath(layerLatLngs, ringPath);
+            if (!r || !r[vertexIdx]) continue;
+            r[vertexIdx] = newLatLng;
+            // Move the visible marker for every selected vertex EXCEPT
+            // the one being dragged (Leaflet already moved it).
+            if (k !== ds.dragKey) {
+              const otherMarker = vertexMarkersByKeyRef.current.get(k);
+              if (otherMarker) otherMarker.setLatLng(newLatLng);
+            }
+          }
+          sel.setLatLngs(layerLatLngs);
+        });
+
+        marker.on("dragend", () => {
+          vertexDragStateRef.current = null;
+          pushHistory();
+          refresh();
+        });
+
+        marker.addTo(vGroup);
+        markers.set(key, marker);
+      }
+    }
+
+    return () => {
+      tearDown();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiVertexMode, selectedLayerVersion]);
+
+  // Restyle vertex handles when the per-vertex selection changes.
+  useEffect(() => {
+    const markers = vertexMarkersByKeyRef.current;
+    if (!markers) return;
+    for (const [key, marker] of markers) {
+      const isSel = selectedVertexKeys.has(key);
+      const iconEl = marker.getElement();
+      if (iconEl) {
+        iconEl.classList.toggle("is-selected", isSel);
+      }
+    }
+  }, [selectedVertexKeys]);
+
+  // Remove a set of vertices from the currently-selected polygon.
+  // Validates each ring keeps at least 3 vertices — silently skips
+  // removals that would degenerate a ring.
+  const removeVerticesByKey = (keys) => {
+    const sel = selectedLayerRef.current;
+    if (!sel || typeof sel.getLatLngs !== "function") return;
+    const latlngs = sel.getLatLngs();
+    // Group keys by ring path so we can remove descending indices and
+    // count survivors per ring.
+    const byRing = new Map(); // ringPath → Set<vertexIdx>
+    for (const k of keys) {
+      const { ringPath, vertexIdx } = parseVertexKey(k);
+      if (!byRing.has(ringPath)) byRing.set(ringPath, new Set());
+      byRing.get(ringPath).add(vertexIdx);
+    }
+    let anyRemoved = false;
+    for (const [ringPath, indices] of byRing) {
+      const ring = getRingByPath(latlngs, ringPath);
+      if (!Array.isArray(ring)) continue;
+      const survivors = ring.length - indices.size;
+      if (survivors < 3) {
+        console.warn(
+          `Refusing to remove ${indices.size} vertices from ring ${ringPath} — would leave ${survivors}, polygons need ≥3.`
+        );
+        continue;
+      }
+      // Remove from highest index downward to keep lower indices stable.
+      const sorted = [...indices].sort((a, b) => b - a);
+      for (const i of sorted) ring.splice(i, 1);
+      anyRemoved = true;
+    }
+    if (!anyRemoved) return;
+    sel.setLatLngs(latlngs);
+    // Selection no longer references valid indices — clear it and let
+    // the version bump rebuild markers from scratch.
+    setSelectedVertexKeys(new Set());
+    setSelectedLayerVersion((v) => v + 1);
+    pushHistory();
+    refresh();
+  };
+
   // Restyle every road sub-layer whenever the selection set changes.
   useEffect(() => {
     const byKey = roadsByKeyRef.current;
@@ -475,58 +1061,258 @@ export default function EditableZones({
     }
   }, [selectedRoadKeys]);
 
-  // Convert the currently-selected road segments into a corridor zone
-  // tagged with `klass`. Used by the class chip onClick when the user
-  // has roads selected. Returns true if it added a zone (so the chip
-  // handler knows to short-circuit out of its other branches).
+  // Convert the currently-selected road segments AND/OR frontage-band
+  // chips into a zone tagged with `klass`. Used by the class chip
+  // onClick when the user has either kind of selection active. Returns
+  // true if it added a zone (so the chip handler knows to short-circuit
+  // out of its other branches).
+  //
+  // Two paths feed into the resulting polygon:
+  //   - Selected ROADS    → buffered along centerline (flat-cap, with
+  //                         optional road-inset carve-out)
+  //   - Selected BANDS    → polygon used directly (already the right
+  //                         shape — no buffer step)
+  // If both kinds are selected, the results are unioned into a single
+  // zone polygon so the user gets one combined shape.
   const bakeRoadsIntoCorridor = (klass) => {
     const group = groupRef.current;
-    const byKey = roadsByKeyRef.current;
-    if (!group || !byKey || selectedRoadKeysRef.current.size === 0) return false;
+    const roadByKey = roadsByKeyRef.current;
+    const bandByKey = bandsByKeyRef.current;
+    const roadSel = selectedRoadKeysRef.current;
+    const bandSel = selectedBandKeysRef.current;
+    if (!group) return false;
+    if (roadSel.size === 0 && bandSel.size === 0) return false;
 
-    const coordsList = [];
-    for (const key of selectedRoadKeysRef.current) {
-      const entry = byKey.get(key);
-      const geom = entry?.feature?.geometry;
-      if (geom?.type === "LineString") {
-        coordsList.push(geom.coordinates);
-      } else if (geom?.type === "MultiLineString") {
-        for (const line of geom.coordinates) coordsList.push(line);
+    const candidatePolys = [];
+
+    // ---- Path 1: roads → flat-cap buffer ----
+    if (roadByKey && roadSel.size > 0) {
+      const coordsList = [];
+      for (const key of roadSel) {
+        const entry = roadByKey.get(key);
+        const geom = entry?.feature?.geometry;
+        if (geom?.type === "LineString") {
+          coordsList.push(geom.coordinates);
+        } else if (geom?.type === "MultiLineString") {
+          for (const line of geom.coordinates) coordsList.push(line);
+        }
+      }
+      if (coordsList.length) {
+        try {
+          const mls = turf.multiLineString(coordsList);
+          const buffered = bufferAlongsideRoad(mls, bufferMetersRef.current);
+          if (buffered?.geometry) candidatePolys.push(buffered);
+        } catch (e) {
+          console.warn("bakeRoadsIntoCorridor: road buffer failed", e);
+        }
       }
     }
-    if (!coordsList.length) return false;
 
-    let buffered;
+    // ---- Path 2: bands → use polygons directly ----
+    if (bandByKey && bandSel.size > 0) {
+      for (const key of bandSel) {
+        const entry = bandByKey.get(key);
+        const feat = entry?.feature;
+        if (!feat?.geometry) continue;
+        candidatePolys.push({
+          type: "Feature",
+          properties: feat.properties ?? {},
+          geometry: feat.geometry,
+        });
+      }
+    }
+
+    if (candidatePolys.length === 0) return false;
+
+    // Combine into one geometry via tree-reduce. We previously called
+    // turf.union once across the whole array — if that threw (rare,
+    // but possible on degenerate polygons), we'd silently drop N-1
+    // candidates and only keep the first. Tree-reduce keeps going past
+    // a bad pair and ends with a Polygon (touching pieces) or
+    // MultiPolygon (disjoint pieces) — both render as a single
+    // editable Leaflet layer.
+    let combined = null;
+    for (const cand of candidatePolys) {
+      if (!combined) {
+        combined = cand;
+        continue;
+      }
+      try {
+        const merged = turf.union(turf.featureCollection([combined, cand]));
+        if (merged?.geometry) {
+          combined = merged;
+        }
+      } catch (e) {
+        console.warn(
+          "bakeRoadsIntoCorridor: union step failed, keeping previous combined geometry",
+          e
+        );
+      }
+    }
+    if (!combined?.geometry) return false;
+
+    // Normalise the merged geometry. turf.union (and the band-buffer
+    // pipeline before it) routinely leaves:
+    //   - Duplicate consecutive vertices where two chips meet
+    //   - Colinear vertices along a long straight road segment
+    //   - Tiny self-intersection nubs from the lineOffset stitching
+    // Geoman's vertex marker layout silently skips duplicate/colinear
+    // vertices, which is what the user sees as "this vertex won't
+    // move" — there's no marker on it. cleanCoords drops the dupes,
+    // and a 0-buffer pass repairs any degenerate ring topology so the
+    // polygon is truly simple before we wrap it in a Leaflet layer.
     try {
-      const mls = turf.multiLineString(coordsList);
-      buffered = bufferAlongsideRoad(mls, bufferMetersRef.current);
+      combined = turf.cleanCoords(combined);
     } catch (e) {
-      console.warn("bakeRoadsIntoCorridor: buffer failed", e);
+      // cleanCoords is finicky on MultiPolygon-with-holes; leave as-is
+      // if it errors.
+    }
+    try {
+      const repaired = turf.buffer(combined, 0, { units: "meters" });
+      if (repaired?.geometry) combined = repaired;
+    } catch {}
+    if (!combined?.geometry) return false;
+
+    // Clip the new polygon against every existing zone in the group so
+    // we never paint on top of an already-classified area. Without this
+    // the user would get double-tagged overlaps that look messy on the
+    // map and confuse downstream consumers of the GeoJSON (which expect
+    // one class per parcel).
+    //
+    // We iterate one-by-one rather than unioning all existing first —
+    // it's slower per call but more resilient to malformed legacy
+    // polygons (one bad union would break everything; one bad
+    // difference just leaves that zone unsubtracted).
+    let trimmed = combined;
+    let clipBbox;
+    try {
+      clipBbox = turf.bbox(trimmed);
+    } catch {
+      clipBbox = null;
+    }
+    let clipsHit = 0;
+    if (clipBbox) {
+      group.eachLayer((existing) => {
+        if (!trimmed?.geometry) return;
+        // Skip the layer being subtracted by, in case bake somehow
+        // re-iterates over the freshly-added shape (it shouldn't, since
+        // we add after this loop — defensive).
+        let existingFeature;
+        try {
+          existingFeature = existing.toGeoJSON();
+        } catch {
+          return;
+        }
+        if (
+          !existingFeature?.geometry ||
+          !["Polygon", "MultiPolygon"].includes(existingFeature.geometry.type)
+        ) {
+          return;
+        }
+        // Bbox pre-filter: skip zones whose bounding box can't possibly
+        // overlap our candidate. With hundreds of existing polygons,
+        // this is the difference between a snappy click and a 5-second
+        // freeze on a populated municipality.
+        let eb;
+        try {
+          eb = turf.bbox(existingFeature);
+        } catch {
+          return;
+        }
+        if (
+          eb[2] < clipBbox[0] ||
+          eb[0] > clipBbox[2] ||
+          eb[3] < clipBbox[1] ||
+          eb[1] > clipBbox[3]
+        ) {
+          return;
+        }
+        try {
+          const diff = turf.difference(
+            turf.featureCollection([trimmed, existingFeature])
+          );
+          if (diff?.geometry) {
+            // Track that we actually subtracted something so we can tell
+            // the user when the entire candidate got eaten.
+            clipsHit += 1;
+            trimmed = diff;
+            // Update the bbox so subsequent rejects can be tighter.
+            try {
+              clipBbox = turf.bbox(trimmed);
+            } catch {}
+          } else {
+            // Difference returned null = candidate fully covered by this
+            // existing zone. Nothing left to add.
+            trimmed = null;
+          }
+        } catch {
+          // Degenerate polygon — leave trimmed as-is and move on.
+        }
+      });
+    }
+
+    if (!trimmed?.geometry) {
+      alert(
+        "This area is already fully classified — every part of the " +
+          "selection overlaps an existing zone. Nothing new was added."
+      );
+      setSelectedRoadKeys(new Set());
+      setSelectedBandKeys(new Set());
       return false;
     }
-    if (!buffered?.geometry) return false;
+    // From here on use the clipped version.
+    combined = trimmed;
 
     const props = {
       classification: klass,
-      source: "road-tag",
-      buffer_m: bufferMetersRef.current,
-      road_keys: [...selectedRoadKeysRef.current],
+      // Source label reflects what fed in: roads-only, bands-only, or
+      // both. Useful for later audits — bands-derived zones don't have
+      // a buffer width because their depth is baked in (30 m or 60 m).
+      source:
+        roadSel.size > 0 && bandSel.size > 0
+          ? "road+band-tag"
+          : bandSel.size > 0
+            ? "band-tag"
+            : "road-tag",
+      ...(roadSel.size > 0 ? { buffer_m: bufferMetersRef.current } : {}),
+      ...(roadSel.size > 0 ? { road_keys: [...roadSel] } : {}),
+      ...(bandSel.size > 0 ? { band_keys: [...bandSel] } : {}),
+      // True when at least one existing zone clipped this candidate.
+      // Useful for audits ("is this an outline shape, or what survived
+      // after clipping against neighbors?").
+      ...(clipsHit > 0 ? { clipped_against_existing: clipsHit } : {}),
     };
     const wrap = L.geoJSON(
-      { type: "Feature", properties: props, geometry: buffered.geometry },
+      { type: "Feature", properties: props, geometry: combined.geometry },
       { style: () => ({}) }
     );
+    // Capture the last sub-layer added so we can auto-select it below.
+    // For Polygon geometries, wrap has a single sub-layer; for
+    // MultiPolygons (disjoint chips), it still becomes one Leaflet
+    // polygon layer that handles all rings — Geoman lets the user
+    // edit each ring's vertices in place.
+    let newLayer = null;
     wrap.eachLayer((sub) => {
       sub.feature = sub.feature || { type: "Feature", properties: {} };
       sub.feature.properties = { ...sub.feature.properties, ...props };
       applyFeatureStyle(sub, klass);
       prepareLayer(sub);
       group.addLayer(sub);
+      newLayer = sub;
     });
 
     setSelectedRoadKeys(new Set());
+    setSelectedBandKeys(new Set());
     pushHistory();
     refresh();
+    // Auto-select the freshly-added zone so its vertex handles appear
+    // immediately — the user can drag/insert/delete vertices straight
+    // away without having to click the new shape first. selectLayer
+    // also wires up Geoman's per-layer edit mode (snap, marker
+    // removal, etc.).
+    if (newLayer) {
+      selectLayer(newLayer);
+    }
     return true;
   };
 
@@ -576,7 +1362,11 @@ export default function EditableZones({
       layerGroup: group,
       snappable: true,
       snapDistance: 8,
-      allowSelfIntersection: false,
+      // Don't reject self-intersecting moves at the global level —
+      // baked frontage corridors are complex polygons-with-holes and
+      // Geoman's check would silently swallow legitimate vertex drags.
+      // Per-layer pm.enable mirrors this setting.
+      allowSelfIntersection: true,
       tooltips: false,
     });
     map.pm.addControls({
@@ -615,7 +1405,7 @@ export default function EditableZones({
     //      containing only the selection.
     // Both are restored on exit so subsequent draws / edits behave
     // normally.
-    map.on("pm:globalcutmodetoggled", (e) => {
+    const onGlobalCutModeToggled = (e) => {
       if (e.enabled) {
         const selected = selectedLayerRef.current;
         if (!selected) {
@@ -628,6 +1418,8 @@ export default function EditableZones({
           }, 0);
           return;
         }
+        const cutScope = L.featureGroup([selected]);
+        cutScopedGroupRef.current = cutScope;
         group.eachLayer((layer) => {
           if (layer !== selected) {
             layer.options = layer.options || {};
@@ -636,10 +1428,11 @@ export default function EditableZones({
         });
         try {
           map.pm.setGlobalOptions({
-            layerGroup: L.featureGroup([selected]),
+            layerGroup: cutScope,
           });
         } catch {}
       } else {
+        cutScopedGroupRef.current = null;
         group.eachLayer((layer) => {
           if (layer.options && "pmIgnore" in layer.options) {
             delete layer.options.pmIgnore;
@@ -649,7 +1442,53 @@ export default function EditableZones({
           map.pm.setGlobalOptions({ layerGroup: group });
         } catch {}
       }
-    });
+    };
+
+    const onCut = (e) => {
+      if (isRestoringRef.current) return;
+
+      const original = e?.originalLayer ?? null;
+      const sourceProps = original?.feature?.properties ?? {};
+      const resultLayers = extractCutResultLayers(e).filter(
+        (layer) => layer && layer !== original
+      );
+
+      if (original) {
+        if (selectedLayerRef.current === original) {
+          selectedLayerRef.current = null;
+        }
+        try {
+          group.removeLayer(original);
+        } catch {}
+        try {
+          map.removeLayer(original);
+        } catch {}
+      }
+
+      if (resultLayers.length === 0) {
+        pushHistory();
+        refresh();
+        return;
+      }
+
+      for (const layer of resultLayers) {
+        layer.feature = layer.feature || { type: "Feature", properties: {} };
+        layer.feature.properties = {
+          ...sourceProps,
+          ...(layer.feature.properties || {}),
+        };
+        applyFeatureStyle(layer, layer.feature.properties?.classification);
+        prepareLayer(layer);
+        if (!group.hasLayer(layer)) {
+          group.addLayer(layer);
+        }
+      }
+
+      // Select the first resulting piece so follow-up edits are immediate.
+      selectLayer(resultLayers[0]);
+      pushHistory();
+      refresh();
+    };
 
     // Tag any newly drawn shape with the currently selected classification.
     // For polylines (corridors along roads), buffer them by `bufferMeters`
@@ -759,6 +1598,16 @@ export default function EditableZones({
       } else if (wantsRedo) {
         e.preventDefault();
         redo();
+      } else if (
+        wantsDelete &&
+        multiVertexModeRef.current &&
+        selectedVertexKeysRef.current.size > 0
+      ) {
+        // In multi-vertex mode with vertices selected, Delete removes
+        // those vertices (not the whole zone). Avoids the user
+        // accidentally nuking a corridor while trying to trim a corner.
+        e.preventDefault();
+        removeVerticesByKey(selectedVertexKeysRef.current);
       } else if (wantsDelete && selectedLayerRef.current) {
         e.preventDefault();
         deleteSelected();
@@ -774,6 +1623,8 @@ export default function EditableZones({
     map.on("pm:globaleditmodetoggled", onGlobalMode);
     map.on("pm:globaldragmodetoggled", onGlobalMode);
     map.on("pm:globalremovalmodetoggled", onGlobalMode);
+    map.on("pm:globalcutmodetoggled", onGlobalCutModeToggled);
+    map.on("pm:cut", onCut);
     group.on("pm:edit", onEdit);
     document.addEventListener("keydown", onKeyDown);
 
@@ -787,8 +1638,20 @@ export default function EditableZones({
       map.off("pm:globaleditmodetoggled", onGlobalMode);
       map.off("pm:globaldragmodetoggled", onGlobalMode);
       map.off("pm:globalremovalmodetoggled", onGlobalMode);
+      map.off("pm:globalcutmodetoggled", onGlobalCutModeToggled);
+      map.off("pm:cut", onCut);
       group.off("pm:edit", onEdit);
       document.removeEventListener("keydown", onKeyDown);
+      // Ensure cut scope and pmIgnore flags never leak across remounts.
+      try {
+        cutScopedGroupRef.current = null;
+        group.eachLayer((layer) => {
+          if (layer.options && "pmIgnore" in layer.options) {
+            delete layer.options.pmIgnore;
+          }
+        });
+        map.pm.setGlobalOptions({ layerGroup: group });
+      } catch {}
       try {
         map.pm.removeControls();
       } catch {}
@@ -933,6 +1796,118 @@ export default function EditableZones({
       }
     };
     reader.readAsText(file);
+  };
+
+  // ---- DXF import flow ----
+  // Uploads a .dxf to /api/zones/import-dxf, which runs the Python
+  // converter and writes the resulting FeatureCollection straight to
+  // public/data/<slug>_zones[_dxf].geojson. Once the request resolves,
+  // we re-fetch that file and load it into the editor so the new zones
+  // are visible immediately (no page reload needed).
+  //
+  // The on-disk file is replaced wholesale, so we confirm first to
+  // avoid accidental destruction of in-progress edits. Local-dev only;
+  // the server route returns 501 in production with a helpful message
+  // that we forward to the user.
+  const [dxfStatus, setDxfStatus] = useState("idle"); // idle | uploading | done | error
+  const importDxfToProject = async (file) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".dxf")) {
+      alert("Please pick a .dxf file.");
+      return;
+    }
+    const ok = confirm(
+      `Import ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) into ${savePathLabel}?\n\n` +
+        `This REPLACES every zone in that file with the polygons extracted ` +
+        `from the DXF. Any unsaved edits in the current editor session will ` +
+        `also be overwritten on disk.`
+    );
+    if (!ok) return;
+
+    setDxfStatus("uploading");
+
+    const url = `/api/zones/import-dxf?slug=${encodeURIComponent(saveSlug)}`;
+    const form = new FormData();
+    form.append("dxf", file);
+
+    const send = (pw) =>
+      fetch(url, {
+        method: "POST",
+        headers: pw ? { Authorization: `Bearer ${pw}` } : undefined,
+        body: form,
+      });
+
+    let cachedPw = "";
+    try {
+      cachedPw = window.localStorage.getItem(SAVE_PW_KEY) || "";
+    } catch {}
+
+    try {
+      let res = await send(cachedPw);
+
+      if (res.status === 401) {
+        const promptedPw = promptForSavePassword(
+          cachedPw
+            ? "Save password rejected. Try again:"
+            : "Enter the team save password to import this DXF:"
+        );
+        if (!promptedPw) {
+          setDxfStatus("idle");
+          return;
+        }
+        res = await send(promptedPw);
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      // Pull the freshly-written file back into the editor. We use a
+      // cache-buster so the browser doesn't serve a stale copy from
+      // the dev-server's HTTP cache.
+      const fresh = await fetch(`${bundledZonesUrl}?t=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (fresh.ok) {
+        const fc = await fresh.json();
+        const group = groupRef.current;
+        if (group) {
+          group.clearLayers();
+          selectedLayerRef.current = null;
+          loadGeoJSONIntoGroup(fc, group, prepareLayer);
+          pushHistory();
+          refresh();
+        }
+      }
+
+      // Tell the rest of the app to reload its read-only zones layer.
+      window.dispatchEvent(new CustomEvent(saveEventName));
+
+      setDxfStatus("done");
+      // Show a quick breakdown so the user knows what landed.
+      const breakdown = Object.entries(data.classCounts || {})
+        .sort()
+        .map(([k, n]) => `${k}: ${n}`)
+        .join(", ");
+      alert(
+        `Imported ${data.featureCount} polygons into ${data.path}.\n\n` +
+          `Class breakdown — ${breakdown}\n\n` +
+          `Visit /?m=${saveSlug} to review. Commit + push when ready.`
+      );
+      setTimeout(() => setDxfStatus("idle"), 1800);
+    } catch (e) {
+      console.error("DXF import failed:", e);
+      alert(
+        "Could not import DXF.\n" +
+          e.message +
+          "\n\nLocal dev: ensure Python 3 + ezdxf + pyproj + shapely are " +
+          "installed.\nDeployed: DXF import only runs in local dev — " +
+          "convert there, then commit + push the result."
+      );
+      setDxfStatus("error");
+      setTimeout(() => setDxfStatus("idle"), 2400);
+    }
   };
 
   const clearAll = () => {
@@ -1087,14 +2062,30 @@ export default function EditableZones({
       ? { top: panelPos.top, left: panelPos.left }
       : { bottom: 16, left: 60 }),
   };
+  // Friendly label for whatever class the selected zone currently has.
+  // Falls back to "—" for unclassified zones so the title is still clear.
+  const selectedLabel = selectedPrimaryClass
+    ? CLASSIFICATION_INFO[selectedPrimaryClass]?.label ?? selectedPrimaryClass
+    : null;
+  // Build a friendly pre-bake summary when roads and/or bands are
+  // selected. Distinguishes the three combinations so the user knows
+  // exactly what'll happen on a chip click.
+  const pickPlural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const headerTitle =
-    selectedRoadKeys.size > 0
-      ? `${selectedRoadKeys.size} road segment${
-          selectedRoadKeys.size === 1 ? "" : "s"
-        } selected — click a class`
-      : editorState.hasSelection
-        ? "Reassign zone"
-        : "Draw zone, or Shift+click a road";
+    selectedRoadKeys.size > 0 && selectedBandKeys.size > 0
+      ? `${pickPlural(selectedRoadKeys.size, "road")} + ${pickPlural(
+          selectedBandKeys.size,
+          "band chip"
+        )} selected — click a class`
+      : selectedRoadKeys.size > 0
+        ? `${pickPlural(selectedRoadKeys.size, "road segment")} selected — click a class`
+        : selectedBandKeys.size > 0
+          ? `${pickPlural(selectedBandKeys.size, "band chip")} selected — click a class`
+          : editorState.hasSelection
+            ? selectedLabel
+              ? `Selected: ${selectedLabel} — click a chip to reassign`
+              : "Reassign zone"
+            : "Draw zone, Shift+click a road or band";
 
   return (
     <div ref={panelRefCallback} style={panelStyle}>
@@ -1161,10 +2152,46 @@ export default function EditableZones({
           Clear road selection
         </button>
       )}
+      {selectedBandKeys.size > 0 && (
+        <button
+          type="button"
+          onClick={() => setSelectedBandKeys(new Set())}
+          style={{
+            ...smallBtn,
+            marginBottom: 6,
+            marginLeft: selectedRoadKeys.size > 0 ? 6 : 0,
+            fontSize: 11,
+            color: "#475569",
+          }}
+          title="Deselect all frontage-band chips"
+        >
+          Clear band selection
+        </button>
+      )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
         {availableClassKeys.map((k) => {
           const info = CLASSIFICATION_INFO[k];
           const isActive = activeClass === k;
+          // Visual reflection of the currently-selected polygon's class
+          // ladder. Distinct from `isActive` (the next-draw class):
+          //   - selectedAsPrimary   → solid ring + dot marker
+          //   - selectedAsSecondary → dashed ring
+          //   - selectedAsTertiary  → dotted ring
+          // All three can co-exist on different chips when a zone has
+          // overlapping classifications.
+          const selectedAsPrimary =
+            editorState.hasSelection && selectedPrimaryClass === k;
+          const selectedAsSecondary =
+            editorState.hasSelection && selectedSecondaryCurrent === k;
+          const selectedAsTertiary =
+            editorState.hasSelection && selectedTertiaryCurrent === k;
+          const selectionRing = selectedAsPrimary
+            ? `0 0 0 2px ${info.color}, 0 0 0 4px white`
+            : selectedAsSecondary
+              ? `0 0 0 2px ${info.color}88, 0 0 0 4px white`
+              : selectedAsTertiary
+                ? `0 0 0 1px ${info.color}66, 0 0 0 3px white`
+                : "none";
           return (
             <button
               key={k}
@@ -1211,6 +2238,7 @@ export default function EditableZones({
                 }
               }}
               style={{
+                position: "relative",
                 padding: "3px 7px",
                 borderRadius: 4,
                 border: `1px solid ${info.color}`,
@@ -1219,14 +2247,36 @@ export default function EditableZones({
                 cursor: "pointer",
                 fontSize: 11,
                 font: "inherit",
+                boxShadow: selectionRing,
+                fontWeight: selectedAsPrimary ? 700 : 400,
+                // Give the chip a little breathing room so the ring doesn't
+                // touch its neighbours when a selection exists.
+                margin: selectionRing !== "none" ? 1 : 0,
               }}
               title={
-                editorState.hasSelection
-                  ? `Reassign selected zone to ${info.label}`
-                  : `${info.label} — ${info.category}`
+                selectedAsPrimary
+                  ? `Selected zone is ${info.label} (click another chip to reassign)`
+                  : editorState.hasSelection
+                    ? `Reassign selected zone to ${info.label}`
+                    : `${info.label} — ${info.category}`
               }
             >
               {info.label === "Unclassified" ? "—" : info.label}
+              {selectedAsPrimary && (
+                <span
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    top: -3,
+                    right: -3,
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: info.color,
+                    border: "1px solid white",
+                  }}
+                />
+              )}
             </button>
           );
         })}
@@ -1440,6 +2490,34 @@ export default function EditableZones({
           Delete selected
         </button>
         <button
+          onClick={() => setMultiVertexMode((m) => !m)}
+          disabled={!editorState.hasSelection}
+          style={{
+            ...smallBtn,
+            background: multiVertexMode ? "#dbeafe" : "white",
+            borderColor: multiVertexMode ? "#1d4ed8" : "#cbd5e1",
+            color: multiVertexMode ? "#1d4ed8" : "inherit",
+            fontWeight: multiVertexMode ? 600 : 400,
+          }}
+          title={
+            multiVertexMode
+              ? "Switch back to Geoman's single-vertex editing"
+              : "Click to enable multi-vertex selection: Shift+click to add vertices, drag any selected to move all, Delete to remove"
+          }
+        >
+          {multiVertexMode ? "Vertices: multi ✓" : "Vertices: multi"}
+        </button>
+        {multiVertexMode && selectedVertexKeys.size > 0 && (
+          <button
+            onClick={() => removeVerticesByKey(selectedVertexKeysRef.current)}
+            style={{ ...smallBtn, color: "#b91c1c", fontWeight: 600 }}
+            title="Remove the selected vertices from this polygon (Delete key)"
+          >
+            Delete {selectedVertexKeys.size} vert
+            {selectedVertexKeys.size === 1 ? "ex" : "ices"}
+          </button>
+        )}
+        <button
           onClick={saveToProject}
           disabled={saveStatus === "saving"}
           style={{
@@ -1486,6 +2564,57 @@ export default function EditableZones({
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) importGeoJSON(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        <label
+          style={{
+            ...smallBtn,
+            cursor: dxfStatus === "uploading" ? "wait" : "pointer",
+            background:
+              dxfStatus === "done"
+                ? "#dcfce7"
+                : dxfStatus === "error"
+                  ? "#fee2e2"
+                  : dxfStatus === "uploading"
+                    ? "#fef3c7"
+                    : "white",
+            borderColor:
+              dxfStatus === "done"
+                ? "#16a34a"
+                : dxfStatus === "error"
+                  ? "#dc2626"
+                  : dxfStatus === "uploading"
+                    ? "#d97706"
+                    : "#cbd5e1",
+            color:
+              dxfStatus === "done"
+                ? "#166534"
+                : dxfStatus === "error"
+                  ? "#991b1b"
+                  : dxfStatus === "uploading"
+                    ? "#92400e"
+                    : "inherit",
+            opacity: dxfStatus === "uploading" ? 0.85 : 1,
+          }}
+          title={`Upload an AutoCAD .dxf — the LGU's working zones file — and replace ${savePathLabel} with the converted polygons. Local dev only.`}
+        >
+          {dxfStatus === "uploading"
+            ? "Importing DXF…"
+            : dxfStatus === "done"
+              ? "DXF imported ✓"
+              : dxfStatus === "error"
+                ? "DXF failed"
+                : "Import DXF…"}
+          <input
+            type="file"
+            accept=".dxf,application/dxf,image/vnd.dxf"
+            style={{ display: "none" }}
+            disabled={dxfStatus === "uploading"}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importDxfToProject(f);
               e.target.value = "";
             }}
           />

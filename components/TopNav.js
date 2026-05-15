@@ -239,7 +239,14 @@ export default function TopNav({
           </button>
           {settingsOpen && (
             <div className="top-nav__settings-menu" role="menu" aria-label="Tile mode">
-              {["online", "offline"].map((mode) => (
+              {[
+                ["online", "Online (OSM)"],
+                ["satellite", "Satellite (Esri)"],
+                ["google_street", "Google Street"],
+                ["google_satellite", "Google Satellite"],
+                ["google_hybrid", "Google Hybrid"],
+                ["offline", "Offline"],
+              ].map(([mode, label]) => (
                 <button
                   key={mode}
                   type="button"
@@ -251,7 +258,7 @@ export default function TopNav({
                     setSettingsOpen(false);
                   }}
                 >
-                  {mode === "online" ? "Online" : "Offline"}
+                  {label}
                 </button>
               ))}
             </div>

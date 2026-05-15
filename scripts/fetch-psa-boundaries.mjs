@@ -54,6 +54,12 @@ const MUNICIPALITY_PARAMS = {
     expectedBarangays: 19,
     displayName: "Sagada",
   },
+  bontoc: {
+    cityName: "Bontoc",
+    pcode: "PH144404000",
+    expectedBarangays: 16,
+    displayName: "Bontoc",
+  },
 };
 
 const slug = parseSlugFromArgs(process.argv.slice(2));

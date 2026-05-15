@@ -52,12 +52,42 @@ const MUNICIPALITY_STROKE = {
   fillOpacity: 0,
 };
 
+// Basemap providers. The "settings" menu in TopNav lets the user
+// switch between these. Online OSM is the default; satellite and
+// Google variants are available too.
+//
+// Note: the Google providers (lyrs=m / lyrs=s) use Google's public
+// tile servers without an API key. This is technically against
+// Google's ToS for production use — fine for an LGU pilot, but if
+// the project goes to wider deployment, swap in a proper provider
+// (Mapbox, MapTiler, or the official Google Maps JS API).
 const TILE_SOURCES = {
   online: {
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
+  },
+  satellite: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution:
+      'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    maxZoom: 19,
+  },
+  google_street: {
+    url: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    attribution: "&copy; Google",
+    maxZoom: 20,
+  },
+  google_satellite: {
+    url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+    attribution: "&copy; Google",
+    maxZoom: 20,
+  },
+  google_hybrid: {
+    url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    attribution: "&copy; Google",
+    maxZoom: 20,
   },
   offline: {
     url: "/tiles/{z}/{x}/{y}.png",
@@ -67,6 +97,17 @@ const TILE_SOURCES = {
     maxZoom: 18,
   },
 };
+
+// Transparent labels-only tile overlay rendered on the top-stacked
+// labels-pane (see <Pane> + <TileLayer> inside MapContainer below).
+// Carries OSM place names, road names, and prominent POIs on a
+// transparent background — keeps the OSM look on top of SMV fills
+// without re-rendering tiles or applying a blend mode (which mudied
+// the colors when we tried it).
+const LABELS_OVERLAY_URL =
+  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png";
+const LABELS_OVERLAY_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 const C1_HATCH_ID = "bauko-c1-smv-hatch";
@@ -93,6 +134,8 @@ export default function LeafletMap({
     valuations: null,
     monamonSurRoads: null,
     monamonNorteRoads: null,
+    frontageBands: null,
+    landmarks: null,
   });
 
   useEffect(() => {
@@ -112,6 +155,8 @@ export default function LeafletMap({
         const valuationsFile =
           municipality?.dataFiles?.valuations ?? "/data/bauko_valuations.json";
         const zonesFile = municipality?.dataFiles?.zones ?? "/data/bauko_zones.geojson";
+        const frontageBandsFile = municipality?.dataFiles?.frontageBands;
+        const landmarksFile = municipality?.dataFiles?.landmarks;
         const barangayFile =
           sources.has_custom_barangays && customBarangaysFile
             ? customBarangaysFile
@@ -123,6 +168,8 @@ export default function LeafletMap({
           zones,
           monamonSurRoads,
           monamonNorteRoads,
+          frontageBands,
+          landmarks,
         ] = await Promise.all([
           fetch(outlineFile).then((r) => r.json()),
           fetch(barangayFile).then((r) => r.json()),
@@ -140,6 +187,20 @@ export default function LeafletMap({
                 .then((r) => (r.ok ? r.json() : EMPTY_FC))
                 .catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
+          // Frontage bands are optional — silently fall back to an
+          // empty FeatureCollection if the file doesn't exist for this
+          // municipality yet. Run `npm run bands:<slug>` to generate.
+          frontageBandsFile
+            ? fetch(frontageBandsFile)
+                .then((r) => (r.ok ? r.json() : EMPTY_FC))
+                .catch(() => EMPTY_FC)
+            : Promise.resolve(EMPTY_FC),
+          // Same optionality for landmarks (`npm run landmarks:<slug>`).
+          landmarksFile
+            ? fetch(landmarksFile)
+                .then((r) => (r.ok ? r.json() : EMPTY_FC))
+                .catch(() => EMPTY_FC)
+            : Promise.resolve(EMPTY_FC),
         ]);
         if (!active) return;
         setData({
@@ -149,6 +210,8 @@ export default function LeafletMap({
           zones,
           monamonSurRoads,
           monamonNorteRoads,
+          frontageBands,
+          landmarks,
         });
       } catch (e) {
         console.error("Failed to load map data:", e);
@@ -250,6 +313,13 @@ export default function LeafletMap({
     <div className="leaflet-shell">
       <svg className="svg-pattern-defs" aria-hidden="true" focusable="false">
         <defs>
+          {/* C-1 hatch: translucent red base with bold red diagonal
+              stripes. The translucent base lets OSM POIs + place names
+              underneath show through (hospital markers, building
+              outlines), while the saturated red stripes keep C-1
+              clearly identifiable on the map.
+              Single source of truth — both LeafletMap and EditableZones
+              (via C1_HATCH_FILL) reference this pattern id. */}
           <pattern
             id={C1_HATCH_ID}
             width="6"
@@ -257,12 +327,12 @@ export default function LeafletMap({
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(45)"
           >
-            <rect width="6" height="6" fill="#c63b24" opacity="0.18" />
+            <rect width="6" height="6" fill="#c63b24" opacity="0.35" />
             <path
               d="M 0 0 L 0 6"
               stroke="#c63b24"
               strokeWidth="2"
-              opacity="0.9"
+              opacity="0.95"
             />
           </pattern>
         </defs>
@@ -287,9 +357,37 @@ export default function LeafletMap({
 
         <Pane name="smv-pane" style={{ zIndex: 425 }} />
         <Pane name="muni-pane" style={{ zIndex: 430 }} />
+        {/* Frontage bands sit just below the zones so any drawn polygon
+            paints over them, but above the SMV fill so the guide stays
+            visible against the basemap. */}
+        <Pane name="frontage-bands-pane" style={{ zIndex: 435 }} />
         <Pane name="zones-pane" style={{ zIndex: 440 }} />
         <Pane name="roads-pane" style={{ zIndex: 445 }} />
         <Pane name="brgy-pane" style={{ zIndex: 450 }} />
+        {/* Labels overlay sits on top of every other layer so place +
+            road names are never buried under an SMV fill. Pointer events
+            stay disabled so clicks pass through to whatever's below. */}
+        <Pane
+          name="labels-pane"
+          style={{ zIndex: 460, pointerEvents: "none" }}
+        />
+
+        {/* CartoDB Voyager Only Labels — transparent tile layer that
+            carries place names + road names on top of everything.
+            Cleanest way to put labels above SMV fills without
+            re-rendering tiles. POI icons stay baked into the basemap
+            below the zones (we tried surfacing them as a separate
+            layer and it duplicated labels and looked cluttered). */}
+        {tileMode !== "offline" && (
+          <TileLayer
+            key={`labels-${tileMode}`}
+            url={LABELS_OVERLAY_URL}
+            attribution={LABELS_OVERLAY_ATTRIBUTION}
+            maxZoom={19}
+            pane="labels-pane"
+            opacity={1}
+          />
+        )}
         <MapFocus key={`municipality-focus-${municipality?.slug ?? "bauko"}`} feature={baukoFeature} />
         <BarangayFocus
           slug={activeBarangaySlug}
@@ -321,6 +419,55 @@ export default function LeafletMap({
             pane="smv-pane"
             interactive={false}
             style={(feature) => smvFillStyle(classForFeature(feature))}
+          />
+        )}
+
+        {/* Depth-of-frontage bands — visual guide for the LGU's 30 m
+            rule. Three bands derived from the OSM road buffer:
+              0–30 m   → road-frontage tier (C-1/C-2/R-1/R-2)
+              30–60 m  → secondary depth
+              60+ m    → true inner lots (C-3/R-3+)
+            In drawMode we hand the rendering off to EditableZones so
+            each chip becomes click-selectable; here we only render the
+            read-only guide outside edit mode. */}
+        {!drawMode && layers.frontageBands && data.frontageBands?.features?.length > 0 && (
+          <GeoJSON
+            key={`frontage-bands-${municipality?.slug ?? "bauko"}`}
+            data={data.frontageBands}
+            pane="frontage-bands-pane"
+            interactive={false}
+            style={(feature) => {
+              const band = feature?.properties?.band;
+              if (band === "0-30") {
+                return {
+                  color: "#dc2626",
+                  weight: 1.4,
+                  opacity: 0.85,
+                  fillColor: "#dc2626",
+                  fillOpacity: 0.06,
+                  dashArray: null,
+                };
+              }
+              if (band === "30-60") {
+                return {
+                  color: "#f59e0b",
+                  weight: 1.2,
+                  opacity: 0.75,
+                  fillColor: "#f59e0b",
+                  fillOpacity: 0.04,
+                  dashArray: "4 3",
+                };
+              }
+              // 60+: render as a faint outline only; this is "everything
+              // else" and a fill here would mute the basemap.
+              return {
+                color: "#475569",
+                weight: 0.8,
+                opacity: 0.5,
+                fillOpacity: 0,
+                dashArray: "1 4",
+              };
+            }}
           />
         )}
 
@@ -387,11 +534,13 @@ export default function LeafletMap({
             onEachFeature={(feature, layer) => {
               if (drawMode) return;
               const name = getBarangayName(feature);
-              // Permanent label — stays visible at every zoom level. The
-              // CSS pairs with .zoom-tier-* on the map container so it
-              // scales legibly without needing per-feature recalculations.
+              // Hover-only label. Most basemaps (OSM, Google, Esri)
+              // already bake place names into the tile imagery, so a
+              // permanent overlay duplicates them — we only show on
+              // hover now to confirm boundaries without competing
+              // with the baked-in labels.
               layer.bindTooltip(name, {
-                permanent: true,
+                sticky: true,
                 direction: "center",
                 className: "brgy-label",
                 opacity: 1,
@@ -430,6 +579,8 @@ export default function LeafletMap({
             saveSlug={municipality?.zones?.saveSlug ?? municipality?.slug}
             savePathLabel={municipality?.zones?.savePathLabel}
             roadsUrl={municipality?.dataFiles?.osmRoads}
+            frontageBandsUrl={municipality?.dataFiles?.frontageBands}
+            showFrontageBands={!!layers?.frontageBands}
             classKeys={municipality?.schedule?.classifications?.map((row) => row?.subClass)}
           />
         )}

@@ -5,6 +5,7 @@ const LAYERS = [
   ["barangays", "Barangays"],
   ["zones", "SMV zones"],
   ["smv", "SMV (₱/m²)"],
+  ["frontageBands", "Frontage bands (0–30 / 30–60 m)"],
 ];
 
 // The map panel is now an editor-only utility — it only surfaces while the

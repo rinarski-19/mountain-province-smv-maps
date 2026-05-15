@@ -70,6 +70,11 @@ const MUNICIPALITY_CONFIG = {
     classificationsExport: "SAGADA_CLASSIFICATIONS",
     slugFnExport: "slugForSagadaName",
   },
+  bontoc: {
+    module: "../lib/bontoc.js",
+    classificationsExport: "BONTOC_CLASSIFICATIONS",
+    slugFnExport: "slugForBontocName",
+  },
 };
 
 // OSM highway-tag → schedule tier kind.
@@ -426,21 +431,69 @@ function robustUnion(bufs, cls) {
   return treeUnion(cleaned, cls);
 }
 
+// Flat-capped buffer of a (Multi)LineString. Same trick as the in-app
+// version in components/EditableZones.js: turf.buffer always produces
+// rounded end caps (the jsts CAP_FLAT option isn't exposed), so we
+// instead lineOffset by ±r and stitch the two parallels into a single
+// closed polygon with perpendicular caps at each end.
+function flatCapBuffer(input, halfWidthM) {
+  if (!input) return null;
+  // Accept either a Feature wrapper or a raw geometry. turf.lineString /
+  // turf.multiLineString return Features.
+  const geom = input.type === "Feature" ? input.geometry : input;
+  if (!geom) return null;
+  const lines =
+    geom.type === "MultiLineString"
+      ? geom.coordinates
+      : geom.type === "LineString"
+        ? [geom.coordinates]
+        : null;
+  if (!lines || lines.length === 0) return null;
+
+  const polys = [];
+  for (const coords of lines) {
+    if (!Array.isArray(coords) || coords.length < 2) continue;
+    let leftRing;
+    let rightRing;
+    try {
+      const ls = turf.lineString(coords);
+      leftRing = turf.lineOffset(ls, halfWidthM, { units: "meters" })
+        ?.geometry?.coordinates;
+      rightRing = turf.lineOffset(ls, -halfWidthM, { units: "meters" })
+        ?.geometry?.coordinates;
+    } catch (e) {
+      continue;
+    }
+    if (!leftRing?.length || !rightRing?.length) continue;
+    const ring = [
+      ...leftRing,
+      ...rightRing.slice().reverse(),
+      leftRing[0],
+    ];
+    try {
+      const poly = turf.polygon([ring]);
+      const cleaned = turf.buffer(poly, 0, { units: "meters" });
+      polys.push(cleaned ?? poly);
+    } catch {}
+  }
+  if (polys.length === 0) return null;
+  if (polys.length === 1) return polys[0];
+  try {
+    return turf.union(turf.featureCollection(polys));
+  } catch {
+    return polys[0];
+  }
+}
+
 // Buffer a line into a corridor with the road centerline cut out, so
-// each segment renders as two parallel ribbons (matches the
-// click-to-tag and pencil flows in components/EditableZones.js). If
-// the outer halfwidth is too small for a meaningful inset, falls
-// back to the plain symmetric buffer.
+// each segment renders as two parallel ribbons with flat (butt) end
+// caps. Matches the click-to-tag and pencil flows in
+// components/EditableZones.js.
 function bufferAlongsideRoad(geom, outerHalfWidthM) {
-  const outer = turf.buffer(geom, outerHalfWidthM, { units: "meters" });
+  const outer = flatCapBuffer(geom, outerHalfWidthM);
   if (!outer?.geometry) return null;
   if (ROAD_INSET_M <= 0 || outerHalfWidthM <= ROAD_INSET_M + 1) return outer;
-  let inner;
-  try {
-    inner = turf.buffer(geom, ROAD_INSET_M, { units: "meters" });
-  } catch {
-    return outer;
-  }
+  const inner = flatCapBuffer(geom, ROAD_INSET_M);
   if (!inner?.geometry) return outer;
   try {
     const diff = turf.difference(turf.featureCollection([outer, inner]));

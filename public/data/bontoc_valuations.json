@@ -1,0 +1,201 @@
+{
+  "municipality": "BONTOC",
+  "document_title": "SCHEDULE OF BASE UNIT MARKET VALUES (placeholder pending LGU input)",
+  "revision_year": 2027,
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "location_description": "Along Provincial and National Roads of Bontoc (TODO)",
+          "unit_value_2027_per_sqm": 6240,
+          "sub_classification": "C-1",
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Balili",
+            "Bayyo",
+            "Bontoc Ili",
+            "Calutit",
+            "Caneo",
+            "Dalican",
+            "Gonogon",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Poblacion",
+            "Samoki",
+            "Talubin",
+            "Tocucan"
+          ]
+        },
+        {
+          "location_description": "Along National Road of Bontoc (TODO)",
+          "unit_value_2027_per_sqm": 5140,
+          "sub_classification": "C-2",
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Balili",
+            "Bayyo",
+            "Bontoc Ili",
+            "Calutit",
+            "Caneo",
+            "Dalican",
+            "Gonogon",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Poblacion",
+            "Samoki",
+            "Talubin",
+            "Tocucan"
+          ]
+        },
+        {
+          "location_description": "Along all-weather roads of Bontoc (TODO)",
+          "unit_value_2027_per_sqm": 4030,
+          "sub_classification": "C-3",
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Balili",
+            "Bayyo",
+            "Bontoc Ili",
+            "Calutit",
+            "Caneo",
+            "Dalican",
+            "Gonogon",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Poblacion",
+            "Samoki",
+            "Talubin",
+            "Tocucan"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Residential Lands",
+      "items": [
+        {
+          "location_description": "Along Provincial and National Roads of Bontoc (TODO)",
+          "unit_value_2027_per_sqm": 6240,
+          "sub_classification": "R-1",
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Balili",
+            "Bayyo",
+            "Bontoc Ili",
+            "Calutit",
+            "Caneo",
+            "Dalican",
+            "Gonogon",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Poblacion",
+            "Samoki",
+            "Talubin",
+            "Tocucan"
+          ]
+        },
+        {
+          "location_description": "Along National Road of Bontoc (TODO)",
+          "unit_value_2027_per_sqm": 5140,
+          "sub_classification": "R-2",
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Balili",
+            "Bayyo",
+            "Bontoc Ili",
+            "Calutit",
+            "Caneo",
+            "Dalican",
+            "Gonogon",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Poblacion",
+            "Samoki",
+            "Talubin",
+            "Tocucan"
+          ]
+        },
+        {
+          "location_description": "Inner lots of Bontoc (TODO)",
+          "unit_value_2027_per_sqm": 4030,
+          "sub_classification": "R-3",
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Balili",
+            "Bayyo",
+            "Bontoc Ili",
+            "Calutit",
+            "Caneo",
+            "Dalican",
+            "Gonogon",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Poblacion",
+            "Samoki",
+            "Talubin",
+            "Tocucan"
+          ]
+        },
+        {
+          "location_description": "Inner lots of Bontoc (TODO)",
+          "unit_value_2027_per_sqm": 3150,
+          "sub_classification": "R-4",
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Balili",
+            "Bayyo",
+            "Bontoc Ili",
+            "Calutit",
+            "Caneo",
+            "Dalican",
+            "Gonogon",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Poblacion",
+            "Samoki",
+            "Talubin",
+            "Tocucan"
+          ]
+        },
+        {
+          "location_description": "All-weather roads and inner lots of Bontoc (TODO)",
+          "unit_value_2027_per_sqm": 2480,
+          "sub_classification": "R-5",
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Balili",
+            "Bayyo",
+            "Bontoc Ili",
+            "Calutit",
+            "Caneo",
+            "Dalican",
+            "Gonogon",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Poblacion",
+            "Samoki",
+            "Talubin",
+            "Tocucan"
+          ]
+        }
+      ]
+    }
+  ]
+}
