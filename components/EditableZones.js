@@ -183,6 +183,7 @@ function flatCapBuffer(input, halfWidthM) {
   const polys = [];
   for (const coords of lines) {
     if (!Array.isArray(coords) || coords.length < 2) continue;
+    let polyForSegment = null;
     let leftRing;
     let rightRing;
     try {
@@ -193,25 +194,52 @@ function flatCapBuffer(input, halfWidthM) {
         ?.geometry?.coordinates;
     } catch (e) {
       console.warn("flatCapBuffer: lineOffset failed for one segment", e);
-      continue;
     }
-    if (!leftRing?.length || !rightRing?.length) continue;
-    // Close the ring: left coords forward, right coords reversed,
-    // then back to the starting vertex.
-    const ring = [
-      ...leftRing,
-      ...rightRing.slice().reverse(),
-      leftRing[0],
-    ];
-    try {
-      let poly = turf.polygon([ring]);
-      // Sharp corners can produce self-intersecting offsets; buffer(0)
-      // normalises the geometry.
-      const cleaned = turf.buffer(poly, 0, { units: "meters" });
-      polys.push(cleaned ?? poly);
-    } catch (e) {
-      console.warn("flatCapBuffer: polygon assembly failed", e);
+    if (leftRing?.length && rightRing?.length) {
+      // Close the ring: left coords forward, right coords reversed,
+      // then back to the starting vertex.
+      const ring = [
+        ...leftRing,
+        ...rightRing.slice().reverse(),
+        leftRing[0],
+      ];
+      try {
+        const raw = turf.polygon([ring]);
+        const rawArea = turf.area(raw);
+        // Sharp corners can make lineOffset fold the ring onto itself;
+        // buffer(0) normalises that. BUT on very curvy roads (e.g.
+        // Mayag's 112-vertex mountain road) buffer(0) shaves a chunk
+        // off one side instead of cleanly resolving the crossing —
+        // that's the "only one side filled" bug. We detect it via the
+        // area drop and fall through to the rounded-buffer fallback
+        // below when even a small chunk of area was lost. Anything
+        // ≥ 1% loss indicates lineOffset folded, which is a fall-back
+        // trigger (Mayag's curve loses 7%, fine; an OSM-clean 7-vertex
+        // straight loses 0.05% which stays on the flat-cap path).
+        const cleaned = turf.buffer(raw, 0, { units: "meters" });
+        if (cleaned && turf.area(cleaned) >= rawArea * 0.99) {
+          polyForSegment = cleaned;
+        }
+      } catch (e) {
+        console.warn("flatCapBuffer: polygon assembly failed", e);
+      }
     }
+    if (!polyForSegment) {
+      // Fallback for self-intersecting flat-cap rings: use turf.buffer
+      // (rounded caps) on the line. Slight visual mismatch with flat
+      // cap segments at junctions, but reliably covers both sides for
+      // any road geometry. Tested necessary on Bauko's Mayag interior
+      // road (112-vertex 1.4km mountain road) — flat-cap approach loses
+      // ~7% on the inside of tight curves.
+      try {
+        const ls = turf.lineString(coords);
+        const rounded = turf.buffer(ls, halfWidthM, { units: "meters" });
+        if (rounded?.geometry) polyForSegment = rounded;
+      } catch (e) {
+        console.warn("flatCapBuffer: rounded-buffer fallback failed", e);
+      }
+    }
+    if (polyForSegment) polys.push(polyForSegment);
   }
   if (polys.length === 0) return null;
   if (polys.length === 1) return polys[0];
@@ -356,6 +384,35 @@ export default function EditableZones({
   //
   // Off by default — leaves Geoman's stock per-layer editing intact
   // (drag single vertex, right-click to remove, click edge to insert).
+  // When true (default), the bake step intersects the new polygon
+  // against every existing zone in the group so it only fills the
+  // empty gaps. When false, the bake paints the full corridor
+  // regardless of what was already there. Persisted to localStorage
+  // so users keep their preference between sessions.
+  const [trimAgainstExisting, setTrimAgainstExisting] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem("editor-trim-against-existing");
+      return stored === null ? true : stored === "1";
+    } catch {
+      return true;
+    }
+  });
+  const trimAgainstExistingRef = useRef(trimAgainstExisting);
+  useEffect(() => {
+    trimAgainstExistingRef.current = trimAgainstExisting;
+    try {
+      window.localStorage.setItem(
+        "editor-trim-against-existing",
+        trimAgainstExisting ? "1" : "0"
+      );
+    } catch {}
+  }, [trimAgainstExisting]);
+
+  // Transient notice surfaced after a bake when the auto-clip step
+  // removed a meaningful chunk of the candidate area. Cleared after a
+  // few seconds so it doesn't linger.
+  const [bakeNotice, setBakeNotice] = useState("");
+
   const [multiVertexMode, setMultiVertexMode] = useState(false);
   const multiVertexModeRef = useRef(multiVertexMode);
   useEffect(() => {
@@ -1183,15 +1240,24 @@ export default function EditableZones({
     // it's slower per call but more resilient to malformed legacy
     // polygons (one bad union would break everything; one bad
     // difference just leaves that zone unsubtracted).
+    //
+    // The user can disable this via the "Trim against existing zones"
+    // toggle in the panel — useful when re-painting a corridor that
+    // should overlap an older zone (e.g., promoting an R-2 strip to
+    // C-2 along the same road).
     let trimmed = combined;
     let clipBbox;
+    let originalArea = 0;
+    try {
+      originalArea = turf.area(combined);
+    } catch {}
     try {
       clipBbox = turf.bbox(trimmed);
     } catch {
       clipBbox = null;
     }
     let clipsHit = 0;
-    if (clipBbox) {
+    if (clipBbox && trimAgainstExistingRef.current) {
       group.eachLayer((existing) => {
         if (!trimmed?.geometry) return;
         // Skip the layer being subtracted by, in case bake somehow
@@ -1254,7 +1320,9 @@ export default function EditableZones({
     if (!trimmed?.geometry) {
       alert(
         "This area is already fully classified — every part of the " +
-          "selection overlaps an existing zone. Nothing new was added."
+          "selection overlaps an existing zone. Nothing new was added.\n\n" +
+          "If you meant to repaint over existing zones, untick " +
+          '"Trim against existing zones" in the editor panel and try again.'
       );
       setSelectedRoadKeys(new Set());
       setSelectedBandKeys(new Set());
@@ -1262,6 +1330,27 @@ export default function EditableZones({
     }
     // From here on use the clipped version.
     combined = trimmed;
+
+    // If the clip removed a meaningful chunk (>25% of the candidate's
+    // original area), tell the user so they're not surprised when only
+    // one side of a road fills. This was a common confusion before —
+    // user shift+clicks a road, picks a class, and only the empty side
+    // gets painted because the other side already had an old zone.
+    if (clipsHit > 0 && originalArea > 0) {
+      try {
+        const trimmedArea = turf.area(combined);
+        const pctTrimmed = Math.round((1 - trimmedArea / originalArea) * 100);
+        if (pctTrimmed >= 25) {
+          console.info(
+            `Bake auto-trimmed ${pctTrimmed}% of the candidate area where it overlapped ${clipsHit} existing zone(s).`
+          );
+          setBakeNotice(
+            `Trimmed ${pctTrimmed}% — overlapped ${clipsHit} existing zone${clipsHit === 1 ? "" : "s"}. Untick "Trim against existing zones" to paint over.`
+          );
+          setTimeout(() => setBakeNotice(""), 5000);
+        }
+      } catch {}
+    }
 
     const props = {
       classification: klass,
@@ -2071,8 +2160,9 @@ export default function EditableZones({
   // selected. Distinguishes the three combinations so the user knows
   // exactly what'll happen on a chip click.
   const pickPlural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-  const headerTitle =
-    selectedRoadKeys.size > 0 && selectedBandKeys.size > 0
+  const headerTitle = bakeNotice
+    ? bakeNotice
+    : selectedRoadKeys.size > 0 && selectedBandKeys.size > 0
       ? `${pickPlural(selectedRoadKeys.size, "road")} + ${pickPlural(
           selectedBandKeys.size,
           "band chip"
@@ -2517,6 +2607,31 @@ export default function EditableZones({
             {selectedVertexKeys.size === 1 ? "ex" : "ices"}
           </button>
         )}
+        <label
+          style={{
+            ...smallBtn,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            cursor: "pointer",
+            background: trimAgainstExisting ? "white" : "#fef3c7",
+            borderColor: trimAgainstExisting ? "#cbd5e1" : "#d97706",
+            color: trimAgainstExisting ? "inherit" : "#92400e",
+          }}
+          title={
+            trimAgainstExisting
+              ? "When ON, baking a road / band only fills areas that aren't already classified. Untick to paint over existing zones (full corridor on both sides)."
+              : "Trimming is OFF — bakes will paint over existing zones. Tick to re-enable trimming."
+          }
+        >
+          <input
+            type="checkbox"
+            checked={trimAgainstExisting}
+            onChange={(e) => setTrimAgainstExisting(e.target.checked)}
+            style={{ margin: 0 }}
+          />
+          Trim against existing
+        </label>
         <button
           onClick={saveToProject}
           disabled={saveStatus === "saving"}

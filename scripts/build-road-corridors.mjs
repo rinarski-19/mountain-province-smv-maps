@@ -453,6 +453,7 @@ function flatCapBuffer(input, halfWidthM) {
   const polys = [];
   for (const coords of lines) {
     if (!Array.isArray(coords) || coords.length < 2) continue;
+    let polyForSegment = null;
     let leftRing;
     let rightRing;
     try {
@@ -461,20 +462,33 @@ function flatCapBuffer(input, halfWidthM) {
         ?.geometry?.coordinates;
       rightRing = turf.lineOffset(ls, -halfWidthM, { units: "meters" })
         ?.geometry?.coordinates;
-    } catch (e) {
-      continue;
-    }
-    if (!leftRing?.length || !rightRing?.length) continue;
-    const ring = [
-      ...leftRing,
-      ...rightRing.slice().reverse(),
-      leftRing[0],
-    ];
-    try {
-      const poly = turf.polygon([ring]);
-      const cleaned = turf.buffer(poly, 0, { units: "meters" });
-      polys.push(cleaned ?? poly);
     } catch {}
+    if (leftRing?.length && rightRing?.length) {
+      const ring = [
+        ...leftRing,
+        ...rightRing.slice().reverse(),
+        leftRing[0],
+      ];
+      try {
+        const raw = turf.polygon([ring]);
+        const rawArea = turf.area(raw);
+        // See in-app comment in components/EditableZones.js — on very
+        // curvy roads buffer(0) shaves one side; we detect that via
+        // area loss (≥ 1%) and fall back to a rounded-cap buffer below.
+        const cleaned = turf.buffer(raw, 0, { units: "meters" });
+        if (cleaned && turf.area(cleaned) >= rawArea * 0.99) {
+          polyForSegment = cleaned;
+        }
+      } catch {}
+    }
+    if (!polyForSegment) {
+      try {
+        const ls = turf.lineString(coords);
+        const rounded = turf.buffer(ls, halfWidthM, { units: "meters" });
+        if (rounded?.geometry) polyForSegment = rounded;
+      } catch {}
+    }
+    if (polyForSegment) polys.push(polyForSegment);
   }
   if (polys.length === 0) return null;
   if (polys.length === 1) return polys[0];

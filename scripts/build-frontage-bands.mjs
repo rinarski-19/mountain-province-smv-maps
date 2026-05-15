@@ -42,7 +42,13 @@ const ROOT = path.resolve(process.cwd());
 const ROADS_PATH = path.join(ROOT, "public", "data", `${slug}_osm_roads.geojson`);
 const OUT_PATH = path.join(ROOT, "public", "data", `${slug}_frontage_bands.geojson`);
 
-// Which highway tags count as "roads" for frontage purposes.
+// Which OSM `highway` tags count as "roads" for frontage purposes.
+// The LGU SMV schedules specifically attach the depth-of-frontage
+// rule to "all-weather roads" — that excludes OSM `track` (unpaved /
+// seasonal dirt paths) and `service` / `path` / `footway`. National,
+// provincial, municipal, and barangay roads are paved or graded
+// enough to count, and OSM tags them trunk / primary / secondary /
+// tertiary / unclassified / residential.
 const RELEVANT_HIGHWAYS = new Set([
   "trunk",
   "trunk_link",
