@@ -785,11 +785,47 @@ body.draw-mode-off .leaflet-pm-toolbar {
   border-top: 1px solid var(--divider);
 }
 
+/* The Layers title doubles as a collapse/expand button — clicking it
+   hides the body. Kept visually identical to the previous heading so
+   nothing jumps when the button replaces the old <h2>. */
 .map-panel__title {
-  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   font: var(--t-headline);
   letter-spacing: -0.01em;
   color: var(--text-strong);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.map-panel__title:focus-visible {
+  outline: 2px solid var(--accent, #1d4ed8);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.map-panel__title:hover {
+  color: var(--accent, #1d4ed8);
+}
+.map-panel__caret {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  font-size: 0.85em;
+  color: var(--text, #64748b);
+  transition: transform 120ms ease;
+}
+
+/* Body grid only appears below the title, with a small top gap so the
+   layout matches what the old h2 + margin gave us. */
+.map-panel__section .layer-toggles {
+  margin-top: 12px;
 }
 
 /* Layer toggles (edit mode) */

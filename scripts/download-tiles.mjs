@@ -11,6 +11,7 @@
 //   node scripts/download-tiles.mjs --zooms 10-15
 //   node scripts/download-tiles.mjs --bbox mp              # all of Mountain Province
 //   node scripts/download-tiles.mjs --delay 1500          # ms between requests
+//   node scripts/download-tiles.mjs --provider mapbox --bbox mp --zooms 10-14
 
 import fs from "node:fs";
 import path from "node:path";
@@ -19,7 +20,6 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..");
-const TILE_DIR = path.join(ROOT, "public", "tiles");
 
 // --- args ---
 const args = process.argv.slice(2);
@@ -87,8 +87,41 @@ const DELAY_MS = parseInt(arg("delay", "1100"), 10);
 const USER_AGENT =
   arg("ua", null) ||
   "BaukoLandValuationApp/0.1 (+https://github.com/local-dev/leaflet-test-app)";
+const PROVIDER = (arg("provider", "osm") || "osm").toLowerCase();
+const MAPBOX_TOKEN = arg("token", process.env.MAPBOX_TOKEN || "");
+const MAPBOX_STYLE = arg("mapbox-style", "mapbox/satellite-streets-v12");
+const MAPBOX_TILE_SIZE = parseInt(arg("mapbox-tile-size", "256"), 10);
+const MAPBOX_HIDPI = args.includes("--mapbox-hidpi");
+const MAPBOX_FORMAT = arg("mapbox-format", "png");
+const SMART_FROM_ZOOM = parseInt(arg("smart-from-zoom", "-1"), 10);
+const SMART_SOURCES = new Set(
+  String(arg("smart-sources", "zones,frontage,roads"))
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+);
+const SMART_MARGIN_DEG = parseFloat(arg("smart-margin-deg", "0.0007"));
+const OUTPUT_DIR_ARG = arg("out-dir", "");
+const DEFAULT_TILE_DIR =
+  PROVIDER === "mapbox"
+    ? path.join(ROOT, "public", "tiles-mapbox-hidpi")
+    : path.join(ROOT, "public", "tiles");
+const TILE_DIR = OUTPUT_DIR_ARG
+  ? path.resolve(ROOT, OUTPUT_DIR_ARG)
+  : DEFAULT_TILE_DIR;
 
 const SUBDOMAINS = ["a", "b", "c"];
+
+if (!["osm", "mapbox"].includes(PROVIDER)) {
+  console.error(`Unknown --provider '${PROVIDER}'. Use: osm, mapbox`);
+  process.exit(1);
+}
+if (PROVIDER === "mapbox" && !MAPBOX_TOKEN) {
+  console.error(
+    "Mapbox provider requires a token. Pass --token <MAPBOX_TOKEN> or set MAPBOX_TOKEN in your environment."
+  );
+  process.exit(1);
+}
 
 // --- tile math (Web Mercator) ---
 function lonToTile(lon, z) {
@@ -136,20 +169,128 @@ function tilesForZoom(z, [w, s, e, n]) {
   return out;
 }
 
+function tileToBbox({ z, x, y }) {
+  const scale = Math.pow(2, z);
+  const west = (x / scale) * 360 - 180;
+  const east = ((x + 1) / scale) * 360 - 180;
+  const north =
+    (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / scale))) * 180) / Math.PI;
+  const south =
+    (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 1)) / scale))) * 180) /
+    Math.PI;
+  return [west, south, east, north];
+}
+
+function bboxesIntersect(a, b) {
+  return !(a[0] > b[2] || a[2] < b[0] || a[1] > b[3] || a[3] < b[1]);
+}
+
+function expandBy([w, s, e, n], delta = 0) {
+  if (!delta || !Number.isFinite(delta) || delta <= 0) return [w, s, e, n];
+  return [w - delta, s - delta, e + delta, n + delta];
+}
+
+function readGeojsonBboxes(filePath, marginDeg = 0) {
+  if (!fs.existsSync(filePath)) return [];
+  try {
+    const gj = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const features = Array.isArray(gj?.features)
+      ? gj.features
+      : gj?.type === "Feature"
+        ? [gj]
+        : [];
+    const out = [];
+    for (const feature of features) {
+      if (!feature?.geometry) continue;
+      out.push(expandBy(featureBbox(feature), marginDeg));
+    }
+    return out;
+  } catch (e) {
+    console.warn(`Could not parse ${filePath}: ${e.message}`);
+    return [];
+  }
+}
+
+function buildSmartMaskBboxes(key) {
+  const base = path.join(ROOT, "public", "data");
+  const collected = [];
+
+  if (SMART_SOURCES.has("zones")) {
+    collected.push(
+      ...readGeojsonBboxes(path.join(base, `${key}_zones.geojson`), SMART_MARGIN_DEG)
+    );
+  }
+  if (SMART_SOURCES.has("frontage")) {
+    collected.push(
+      ...readGeojsonBboxes(
+        path.join(base, `${key}_frontage_bands.geojson`),
+        SMART_MARGIN_DEG
+      )
+    );
+  }
+  if (SMART_SOURCES.has("roads")) {
+    collected.push(
+      ...readGeojsonBboxes(path.join(base, `${key}_osm_roads.geojson`), SMART_MARGIN_DEG)
+    );
+  }
+  if (collected.length > 0) return collected;
+
+  // Fallback: avoid empty smart plan by clipping to municipality boundary
+  // if available; still much lighter than full province downloads.
+  const muniOutline = path.join(base, `${key}.geojson`);
+  const fallback = readGeojsonBboxes(muniOutline, SMART_MARGIN_DEG);
+  if (fallback.length > 0) return fallback;
+
+  return [];
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // --- plan ---
 const plan = [];
+const allByZoom = {};
+const clippedByZoom = {};
+const useSmart = Number.isFinite(SMART_FROM_ZOOM) && SMART_FROM_ZOOM >= zMin;
+const smartMaskBboxes = useSmart ? buildSmartMaskBboxes(bboxKey) : [];
 for (let z = zMin; z <= zMax; z++) {
-  plan.push(...tilesForZoom(z, bbox));
+  const tiles = tilesForZoom(z, bbox);
+  allByZoom[z] = tiles.length;
+  if (!useSmart || z < SMART_FROM_ZOOM || smartMaskBboxes.length === 0) {
+    plan.push(...tiles);
+    clippedByZoom[z] = tiles.length;
+    continue;
+  }
+  const clipped = tiles.filter((tile) => {
+    const tileBox = tileToBbox(tile);
+    return smartMaskBboxes.some((mask) => bboxesIntersect(tileBox, mask));
+  });
+  plan.push(...clipped);
+  clippedByZoom[z] = clipped.length;
 }
 console.log(
-  `Plan: ${plan.length} tiles total for bbox=${bboxKey} zooms=${zMin}-${zMax}`
+  `Plan: ${plan.length} tiles total for provider=${PROVIDER} bbox=${bboxKey} zooms=${zMin}-${zMax}`
 );
-const byZoom = {};
-for (const t of plan) byZoom[t.z] = (byZoom[t.z] || 0) + 1;
-for (const z of Object.keys(byZoom).sort((a, b) => +a - +b)) {
-  console.log(`  z${z}: ${byZoom[z]} tiles`);
+for (const z of Object.keys(clippedByZoom).sort((a, b) => +a - +b)) {
+  const full = allByZoom[z];
+  const clipped = clippedByZoom[z];
+  if (useSmart && +z >= SMART_FROM_ZOOM && smartMaskBboxes.length > 0) {
+    console.log(`  z${z}: ${clipped} tiles (smart from ${full})`);
+  } else {
+    console.log(`  z${z}: ${clipped} tiles`);
+  }
+}
+if (useSmart) {
+  if (smartMaskBboxes.length > 0) {
+    console.log(
+      `Smart clipping: enabled from z${SMART_FROM_ZOOM} using ${
+        smartMaskBboxes.length
+      } mask bboxes (${[...SMART_SOURCES].join(",")}).`
+    );
+  } else {
+    console.log(
+      `Smart clipping requested from z${SMART_FROM_ZOOM}, but no masks found for '${bboxKey}'. Falling back to full bbox tiles.`
+    );
+  }
 }
 console.log(
   `At ${DELAY_MS}ms/req ≈ ${Math.ceil((plan.length * DELAY_MS) / 60000)} min`
@@ -170,14 +311,21 @@ for (const { z, x, y } of plan) {
   }
   fs.mkdirSync(dir, { recursive: true });
   const sub = SUBDOMAINS[(x + y) % SUBDOMAINS.length];
-  const url = `https://${sub}.tile.openstreetmap.org/${z}/${x}/${y}.png`;
+  const osmUrl = `https://${sub}.tile.openstreetmap.org/${z}/${x}/${y}.png`;
+  const mapboxSuffix = MAPBOX_HIDPI ? "@2x" : "";
+  const mapboxUrl =
+    `https://api.mapbox.com/styles/v1/${MAPBOX_STYLE}/tiles/${MAPBOX_TILE_SIZE}/${z}/${x}/${y}` +
+    `${mapboxSuffix}?access_token=${encodeURIComponent(MAPBOX_TOKEN)}` +
+    `&logo=false&attribution=false&format=${encodeURIComponent(MAPBOX_FORMAT)}`;
+  const url = PROVIDER === "mapbox" ? mapboxUrl : osmUrl;
   try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Referer: "https://www.openstreetmap.org/",
-      },
-    });
+    const headers = {
+      "User-Agent": USER_AGENT,
+      ...(PROVIDER === "osm"
+        ? { Referer: "https://www.openstreetmap.org/" }
+        : {}),
+    };
+    const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const buf = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(file, buf);

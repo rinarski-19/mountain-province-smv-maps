@@ -51,6 +51,8 @@ const MUNICIPALITY_STROKE = {
   opacity: 1,
   fillOpacity: 0,
 };
+const OFFLINE_MAPBOX_TILE_REV = "2026-05-16-hidpi";
+const OFFLINE_MAPBOX_TILE_ROOT = "/tiles-mapbox-hidpi";
 
 // Basemap providers. The "settings" menu in TopNav lets the user
 // switch between these. Online OSM is the default; satellite and
@@ -95,6 +97,13 @@ const TILE_SOURCES = {
       '&copy; OSM data — locally cached. Run <code>npm run tiles:bauko</code> to populate.',
     maxNativeZoom: 16,
     maxZoom: 18,
+  },
+  offline_mapbox: {
+    url: `${OFFLINE_MAPBOX_TILE_ROOT}/{z}/{x}/{y}.png?v=${OFFLINE_MAPBOX_TILE_REV}`,
+    attribution:
+      '&copy; Mapbox &copy; OpenStreetMap &mdash; locally cached hybrid tiles.',
+    maxNativeZoom: 18,
+    maxZoom: 20,
   },
 };
 
@@ -257,8 +266,10 @@ export default function LeafletMap({
         const lon = (w + e) / 2;
         const lat = (s + n) / 2;
         const z = 10;
+        const tileRoot =
+          tileMode === "offline_mapbox" ? OFFLINE_MAPBOX_TILE_ROOT : "/tiles";
         const res = await fetch(
-          `/tiles/${z}/${lonToTile(lon, z)}/${latToTile(lat, z)}.png`,
+          `${tileRoot}/${z}/${lonToTile(lon, z)}/${latToTile(lat, z)}.png`,
           { method: "HEAD" }
         );
         if (active) setTilesAvailable(res.ok);
@@ -269,9 +280,11 @@ export default function LeafletMap({
     return () => {
       active = false;
     };
-  }, [data.bauko]);
+  }, [data.bauko, tileMode]);
 
   const tile = TILE_SOURCES[tileMode] ?? TILE_SOURCES.offline;
+  const showLabelsOverlay =
+    tileMode !== "offline" && tileMode !== "offline_mapbox";
   const baukoFeature = data.bauko?.features?.[0] ?? null;
   const center = municipality?.map?.center ?? DEFAULT_CENTER;
   const defaultZoom = municipality?.map?.defaultZoom ?? DEFAULT_ZOOM;
@@ -378,7 +391,7 @@ export default function LeafletMap({
             re-rendering tiles. POI icons stay baked into the basemap
             below the zones (we tried surfacing them as a separate
             layer and it duplicated labels and looked cluttered). */}
-        {tileMode !== "offline" && (
+        {showLabelsOverlay && (
           <TileLayer
             key={`labels-${tileMode}`}
             url={LABELS_OVERLAY_URL}
@@ -477,7 +490,9 @@ export default function LeafletMap({
             data={data.zones}
             pane="zones-pane"
             interactive={false}
-            style={(feature) => zoneStyle(feature, isClassActive ? activeClass : null)}
+            style={(feature) =>
+              zoneStyle(feature, isClassActive ? activeClass : null, tileMode)
+            }
           />
         )}
         {layers.zones && !drawMode && data.zones?.features?.length > 0 && (
@@ -487,7 +502,12 @@ export default function LeafletMap({
             pane="zones-pane"
             interactive={false}
             style={(feature) =>
-              auxZoneStyle(feature, isClassActive ? activeClass : null, "secondary")
+              auxZoneStyle(
+                feature,
+                isClassActive ? activeClass : null,
+                "secondary",
+                tileMode
+              )
             }
           />
         )}
@@ -498,7 +518,12 @@ export default function LeafletMap({
             pane="zones-pane"
             interactive={false}
             style={(feature) =>
-              auxZoneStyle(feature, isClassActive ? activeClass : null, "tertiary")
+              auxZoneStyle(
+                feature,
+                isClassActive ? activeClass : null,
+                "tertiary",
+                tileMode
+              )
             }
           />
         )}
@@ -581,21 +606,31 @@ export default function LeafletMap({
             roadsUrl={municipality?.dataFiles?.osmRoads}
             frontageBandsUrl={municipality?.dataFiles?.frontageBands}
             showFrontageBands={!!layers?.frontageBands}
+            barangaysUrl={municipality?.dataFiles?.barangays}
             classKeys={municipality?.schedule?.classifications?.map((row) => row?.subClass)}
           />
         )}
       </MapContainer>
 
-      {tileMode === "offline" && !tilesAvailable && (
+      {(tileMode === "offline" || tileMode === "offline_mapbox") &&
+        !tilesAvailable && (
         <OfflineTilesMissingOverlay
-          offlineHintCommand={municipality?.tiles?.offlineHintCommand}
+          offlineHintCommand={
+            tileMode === "offline_mapbox"
+              ? `MAPBOX_TOKEN=... npm run ${
+                  municipality?.slug === "bauko"
+                    ? "tiles:bauko:mapbox:hires"
+                    : "tiles:mp:mapbox:hires"
+                }`
+              : municipality?.tiles?.offlineHintCommand
+          }
         />
       )}
     </div>
   );
 }
 
-function zoneStyle(feature, activeClass) {
+function zoneStyle(feature, activeClass, tileMode) {
   const primary = normaliseClassKey(feature?.properties?.classification);
   const secondary = auxClassForFeature(feature, "secondary");
   const tertiary = auxClassForFeature(feature, "tertiary");
@@ -612,14 +647,18 @@ function zoneStyle(feature, activeClass) {
   const displayClass = isMatching && activeKey ? activeKey : primary;
   const base = styleForClass(displayClass);
   const isC1 = displayClass === "C-1";
+  const imageryBase = isImageryTileMode(tileMode);
+  const activeOpacity = imageryBase ? 0.42 : ACTIVE_SMV_OPACITY;
+  const idleOpacity = imageryBase ? (isC1 ? 0.65 : 0.28) : isC1 ? 1 : 0.5;
+  const mutedOpacity = imageryBase ? (isC1 ? 0.1 : 0.06) : isC1 ? 0.18 : 0.12;
   // Three states:
   //  - No class active → resting opacity (1 for C-1's hatch, 0.5 otherwise).
   //  - Class active and this polygon matches → 100% opaque so it pops.
   //  - Class active and this polygon does NOT match → muted way down.
   let fillOpacity;
-  if (!activeKey) fillOpacity = isC1 ? 1 : 0.5;
-  else if (isMatching) fillOpacity = ACTIVE_SMV_OPACITY;
-  else fillOpacity = isC1 ? 0.18 : 0.12;
+  if (!activeKey) fillOpacity = idleOpacity;
+  else if (isMatching) fillOpacity = activeOpacity;
+  else fillOpacity = mutedOpacity;
   return {
     ...base,
     stroke: false,
@@ -629,7 +668,7 @@ function zoneStyle(feature, activeClass) {
   };
 }
 
-function auxZoneStyle(feature, activeClass, slot = "secondary") {
+function auxZoneStyle(feature, activeClass, slot = "secondary", tileMode) {
   const auxClass = auxClassForFeature(feature, slot);
   if (!auxClass) {
     return {
@@ -646,18 +685,20 @@ function auxZoneStyle(feature, activeClass, slot = "secondary") {
   const isOtherWhenActive = Boolean(activeKey && !isActiveAux);
   const s = styleForClass(auxClass);
   const isTertiary = slot === "tertiary";
+  const imageryBase = isImageryTileMode(tileMode);
+  const activeStrokeOpacity = imageryBase ? 0.5 : ACTIVE_SMV_OPACITY;
+  const passiveStrokeOpacity = imageryBase ? (isTertiary ? 0.24 : 0.3) : isTertiary ? 0.35 : 0.42;
+  const mutedStrokeOpacity = imageryBase ? 0.12 : 0.18;
 
   return {
     stroke: true,
     color: s.color,
     weight: isActiveAux ? (isTertiary ? 2.6 : 3) : isOtherWhenActive ? 1 : 1.5,
     opacity: isActiveAux
-      ? ACTIVE_SMV_OPACITY
+      ? activeStrokeOpacity
       : isOtherWhenActive
-        ? 0.18
-        : isTertiary
-          ? 0.35
-          : 0.42,
+        ? mutedStrokeOpacity
+        : passiveStrokeOpacity,
     dashArray: undefined,
     lineCap: "round",
     lineJoin: "round",
@@ -826,6 +867,15 @@ function auxClassForFeature(feature, slot = "secondary") {
       props.classification_tertiary ??
       props.classification_3 ??
       props.classification3
+  );
+}
+
+function isImageryTileMode(tileMode) {
+  return (
+    tileMode === "satellite" ||
+    tileMode === "google_satellite" ||
+    tileMode === "google_hybrid" ||
+    tileMode === "offline_mapbox"
   );
 }
 

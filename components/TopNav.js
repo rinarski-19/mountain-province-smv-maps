@@ -245,7 +245,8 @@ export default function TopNav({
                 ["google_street", "Google Street"],
                 ["google_satellite", "Google Satellite"],
                 ["google_hybrid", "Google Hybrid"],
-                ["offline", "Offline"],
+                ["offline", "Offline (OSM cache)"],
+                ["offline_mapbox", "Offline (Mapbox Hybrid)"],
               ].map(([mode, label]) => (
                 <button
                   key={mode}

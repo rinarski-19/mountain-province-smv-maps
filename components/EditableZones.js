@@ -127,6 +127,40 @@ function flattenLayerCandidates(input, out = []) {
   return out;
 }
 
+// Sliver detector for cut / clean operations. Drops two kinds of
+// pathological pieces:
+//   1. Tiny area — < minAreaM2 (50 m² default; a 5 m × 10 m parcel
+//      survives, smaller fragments don't).
+//   2. Thin strips — pieces with low compactness, computed as
+//      4πA/P². A square scores ~0.78; a circle 1.0; a 100×1 m strip
+//      ~0.03. Threshold 0.10 catches sliver strips without nuking
+//      legitimate long-thin parcels (which usually clock 0.15+).
+// Both filters fire — passes only if neither triggers.
+function isSliverPolygon(polygonGeom, opts = {}) {
+  const minAreaM2 = opts.minAreaM2 ?? 50;
+  const minCompactness = opts.minCompactness ?? 0.1;
+  try {
+    const f = turf.feature(polygonGeom);
+    const area = turf.area(f);
+    if (area < minAreaM2) return true;
+    // Sum the perimeter of every ring (outer + holes).
+    const lineOrColl = turf.polygonToLine(f);
+    let perim = 0;
+    if (lineOrColl?.type === "Feature") {
+      perim = turf.length(lineOrColl, { units: "meters" });
+    } else if (lineOrColl?.features) {
+      for (const lf of lineOrColl.features) {
+        perim += turf.length(lf, { units: "meters" });
+      }
+    }
+    if (perim > 0) {
+      const compactness = (4 * Math.PI * area) / (perim * perim);
+      if (compactness < minCompactness) return true;
+    }
+  } catch {}
+  return false;
+}
+
 function extractCutResultLayers(event) {
   const layers = [];
   flattenLayerCandidates(event?.layer, layers);
@@ -343,6 +377,7 @@ export default function EditableZones({
   roadsUrl = null,
   frontageBandsUrl = null,
   showFrontageBands = false,
+  barangaysUrl = null,
   classKeys = null,
 }) {
   const map = useMap();
@@ -351,7 +386,10 @@ export default function EditableZones({
   const historyRef = useRef([]);
   const historyIndexRef = useRef(-1);
   const isRestoringRef = useRef(false);
-  const [, force] = useState(0);
+  // Counter exposed (not anonymous) so memoised computations can
+  // depend on it — e.g. the polygon layers tree below recomputes
+  // whenever refresh() bumps this.
+  const [forceCounter, force] = useState(0);
   const [activeClass, setActiveClass] = useState("R-3");
   const [secondaryClass, setSecondaryClass] = useState("");
   const [tertiaryClass, setTertiaryClass] = useState("");
@@ -413,6 +451,29 @@ export default function EditableZones({
   // few seconds so it doesn't linger.
   const [bakeNotice, setBakeNotice] = useState("");
 
+  // ---- Polygon layers tree (Photoshop-style) ----
+  // Hierarchical view of every zone polygon, grouped by barangay →
+  // SMV class. Click a polygon row to select it on the map; per-row
+  // and per-group delete buttons. Polygons are assigned to a barangay
+  // by centroid containment against the municipality's barangay
+  // boundaries.
+  const [layerPanelOpen, setLayerPanelOpen] = useState(false);
+  const [expandedTreeKeys, setExpandedTreeKeys] = useState(() => new Set());
+  const [barangaysData, setBarangaysData] = useState(null);
+  useEffect(() => {
+    if (!barangaysUrl) return undefined;
+    let cancelled = false;
+    fetch(barangaysUrl, { cache: "force-cache" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setBarangaysData(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [barangaysUrl]);
+
   const [multiVertexMode, setMultiVertexMode] = useState(false);
   const multiVertexModeRef = useRef(multiVertexMode);
   useEffect(() => {
@@ -427,6 +488,13 @@ export default function EditableZones({
   const vertexMarkersByKeyRef = useRef(new Map()); // key → L.Marker
   const vertexDragStateRef = useRef(null);
   const cutScopedGroupRef = useRef(null);
+  // Snapshot of the selected polygon's properties at the moment Cut
+  // mode is enabled. Geoman's pm:cut event sometimes fires without
+  // `event.originalLayer`, in which case onCut had no source for
+  // classification — the result polygon would render as grey
+  // UNCLASSIFIED. Capturing the props here gives us a reliable
+  // fallback that travels through the entire cut transaction.
+  const cutSourcePropsRef = useRef(null);
   // Bumped on every selectLayer call so the multi-vertex effect can
   // rebuild handles when the user switches between polygons.
   const [selectedLayerVersion, setSelectedLayerVersion] = useState(0);
@@ -450,6 +518,127 @@ export default function EditableZones({
     () => availableClassKeys.filter((k) => k !== "UNCLASSIFIED"),
     [availableClassKeys]
   );
+
+  // ---- Polygon layers tree (memoised) ----
+  // { barangaySlug: { name, classes: { classKey: [layer, ...] } } }
+  // Plus an "_unassigned" bucket for polygons whose centroid falls
+  // outside every barangay (rare — happens with slivers right on a
+  // boundary or imports that overshoot the municipal outline).
+  // Recomputes on every refresh() call (forceCounter dep) and when
+  // barangays data loads.
+  const polygonTree = useMemo(() => {
+    const tree = {};
+    const group = groupRef.current;
+    if (!group) return tree;
+    const brgyFeatures = barangaysData?.features || [];
+    // Pre-compute barangay bboxes for fast rejection.
+    const brgyIndex = brgyFeatures.map((f) => ({
+      feature: f,
+      bbox: (() => {
+        try {
+          return turf.bbox(f);
+        } catch {
+          return null;
+        }
+      })(),
+      name:
+        f.properties?.name ||
+        f.properties?.NAME_3 ||
+        f.properties?.ADM4_EN ||
+        "(unnamed)",
+      slug:
+        f.properties?.slug ||
+        (f.properties?.name || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, ""),
+    }));
+
+    group.eachLayer((layer) => {
+      // Collect every classification tier this polygon belongs to.
+      // A polygon with primary=C-3, secondary=R-3, tertiary=R-4 will
+      // appear under THREE class buckets (C-3, R-3, R-4) in its
+      // barangay. Each appearance is tagged with the tier so the row
+      // can show a "2°" / "3°" badge.
+      const props = layer.feature?.properties || {};
+      const primary = normaliseClassKey(props.classification);
+      const secondary = normaliseClassKey(props.secondary_classification);
+      const tertiary = normaliseClassKey(props.tertiary_classification);
+      const tierListings = [];
+      if (primary) tierListings.push({ klass: primary, tier: "primary" });
+      if (secondary && secondary !== primary) {
+        tierListings.push({ klass: secondary, tier: "secondary" });
+      }
+      if (
+        tertiary &&
+        tertiary !== primary &&
+        tertiary !== secondary
+      ) {
+        tierListings.push({ klass: tertiary, tier: "tertiary" });
+      }
+      // Polygons with no classification at all still need a home.
+      if (tierListings.length === 0) {
+        tierListings.push({ klass: "UNCLASSIFIED", tier: "primary" });
+      }
+
+      // Get a representative point for the layer. getCenter on a
+      // polygon-with-holes / MultiPolygon returns the bbox center,
+      // which is good enough for barangay containment.
+      let centerLatLng = null;
+      try {
+        if (typeof layer.getBounds === "function") {
+          centerLatLng = layer.getBounds().getCenter();
+        }
+      } catch {}
+
+      let brgyName = "(no barangay)";
+      let brgySlug = "_unassigned";
+      if (centerLatLng && brgyIndex.length > 0) {
+        const pt = turf.point([centerLatLng.lng, centerLatLng.lat]);
+        for (const b of brgyIndex) {
+          // bbox pre-reject
+          if (b.bbox) {
+            if (
+              centerLatLng.lng < b.bbox[0] ||
+              centerLatLng.lng > b.bbox[2] ||
+              centerLatLng.lat < b.bbox[1] ||
+              centerLatLng.lat > b.bbox[3]
+            ) {
+              continue;
+            }
+          }
+          try {
+            if (turf.booleanPointInPolygon(pt, b.feature)) {
+              brgyName = b.name;
+              brgySlug = b.slug || b.name.toLowerCase().replace(/\s+/g, "-");
+              break;
+            }
+          } catch {}
+        }
+      }
+
+      if (!tree[brgySlug]) {
+        tree[brgySlug] = { name: brgyName, classes: {} };
+      }
+      for (const { klass, tier } of tierListings) {
+        if (!tree[brgySlug].classes[klass]) {
+          tree[brgySlug].classes[klass] = [];
+        }
+        tree[brgySlug].classes[klass].push({ layer, tier });
+      }
+    });
+    return tree;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceCounter, barangaysData]);
+
+  const toggleTreeKey = (key) => {
+    setExpandedTreeKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Re-render the floating toolbar when feature edits happen.
   const refresh = () => force((n) => n + 1);
@@ -595,6 +784,227 @@ export default function EditableZones({
     selectedLayerRef.current = null;
     pushHistory();
     refresh();
+  };
+
+  // Clean the selected polygon's geometry: dedupe/colinear vertices,
+  // resolve self-intersections (the typical cause of the "tiny red
+  // spikes inside the hole" artifact), and drop sliver parts smaller
+  // than the threshold.
+  //
+  // Pipeline:
+  //   1. turf.cleanCoords — removes duplicate / colinear vertices
+  //      that confuse downstream ops.
+  //   2. turf.unkinkPolygon — splits self-intersecting outer rings
+  //      into separate valid Polygons. A figure-8 polygon becomes two
+  //      circles; a polygon with a spike that crosses its own edge
+  //      becomes a clean main piece + a tiny isolated spike piece.
+  //   3. Area filter — drop any resulting piece below SLIVER_MIN_M2.
+  //   4. Re-merge: 1 piece → Polygon, 2+ → MultiPolygon, 0 → no-op
+  //      with an alert (so we don't accidentally wipe the user's zone).
+  //
+  // Source class properties are preserved on the result.
+  const cleanSelectedGeometry = () => {
+    const group = groupRef.current;
+    const layer = selectedLayerRef.current;
+    if (!group || !layer || typeof layer.toGeoJSON !== "function") return;
+    let gj;
+    try {
+      gj = layer.toGeoJSON();
+    } catch {
+      return;
+    }
+    if (!gj?.geometry) return;
+
+    const sourceProps = { ...(gj.properties || {}) };
+    const SLIVER_MIN_M2 = 50;
+
+    // 1. cleanCoords
+    let cleaned;
+    try {
+      cleaned = turf.cleanCoords(gj);
+    } catch {
+      cleaned = gj;
+    }
+
+    // 2. Build a flat list of single-Polygon features so we can
+    //    process each via unkinkPolygon. For MultiPolygons we explode
+    //    first so a kink in one part doesn't merge with another.
+    const candidates = [];
+    if (cleaned.geometry.type === "Polygon") {
+      candidates.push(cleaned);
+    } else if (cleaned.geometry.type === "MultiPolygon") {
+      for (const c of cleaned.geometry.coordinates) {
+        candidates.push(
+          turf.feature({ type: "Polygon", coordinates: c }, sourceProps)
+        );
+      }
+    }
+
+    const piecesGeoms = [];
+    for (const cand of candidates) {
+      let unkinked = null;
+      try {
+        const out = turf.unkinkPolygon(cand);
+        if (out?.features?.length) {
+          unkinked = out.features;
+        }
+      } catch {}
+      if (unkinked) {
+        for (const f of unkinked) {
+          if (f?.geometry?.type === "Polygon") piecesGeoms.push(f.geometry);
+        }
+      } else {
+        // unkink failed or wasn't necessary — keep candidate as-is
+        if (cand.geometry?.type === "Polygon") {
+          piecesGeoms.push(cand.geometry);
+        }
+      }
+    }
+
+    // 3. Drop slivers — either tiny by area OR narrow thin strips
+    //    (compactness < 0.10). Both filters in isSliverPolygon.
+    const kept = [];
+    let droppedCount = 0;
+    let droppedAreaTotal = 0;
+    for (const g of piecesGeoms) {
+      let a = 0;
+      try {
+        a = turf.area(turf.feature(g));
+      } catch {}
+      if (isSliverPolygon(g, { minAreaM2: SLIVER_MIN_M2, minCompactness: 0.1 })) {
+        droppedCount += 1;
+        droppedAreaTotal += a;
+      } else {
+        kept.push(g);
+      }
+    }
+
+    if (kept.length === 0) {
+      alert(
+        `Cleaning would remove everything — all ${piecesGeoms.length} ` +
+          `geometry pieces look like slivers (under ${SLIVER_MIN_M2} m² area ` +
+          `or below 0.10 compactness). Nothing changed.`
+      );
+      return;
+    }
+
+    // 4. Rebuild the geometry
+    let newGeom;
+    if (kept.length === 1) {
+      newGeom = kept[0];
+    } else {
+      newGeom = {
+        type: "MultiPolygon",
+        coordinates: kept.map((p) => p.coordinates),
+      };
+    }
+
+    const newFeature = {
+      type: "Feature",
+      properties: sourceProps,
+      geometry: newGeom,
+    };
+    const wrap = L.geoJSON(newFeature, { style: () => ({}) });
+    let newLayer = null;
+    wrap.eachLayer((sub) => {
+      sub.feature = newFeature;
+      applyFeatureStyle(sub, sourceProps.classification);
+      prepareLayer(sub);
+      group.addLayer(sub);
+      newLayer = sub;
+    });
+
+    // Remove the old layer
+    if (selectedLayerRef.current === layer) {
+      selectedLayerRef.current = null;
+    }
+    try {
+      if (layer.pm?.enabled?.()) layer.pm.disable();
+    } catch {}
+    try {
+      group.removeLayer(layer);
+    } catch {}
+    try {
+      map.removeLayer(layer);
+    } catch {}
+
+    pushHistory();
+    refresh();
+    if (newLayer) selectLayer(newLayer);
+
+    if (droppedCount > 0) {
+      // Surface what was trimmed so the user knows the clean wasn't a
+      // no-op. Friendlier than a silent change.
+      setBakeNotice(
+        `Cleaned: removed ${droppedCount} sliver part${droppedCount === 1 ? "" : "s"} (${droppedAreaTotal.toFixed(0)} m² total).`
+      );
+      setTimeout(() => setBakeNotice(""), 5000);
+    } else {
+      setBakeNotice("Geometry cleaned — no slivers were below threshold.");
+      setTimeout(() => setBakeNotice(""), 3000);
+    }
+  };
+
+  // Explode the selected MultiPolygon into N separate Polygon layers,
+  // each inheriting the source's classification (+ secondary/tertiary).
+  // Useful when bake or DXF-import produced one MultiPolygon feature
+  // covering several disconnected pieces — the user typically wants to
+  // delete or reclassify just one of those pieces.
+  const explodeSelectedMultiPolygon = () => {
+    const group = groupRef.current;
+    const layer = selectedLayerRef.current;
+    if (!group || !layer || typeof layer.toGeoJSON !== "function") return;
+    let gj;
+    try {
+      gj = layer.toGeoJSON();
+    } catch {
+      return;
+    }
+    if (gj?.geometry?.type !== "MultiPolygon") return;
+    const parts = gj.geometry.coordinates;
+    if (!Array.isArray(parts) || parts.length < 2) return;
+
+    const sourceProps = { ...(gj.properties || {}) };
+    const newLayers = [];
+    for (const polyCoords of parts) {
+      const subFeature = {
+        type: "Feature",
+        properties: { ...sourceProps },
+        geometry: { type: "Polygon", coordinates: polyCoords },
+      };
+      const wrap = L.geoJSON(subFeature, { style: () => ({}) });
+      wrap.eachLayer((sub) => {
+        // Make sure each new sub gets the full feature payload — not
+        // just whatever L.geoJSON populated.
+        sub.feature = subFeature;
+        applyFeatureStyle(sub, sourceProps.classification);
+        prepareLayer(sub);
+        group.addLayer(sub);
+        newLayers.push(sub);
+      });
+    }
+
+    // Remove the original MultiPolygon now that its parts are standalone.
+    if (selectedLayerRef.current === layer) {
+      selectedLayerRef.current = null;
+    }
+    try {
+      if (layer.pm?.enabled?.()) layer.pm.disable();
+    } catch {}
+    try {
+      group.removeLayer(layer);
+    } catch {}
+    try {
+      map.removeLayer(layer);
+    } catch {}
+
+    pushHistory();
+    refresh();
+    // Auto-select the first new piece so the user has a starting point
+    // for the typical "now delete the small one" follow-up.
+    if (newLayers[0]) {
+      selectLayer(newLayers[0]);
+    }
   };
 
   const setSelectedSecondaryClass = () => {
@@ -1507,6 +1917,12 @@ export default function EditableZones({
           }, 0);
           return;
         }
+        // Snapshot the selected layer's props NOW so the eventual
+        // pm:cut handler has a reliable source for classification,
+        // regardless of what Geoman puts in event.originalLayer.
+        cutSourcePropsRef.current = {
+          ...(selected.feature?.properties || {}),
+        };
         const cutScope = L.featureGroup([selected]);
         cutScopedGroupRef.current = cutScope;
         group.eachLayer((layer) => {
@@ -1522,6 +1938,7 @@ export default function EditableZones({
         } catch {}
       } else {
         cutScopedGroupRef.current = null;
+        cutSourcePropsRef.current = null;
         group.eachLayer((layer) => {
           if (layer.options && "pmIgnore" in layer.options) {
             delete layer.options.pmIgnore;
@@ -1536,11 +1953,65 @@ export default function EditableZones({
     const onCut = (e) => {
       if (isRestoringRef.current) return;
 
-      const original = e?.originalLayer ?? null;
-      const sourceProps = original?.feature?.properties ?? {};
-      const resultLayers = extractCutResultLayers(e).filter(
-        (layer) => layer && layer !== original
-      );
+      // Resolve the "original" polygon being cut. Three fallbacks
+      // because Geoman versions are inconsistent about which fields
+      // they populate on the pm:cut event:
+      //   1. event.originalLayer    — set in modern Geoman
+      //   2. event.target           — sometimes set on global cut
+      //   3. selectedLayerRef.current — cut is scoped to selection,
+      //                                  so this is virtually always
+      //                                  the right layer
+      const original =
+        e?.originalLayer ??
+        e?.target ??
+        selectedLayerRef.current ??
+        null;
+
+      // Classification source priority:
+      //   1. The snapshot we captured when Cut mode started (most
+      //      reliable — guaranteed to be the user's intended source).
+      //   2. The original layer's props if 1 isn't set (e.g., the
+      //      handler somehow fired without going through the toggle).
+      //   3. Empty object (last resort — result will be UNCLASSIFIED).
+      // The original's secondary/tertiary tags carry through too.
+      const sourceProps =
+        cutSourcePropsRef.current ??
+        original?.feature?.properties ??
+        {};
+
+      // Pre-filter cut result layers: drop sliver / thin-strip pieces
+      // before they ever land on the map. Geoman emits one layer per
+      // resulting polygon, and on cuts that cross a road-inset hole
+      // it can produce many narrow strip artifacts as well as the
+      // intended main pieces. Same compactness threshold as the
+      // Clean geometry button.
+      let droppedCutSlivers = 0;
+      const resultLayers = extractCutResultLayers(e)
+        .filter((layer) => layer && layer !== original)
+        .filter((layer) => {
+          let gj;
+          try {
+            gj = layer.toGeoJSON();
+          } catch {
+            return true; // can't measure → keep it, user can clean manually
+          }
+          if (!gj?.geometry) return true;
+          // Test each polygon part. If ALL parts are slivers, drop the
+          // whole layer. If at least one part is non-sliver, keep
+          // (Clean geometry can refine later).
+          const polygons =
+            gj.geometry.type === "MultiPolygon"
+              ? gj.geometry.coordinates.map((c) => ({
+                  type: "Polygon",
+                  coordinates: c,
+                }))
+              : [gj.geometry];
+          const allSliver = polygons.every((g) =>
+            isSliverPolygon(g, { minAreaM2: 50, minCompactness: 0.1 })
+          );
+          if (allSliver) droppedCutSlivers += 1;
+          return !allSliver;
+        });
 
       if (original) {
         if (selectedLayerRef.current === original) {
@@ -1562,9 +2033,14 @@ export default function EditableZones({
 
       for (const layer of resultLayers) {
         layer.feature = layer.feature || { type: "Feature", properties: {} };
+        // Source-class properties WIN here (previously they were
+        // being overwritten by Geoman's empty `feature.properties`
+        // object, which is why cut results rendered grey
+        // UNCLASSIFIED). Anything Geoman did set is preserved unless
+        // sourceProps explicitly carries the same key.
         layer.feature.properties = {
-          ...sourceProps,
           ...(layer.feature.properties || {}),
+          ...sourceProps,
         };
         applyFeatureStyle(layer, layer.feature.properties?.classification);
         prepareLayer(layer);
@@ -1577,6 +2053,15 @@ export default function EditableZones({
       selectLayer(resultLayers[0]);
       pushHistory();
       refresh();
+      if (droppedCutSlivers > 0) {
+        // Tell the user we filtered the cut output — otherwise they'd
+        // wonder why some thin-strip artifacts they saw a moment ago
+        // disappeared.
+        setBakeNotice(
+          `Cut: auto-dropped ${droppedCutSlivers} sliver strip${droppedCutSlivers === 1 ? "" : "s"} (thin/narrow leftover pieces).`
+        );
+        setTimeout(() => setBakeNotice(""), 5000);
+      }
     };
 
     // Tag any newly drawn shape with the currently selected classification.
@@ -2108,6 +2593,25 @@ export default function EditableZones({
 
   if (!visible) return null;
   const selectedLayer = selectedLayerRef.current;
+  // True when the selected polygon is a MultiPolygon with 2+ parts —
+  // i.e. when "Split parts" would do something meaningful.
+  // Recomputed on every render so it tracks reclassifications too;
+  // forceCounter is implicitly a dep since render reflects edits.
+  const selectedIsExplodable = (() => {
+    if (!selectedLayer || typeof selectedLayer.toGeoJSON !== "function") {
+      return false;
+    }
+    try {
+      const gj = selectedLayer.toGeoJSON();
+      return (
+        gj?.geometry?.type === "MultiPolygon" &&
+        Array.isArray(gj.geometry.coordinates) &&
+        gj.geometry.coordinates.length >= 2
+      );
+    } catch {
+      return false;
+    }
+  })();
   const selectedPrimaryClass = normaliseClassKey(
     selectedLayer?.feature?.properties?.classification
   );
@@ -2177,7 +2681,35 @@ export default function EditableZones({
               : "Reassign zone"
             : "Draw zone, Shift+click a road or band";
 
+  // Helper for the layers tree — delete one polygon layer and clear its
+  // selection if it was the selected one.
+  const removeOneFromTree = (layer) => {
+    const group = groupRef.current;
+    if (!group || !layer) return;
+    if (selectedLayerRef.current === layer) {
+      selectedLayerRef.current = null;
+    }
+    try {
+      if (layer.pm?.enabled?.()) layer.pm.disable();
+    } catch {}
+    group.removeLayer(layer);
+    pushHistory();
+    refresh();
+    syncEditorState();
+  };
+
+  // Sorted barangay slugs — alphabetical by display name, with the
+  // "(no barangay)" bucket last so it doesn't drown the tree at the top.
+  const treeBrgyOrder = Object.keys(polygonTree).sort((a, b) => {
+    if (a === "_unassigned") return 1;
+    if (b === "_unassigned") return -1;
+    return (polygonTree[a]?.name || a).localeCompare(
+      polygonTree[b]?.name || b
+    );
+  });
+
   return (
+    <>
     <div ref={panelRefCallback} style={panelStyle}>
       {/* Draggable header — also doubles as the panel title. Click the
           chevron to collapse the body. */}
@@ -2579,6 +3111,24 @@ export default function EditableZones({
         >
           Delete selected
         </button>
+        {selectedIsExplodable && (
+          <button
+            onClick={explodeSelectedMultiPolygon}
+            style={{ ...smallBtn, color: "#1d4ed8", fontWeight: 600 }}
+            title="The selected zone is a MultiPolygon with several disconnected parts. Split it into separate polygons so each piece can be deleted, edited, or reclassified independently. The new pieces inherit this zone's class (primary + secondary + tertiary)."
+          >
+            Split parts
+          </button>
+        )}
+        {editorState.hasSelection && (
+          <button
+            onClick={cleanSelectedGeometry}
+            style={{ ...smallBtn, color: "#7c3aed", fontWeight: 600 }}
+            title="Repair the selected polygon: removes duplicate vertices, splits self-intersecting outer rings (the typical cause of stray spike artifacts inside a hole), and drops sliver parts smaller than 50 m². Class properties are preserved."
+          >
+            Clean geometry
+          </button>
+        )}
         <button
           onClick={() => setMultiVertexMode((m) => !m)}
           disabled={!editorState.hasSelection}
@@ -2632,6 +3182,19 @@ export default function EditableZones({
           />
           Trim against existing
         </label>
+        <button
+          onClick={() => setLayerPanelOpen((o) => !o)}
+          style={{
+            ...smallBtn,
+            background: layerPanelOpen ? "#dbeafe" : "white",
+            borderColor: layerPanelOpen ? "#1d4ed8" : "#cbd5e1",
+            color: layerPanelOpen ? "#1d4ed8" : "inherit",
+            fontWeight: layerPanelOpen ? 600 : 400,
+          }}
+          title="Photoshop-style layers tree, grouped by barangay → SMV class. Click a row to select on the map; × removes the polygon."
+        >
+          {layerPanelOpen ? "Layers tree ✓" : "Layers tree"}
+        </button>
         <button
           onClick={saveToProject}
           disabled={saveStatus === "saving"}
@@ -2751,6 +3314,259 @@ export default function EditableZones({
         </div>
       )}
     </div>
+
+    {/* ---- Polygon layers tree (Photoshop-style) ----
+        Floating panel on the right side, toggleable via the "Layers tree"
+        button in the editor toolbar. Two-level grouping: barangay → SMV
+        class → polygon. Click a polygon row to select on the map; × to
+        delete that polygon. */}
+    {layerPanelOpen && (
+      <div
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          zIndex: 1000,
+          width: 260,
+          maxHeight: "70vh",
+          display: "flex",
+          flexDirection: "column",
+          background: "white",
+          borderRadius: 8,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          fontSize: 12,
+          overflow: "hidden",
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            padding: "6px 8px",
+            background: "#f1f5f9",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontWeight: 600,
+            fontSize: 11,
+            color: "#0f172a",
+          }}
+        >
+          <span style={{ flex: 1 }}>Polygon layers</span>
+          <button
+            type="button"
+            onClick={() => setLayerPanelOpen(false)}
+            style={{
+              ...smallBtn,
+              padding: "1px 6px",
+              fontSize: 11,
+              background: "white",
+            }}
+            title="Close panel"
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ overflowY: "auto", flex: 1, padding: 4 }}>
+          {treeBrgyOrder.length === 0 ? (
+            <div style={{ padding: 12, color: "#94a3b8" }}>
+              No zone polygons yet. Draw or import some to see them here.
+            </div>
+          ) : (
+            treeBrgyOrder.map((brgySlug) => {
+              const brgy = polygonTree[brgySlug];
+              const brgyKey = `brgy:${brgySlug}`;
+              const brgyOpen = expandedTreeKeys.has(brgyKey);
+              // Unique polygon count — polygons that appear in multiple
+              // class buckets (primary + secondary + tertiary) only get
+              // counted once here. The per-class (N) counts further down
+              // do include each tier listing.
+              const seenLayers = new Set();
+              for (const entries of Object.values(brgy.classes)) {
+                for (const entry of entries) seenLayers.add(entry.layer);
+              }
+              const brgyTotal = seenLayers.size;
+              return (
+                <div key={brgySlug} style={{ marginBottom: 2 }}>
+                  <div
+                    onClick={() => toggleTreeKey(brgyKey)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "4px 6px",
+                      cursor: "pointer",
+                      background: brgyOpen ? "#eff6ff" : "transparent",
+                      borderRadius: 4,
+                      fontWeight: 600,
+                      color: "#0f172a",
+                    }}
+                  >
+                    <span style={{ width: 12, color: "#64748b" }}>
+                      {brgyOpen ? "▾" : "▸"}
+                    </span>
+                    <span style={{ flex: 1 }}>{brgy.name}</span>
+                    <span style={{ color: "#64748b", fontWeight: 400 }}>
+                      ({brgyTotal})
+                    </span>
+                  </div>
+                  {brgyOpen && (
+                    <div style={{ paddingLeft: 14 }}>
+                      {Object.keys(brgy.classes)
+                        .sort()
+                        .map((klass) => {
+                          const layers = brgy.classes[klass];
+                          const info =
+                            CLASSIFICATION_INFO[klass] ||
+                            CLASSIFICATION_INFO.UNCLASSIFIED;
+                          const classKey = `class:${brgySlug}|${klass}`;
+                          const classOpen = expandedTreeKeys.has(classKey);
+                          return (
+                            <div key={klass} style={{ marginBottom: 2 }}>
+                              <div
+                                onClick={() => toggleTreeKey(classKey)}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  padding: "3px 6px",
+                                  cursor: "pointer",
+                                  borderRadius: 4,
+                                  color: "#0f172a",
+                                }}
+                              >
+                                <span style={{ width: 12, color: "#64748b" }}>
+                                  {classOpen ? "▾" : "▸"}
+                                </span>
+                                <span
+                                  style={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: 2,
+                                    background: info.color,
+                                    border: "1px solid rgba(0,0,0,0.2)",
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    fontWeight: 500,
+                                    color: info.color,
+                                  }}
+                                >
+                                  {info.label}
+                                </span>
+                                <span
+                                  style={{ color: "#64748b", fontWeight: 400 }}
+                                >
+                                  ({layers.length})
+                                </span>
+                              </div>
+                              {classOpen && (
+                                <div style={{ paddingLeft: 22 }}>
+                                  {layers.map((entry, idx) => {
+                                    const layer = entry.layer;
+                                    const tier = entry.tier; // "primary" | "secondary" | "tertiary"
+                                    const isSel =
+                                      selectedLayerRef.current === layer;
+                                    const tierBadge =
+                                      tier === "secondary"
+                                        ? "2°"
+                                        : tier === "tertiary"
+                                          ? "3°"
+                                          : null;
+                                    return (
+                                      <div
+                                        key={`${idx}-${tier}`}
+                                        onClick={() => selectLayer(layer)}
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 4,
+                                          padding: "2px 6px",
+                                          cursor: "pointer",
+                                          borderRadius: 3,
+                                          background: isSel
+                                            ? `${info.color}22`
+                                            : "transparent",
+                                          fontWeight: isSel ? 600 : 400,
+                                          color: isSel ? info.color : "#475569",
+                                          opacity: tier === "primary" ? 1 : 0.85,
+                                          fontStyle:
+                                            tier === "primary" ? "normal" : "italic",
+                                        }}
+                                        title={
+                                          tier === "primary"
+                                            ? `Primary class ${info.label}`
+                                            : tier === "secondary"
+                                              ? `Listed under ${info.label} as secondary overlay (primary is different)`
+                                              : `Listed under ${info.label} as tertiary overlay (primary + secondary are different)`
+                                        }
+                                      >
+                                        <span style={{ flex: 1 }}>
+                                          {info.label} #{idx + 1}
+                                          {tierBadge && (
+                                            <span
+                                              style={{
+                                                marginLeft: 5,
+                                                padding: "0 4px",
+                                                fontSize: 10,
+                                                fontStyle: "normal",
+                                                fontWeight: 600,
+                                                background: info.color,
+                                                color: "white",
+                                                borderRadius: 3,
+                                                verticalAlign: "middle",
+                                              }}
+                                            >
+                                              {tierBadge}
+                                            </span>
+                                          )}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Removing from any listing
+                                            // removes the underlying single
+                                            // polygon — all its tier
+                                            // appearances disappear together.
+                                            removeOneFromTree(layer);
+                                          }}
+                                          style={{
+                                            padding: "0 5px",
+                                            borderRadius: 3,
+                                            border: "1px solid transparent",
+                                            background: "transparent",
+                                            color: "#b91c1c",
+                                            cursor: "pointer",
+                                            fontSize: 13,
+                                            lineHeight: 1,
+                                          }}
+                                          title="Delete this polygon (removes all its tier listings)"
+                                          aria-label="Delete"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

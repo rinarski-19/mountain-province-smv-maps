@@ -197,6 +197,36 @@ Recommended offline strategy:
 - Avoid downloading all Mountain Province at z16/z17 unless you truly need it;
   that becomes many thousands of tiles.
 
+Mapbox offline hybrid (higher clarity):
+
+- `npm run tiles:bauko:mapbox:hires` downloads Bauko-only Mapbox hybrid tiles at
+  z10–18 with hi-DPI (`@2x`) enabled.
+- `npm run tiles:mp:mapbox:hires` does the same for all Mountain Province
+  (much heavier download).
+- These scripts write to `public/tiles-mapbox-hidpi/` (served at
+  `/tiles-mapbox-hidpi/...`) so old non-retina cache files in `public/tiles-mapbox/`
+  won't be reused accidentally.
+- If offline Mapbox looks soft, the usual cause is older 256px cached tiles.
+  Re-run one of the hi-res commands above and refresh the page.
+- For a lighter consultation pack while preserving building-level detail, use
+  `npm run tiles:bauko:mapbox:smart` (full z10–16, smart-clipped z17–18 around
+  zones/frontage/roads).
+
+All municipalities (batch mode):
+
+- OSM detailed (z10–16) for all Mountain Province municipalities:
+  `npm run tiles:all`
+- OSM quick overview (z10–14) for all municipalities:
+  `npm run tiles:all:quick`
+- Mapbox hybrid hi-res (z10–18, very heavy) for all municipalities:
+  `MAPBOX_TOKEN=... npm run tiles:all:mapbox:hires`
+- Mapbox hybrid smart (z10–18, clipped at z17+ to zones/frontage/roads):
+  `MAPBOX_TOKEN=... npm run tiles:all:mapbox:smart`
+
+Batch mode runs municipalities one-by-one and reuses existing cached tile
+files, so interrupted runs can be resumed safely by re-running the same
+command.
+
 > **Note**: OSM's
 > [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)
 > strongly discourages bulk downloads. Pulling a small region for a one-off
