@@ -1236,6 +1236,179 @@ export default function EditableZones({
     }
   };
 
+  // Subtract every OTHER layer's geometry from the selected layer so
+  // it no longer overlaps any neighbours. Useful when the user has
+  // baked the same area twice (e.g. promoted an R-2 corridor to C-2
+  // without first deleting the R-2) and now there's a "double
+  // classification" stripe on the map.
+  //
+  // Properties (class, source, etc.) are preserved. If the selected
+  // polygon is entirely covered by neighbours, the user is prompted
+  // before it's deleted outright.
+  const trimSelectedAgainstNeighbors = () => {
+    const group = groupRef.current;
+    const layer = selectedLayerRef.current;
+    if (!group || !layer || typeof layer.toGeoJSON !== "function") return;
+
+    let trimmed;
+    try {
+      trimmed = layer.toGeoJSON();
+    } catch {
+      return;
+    }
+    if (!trimmed?.geometry) return;
+    if (!["Polygon", "MultiPolygon"].includes(trimmed.geometry.type)) return;
+
+    const sourceProps = { ...(trimmed.properties || {}) };
+    const selectedId = L.Util.stamp(layer);
+
+    let originalArea = 0;
+    try {
+      originalArea = turf.area(trimmed);
+    } catch {}
+    let clipBbox = null;
+    try {
+      clipBbox = turf.bbox(trimmed);
+    } catch {}
+
+    let neighborsHit = 0;
+    group.eachLayer((existing) => {
+      if (!trimmed?.geometry) return;
+      // Skip the layer we're trimming.
+      try {
+        if (L.Util.stamp(existing) === selectedId) return;
+      } catch {
+        return;
+      }
+      let existingFeature;
+      try {
+        existingFeature = existing.toGeoJSON();
+      } catch {
+        return;
+      }
+      if (
+        !existingFeature?.geometry ||
+        !["Polygon", "MultiPolygon"].includes(existingFeature.geometry.type)
+      ) {
+        return;
+      }
+      // Bbox pre-filter — same trick used in bakeRoadsIntoCorridor.
+      // With hundreds of polygons this cuts the per-layer cost from
+      // O(N) full intersections down to a few real ones.
+      if (clipBbox) {
+        let eb;
+        try {
+          eb = turf.bbox(existingFeature);
+        } catch {
+          return;
+        }
+        if (
+          eb[2] < clipBbox[0] ||
+          eb[0] > clipBbox[2] ||
+          eb[3] < clipBbox[1] ||
+          eb[1] > clipBbox[3]
+        ) {
+          return;
+        }
+      }
+      try {
+        const diff = turf.difference(
+          turf.featureCollection([trimmed, existingFeature])
+        );
+        if (diff?.geometry) {
+          neighborsHit += 1;
+          trimmed = diff;
+          try {
+            clipBbox = turf.bbox(trimmed);
+          } catch {}
+        } else {
+          // Difference returned null = entirely covered by this
+          // neighbour. Nothing left.
+          trimmed = null;
+        }
+      } catch {
+        // Degenerate polygon somewhere — skip and keep going.
+      }
+    });
+
+    if (!trimmed?.geometry) {
+      if (
+        window.confirm(
+          "This polygon is entirely covered by other zones — there'd be " +
+            "nothing left after trimming. Delete it instead?"
+        )
+      ) {
+        try {
+          if (layer.pm?.enabled?.()) layer.pm.disable();
+        } catch {}
+        try {
+          group.removeLayer(layer);
+        } catch {}
+        try {
+          map.removeLayer(layer);
+        } catch {}
+        selectedLayerRef.current = null;
+        pushHistory();
+        refresh();
+      }
+      return;
+    }
+
+    let trimmedArea = 0;
+    try {
+      trimmedArea = turf.area(trimmed);
+    } catch {}
+    const pctTrimmed =
+      originalArea > 0
+        ? Math.round((1 - trimmedArea / originalArea) * 100)
+        : 0;
+
+    if (neighborsHit === 0 || pctTrimmed === 0) {
+      setBakeNotice(
+        "No overlap found — this polygon already doesn't intersect any " +
+          "neighbour."
+      );
+      setTimeout(() => setBakeNotice(""), 3000);
+      return;
+    }
+
+    const newFeature = {
+      type: "Feature",
+      properties: sourceProps,
+      geometry: trimmed.geometry,
+    };
+    const wrap = L.geoJSON(newFeature, { style: () => ({}) });
+    let newLayer = null;
+    wrap.eachLayer((sub) => {
+      sub.feature = newFeature;
+      applyFeatureStyle(sub, sourceProps.classification);
+      prepareLayer(sub);
+      group.addLayer(sub);
+      newLayer = sub;
+    });
+
+    // Drop the old layer.
+    try {
+      if (layer.pm?.enabled?.()) layer.pm.disable();
+    } catch {}
+    try {
+      group.removeLayer(layer);
+    } catch {}
+    try {
+      map.removeLayer(layer);
+    } catch {}
+    selectedLayerRef.current = null;
+
+    pushHistory();
+    refresh();
+    if (newLayer) selectLayer(newLayer);
+
+    setBakeNotice(
+      `Trimmed ${pctTrimmed}% off — overlapped ${neighborsHit} neighbour${neighborsHit === 1 ? "" : "s"}.`
+    );
+    setTimeout(() => setBakeNotice(""), 5000);
+  };
+
   // Explode the selected MultiPolygon into N separate Polygon layers,
   // each inheriting the source's classification (+ secondary/tertiary).
   // Useful when bake or DXF-import produced one MultiPolygon feature
@@ -3521,6 +3694,15 @@ export default function EditableZones({
             title="Repair the selected polygon: removes duplicate vertices, splits self-intersecting outer rings (the typical cause of stray spike artifacts inside a hole), and drops sliver parts smaller than 50 m². Class properties are preserved."
           >
             Clean geometry
+          </button>
+        )}
+        {editorState.hasSelection && (
+          <button
+            onClick={trimSelectedAgainstNeighbors}
+            style={{ ...smallBtn, color: "#0d9488", fontWeight: 600 }}
+            title="Subtract every other zone's geometry from the selected polygon so it no longer overlaps any neighbour. Useful when an area was baked twice (e.g. the same corridor in R-2 and then again in C-2). Class is preserved. If the polygon ends up fully covered, you'll be asked before it's deleted."
+          >
+            Trim overlaps
           </button>
         )}
         <button
