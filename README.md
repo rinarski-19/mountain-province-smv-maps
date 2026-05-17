@@ -5,6 +5,10 @@ Next.js + react-leaflet app that visualises the **Bauko (Mountain Province)
 Industrial Lands** on top of OpenStreetMap. Built to work fully offline once
 tiles are pre-downloaded.
 
+> Looking for context on **other tools in this space** (MapX, Infoman
+> RISE, BLGF's RA 12001 mandate, what's unique about this project)?
+> See [RELATED_WORK.md](./RELATED_WORK.md).
+
 ## Quick start (online — for collaborators)
 
 ```bash

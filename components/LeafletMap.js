@@ -21,6 +21,7 @@ import {
   styleForClass,
 } from "@/lib/classifications";
 import EditableZones from "./EditableZones";
+import ZoneHoverInfo from "./ZoneHoverInfo";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -139,6 +140,15 @@ export default function LeafletMap({
 }) {
   const [tilesAvailable, setTilesAvailable] = useState(true);
   const [mapZoom, setMapZoom] = useState(null);
+  // MapX-style hover card: the zone Feature under the cursor + the
+  // client coords to anchor the card at. Set on mouseover/mousemove,
+  // cleared on mouseout. Outside of drawMode only — in the editor the
+  // user wants click-to-select, not hover noise.
+  const [hoveredZone, setHoveredZone] = useState({
+    feature: null,
+    x: null,
+    y: null,
+  });
   const [data, setData] = useState({
     bauko: null,
     barangays: null,
@@ -297,6 +307,13 @@ export default function LeafletMap({
     window.addEventListener(eventName, load);
     return () => window.removeEventListener(eventName, load);
   }, [municipality?.slug]);
+
+  // Clear the zone-hover card whenever drawMode toggles. The editor
+  // owns the cursor inside drawMode, and a stale card from the last
+  // hover would float there until the mouse moved again.
+  useEffect(() => {
+    setHoveredZone({ feature: null, x: null, y: null });
+  }, [drawMode]);
 
   // "Move pin" mode lives in EditableZones (the toolbar lives there).
   // When the toggle flips, EditableZones broadcasts on a custom event;
@@ -743,10 +760,36 @@ export default function LeafletMap({
             key={`smv-zones-${activeClass?.id ?? "all"}`}
             data={data.zones}
             pane="zones-pane"
-            interactive={false}
+            // Make the primary zones layer interactive so hover events
+            // fire. The secondary/tertiary aux layers below stay
+            // non-interactive — they share geometry with this one and
+            // double events would cause flicker.
+            interactive={true}
+            bubblingMouseEvents={false}
             style={(feature) =>
               zoneStyle(feature, isClassActive ? activeClass : null, tileMode)
             }
+            onEachFeature={(feature, layer) => {
+              layer.on({
+                mouseover: (e) => {
+                  setHoveredZone({
+                    feature,
+                    x: e.originalEvent.clientX,
+                    y: e.originalEvent.clientY,
+                  });
+                },
+                mousemove: (e) => {
+                  setHoveredZone({
+                    feature,
+                    x: e.originalEvent.clientX,
+                    y: e.originalEvent.clientY,
+                  });
+                },
+                mouseout: () => {
+                  setHoveredZone({ feature: null, x: null, y: null });
+                },
+              });
+            }}
           />
         )}
         {layers.zones && !drawMode && data.zones?.features?.length > 0 && (
@@ -868,6 +911,22 @@ export default function LeafletMap({
           />
         )}
       </MapContainer>
+
+      {/* MapX-style hover card. Only renders outside drawMode (the
+          editor handles selection differently). Resolves slugs back to
+          PSA names via the municipality's barangay metadata so the
+          card shows "Kayan East" rather than "kayan-east". */}
+      {!drawMode && (
+        <ZoneHoverInfo
+          feature={hoveredZone.feature}
+          x={hoveredZone.x}
+          y={hoveredZone.y}
+          barangayResolver={(slug) => {
+            const resolver = municipality?.schedule?.getBarangayBySlug;
+            return resolver ? resolver(slug) : null;
+          }}
+        />
+      )}
 
       {(tileMode === "offline" || tileMode === "offline_mapbox") &&
         !tilesAvailable && (

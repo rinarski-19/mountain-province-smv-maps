@@ -395,6 +395,29 @@ export default function EditableZones({
   // whenever refresh() bumps this.
   const [forceCounter, force] = useState(0);
   const [activeClass, setActiveClass] = useState("R-3");
+  // Snap-to-existing-edges: when ON, drawing a new polygon snaps each
+  // vertex onto nearby vertices/edges of every existing zone, so the
+  // user can trace alongside an existing polygon without eyeballing
+  // each click. When OFF, every editable zone is marked snapIgnore so
+  // the cursor stays free (useful when the new shape happens to lie
+  // very close to an existing one but is meant to be distinct).
+  const [snapToZones, setSnapToZones] = useState(true);
+  const snapToZonesRef = useRef(snapToZones);
+  useEffect(() => {
+    snapToZonesRef.current = snapToZones;
+  }, [snapToZones]);
+  // When the toggle flips, re-walk every layer already in the
+  // editable group and update its `snapIgnore` option. New layers
+  // (drawn after the flip) pick up the current value via the
+  // ref-checked branch in the onAdd path.
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    const ignore = !snapToZones;
+    group.eachLayer((layer) => {
+      if (layer?.options) layer.options.snapIgnore = ignore;
+    });
+  }, [snapToZones]);
   const [secondaryClass, setSecondaryClass] = useState("");
   const [tertiaryClass, setTertiaryClass] = useState("");
   const [bufferMeters, setBufferMeters] = useState(DEFAULT_BUFFER_METERS);
@@ -406,6 +429,14 @@ export default function EditableZones({
   const [selectedRoadKeys, setSelectedRoadKeys] = useState(() => new Set());
   const roadsLayerRef = useRef(null);
   const roadsByKeyRef = useRef(new Map()); // key → { feature, leafletLayer }
+  // Cached "all roads buffered" polygon. Computed once when the roads
+  // file finishes loading and reused on every bake to subtract the road
+  // centerline strip out of new corridors — that's how we prevent the
+  // "polygons inside the road" problem the user pointed at on Tadian.
+  // Width matches scripts/carve-roads-out-of-zones.mjs (3 m → 6 m strip)
+  // so the in-app and one-time cleanup stay symmetric.
+  const ROAD_CARVE_METERS = 3;
+  const roadBufferRef = useRef(null);
   // Frontage-band selection — parallel to roads but each chip is already
   // a polygon, so bake-to-zone uses the geometry directly (no buffer
   // step). Set members are the chip_id from the bands file.
@@ -977,10 +1008,12 @@ export default function EditableZones({
     // unselectable because map-click immediately clears the selection again.
     if (layer.options) {
       layer.options.bubblingMouseEvents = false;
-      // While drawing a new polygon, don't snap to existing zone vertices.
-      // This avoids accidentally latching onto nearby vertices and creating
-      // unintended geometry when tracing beside an existing zone.
-      layer.options.snapIgnore = true;
+      // Snap-to-existing-edges is controlled by the toolbar toggle.
+      // Default is ON (snapIgnore = false) so new polygons can latch
+      // onto neighbour vertices/edges for clean tracing. The toggle
+      // also re-walks every layer when flipped — see the
+      // `snapToZones` useEffect below.
+      layer.options.snapIgnore = !snapToZonesRef.current;
     }
     layer.on("click", (e) => {
       if (map.pm?.globalDrawModeEnabled?.()) return;
@@ -1442,6 +1475,30 @@ export default function EditableZones({
         });
         layer.addTo(map);
         roadsLayerRef.current = layer;
+
+        // Pre-compute the "road area" geometry once — every bake will
+        // subtract this so new zones don't sit inside the road
+        // centerline. Flattening to a single MultiLineString and
+        // buffering once is ~100× faster than per-feature buffer+union.
+        try {
+          const allLines = [];
+          for (const r of fc.features) {
+            const g = r?.geometry;
+            if (!g) continue;
+            if (g.type === "LineString") allLines.push(g.coordinates);
+            else if (g.type === "MultiLineString") {
+              for (const ln of g.coordinates) allLines.push(ln);
+            }
+          }
+          if (allLines.length > 0) {
+            const mls = turf.multiLineString(allLines);
+            roadBufferRef.current = turf.buffer(mls, ROAD_CARVE_METERS / 1000, {
+              units: "kilometers",
+            });
+          }
+        } catch (e) {
+          console.warn("Could not pre-buffer road network for carve:", e);
+        }
       })
       .catch(() => {
         // Roads file missing or unreadable — that's fine, click-to-tag
@@ -1455,6 +1512,7 @@ export default function EditableZones({
         roadsLayerRef.current = null;
       }
       roadsByKeyRef.current = new Map();
+      roadBufferRef.current = null;
     };
   }, [roadsUrl, visible, map]);
 
@@ -1999,6 +2057,42 @@ export default function EditableZones({
     // From here on use the clipped version.
     combined = trimmed;
 
+    // ---- Carve road centerlines out of the result ----
+    // Without this step, baking from frontage bands (or any flow that
+    // hand-buffers around a road) routinely leaves a thin strip of the
+    // new polygon sitting inside the road. On the Tadian map the user
+    // pointed out clusters of these slivers along the Dacudac road
+    // network. roadBufferRef is computed once when the roads file
+    // loads (above), so this is a single difference call.
+    if (roadBufferRef.current && combined?.geometry) {
+      try {
+        const carved = turf.difference(
+          turf.featureCollection([combined, roadBufferRef.current])
+        );
+        if (carved?.geometry) {
+          combined = carved;
+        }
+        // If the difference returned null, the entire candidate was
+        // inside the road buffer — fall through to the empty check
+        // below.
+      } catch (e) {
+        console.warn(
+          "bakeRoadsIntoCorridor: road-carve step failed; using uncarved geometry",
+          e
+        );
+      }
+    }
+    if (!combined?.geometry) {
+      alert(
+        "After carving road centerlines out, nothing was left of the " +
+          "candidate. Pick wider road segments or untick the relevant " +
+          "options to keep the in-road sliver."
+      );
+      setSelectedRoadKeys(new Set());
+      setSelectedBandKeys(new Set());
+      return false;
+    }
+
     // If the clip removed a meaningful chunk (>25% of the candidate's
     // original area), tell the user so they're not surprised when only
     // one side of a road fills. This was a common confusion before —
@@ -2118,7 +2212,15 @@ export default function EditableZones({
     map.pm.setGlobalOptions({
       layerGroup: group,
       snappable: true,
-      snapDistance: 8,
+      // 20px gives the cursor enough latitude to actually latch onto
+      // an edge when tracing alongside an existing polygon. The old
+      // value of 8 was tight enough that snapping rarely fired and
+      // the user reported having to eyeball every vertex.
+      snapDistance: 20,
+      // Snap to the closest point on an edge, not just to vertices —
+      // Geoman's default but stated explicitly so the intent is
+      // obvious next time someone tunes these options.
+      snapSegment: true,
       // Don't reject self-intersecting moves at the global level —
       // baked frontage corridors are complex polygons-with-holes and
       // Geoman's check would silently swallow legitimate vertex drags.
@@ -3467,6 +3569,23 @@ export default function EditableZones({
           }
         >
           {movingLandmark ? "Drop pin where you want…" : "Move pin"}
+        </button>
+        <button
+          onClick={() => setSnapToZones((on) => !on)}
+          style={{
+            ...smallBtn,
+            background: snapToZones ? "#dbeafe" : "white",
+            borderColor: snapToZones ? "#1d4ed8" : "#cbd5e1",
+            color: snapToZones ? "#1d4ed8" : "#475569",
+            fontWeight: snapToZones ? 700 : 600,
+          }}
+          title={
+            snapToZones
+              ? "Snap-to-edges is ON. While drawing or dragging vertices, the cursor latches onto vertices/edges of nearby zones within 20px. Click to turn off if you want freehand placement."
+              : "Snap-to-edges is OFF. Turn on to make new-polygon vertices stick to the edges of existing zones — easier tracing when a new shape needs to share a border with an existing one."
+          }
+        >
+          {snapToZones ? "Snap: edges ✓" : "Snap: edges ✗"}
         </button>
         <button
           onClick={() => setMultiVertexMode((m) => !m)}
