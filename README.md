@@ -108,6 +108,72 @@ it at `public/data/bauko_zones.geojson`. The editor loads that file on first
 open. Once you start editing in the browser, your local browser copy takes
 priority so work is not lost between reloads.
 
+## Saved viewports (barangay + per-stretch)
+
+You can capture a custom map framing for any barangay or, when the
+schedule has sub-stretch detail, for any individual stretch under a
+barangay. Clicking the same row later flies the map back to that exact
+spot.
+
+**Hierarchy of viewports the app uses**, in order of precedence:
+
+1. **Active stretch's saved view** — landmark-level, the most specific.
+2. **Active barangay's saved view** — falls back to this when the
+   stretch hasn't been framed yet.
+3. **Auto-fit to the barangay polygon** — Bauko default when neither
+   of the above is set.
+
+**How to save a stretch viewport** (works on `/?m=bontoc` today, on
+any municipality whose schedule has `stretches` data):
+
+1. In the sidebar, click a class → its barangay → one of the sub-items
+   that appears (e.g. *"National Road: Circle → Kalangeg building"*
+   under Poblacion → C-1).
+2. The row highlights blue. Pan / zoom the map to frame that exact
+   stretch the way you want it shown.
+3. Click **"Save view"** in the top nav. The current map center,
+   zoom, and bounding box are captured.
+4. A 📍 icon appears next to the row in the sidebar — that's the
+   visual hint that the stretch has a saved viewport.
+5. Click any other row, then come back: the map flies back to the
+   saved framing automatically.
+
+**How the system knows which stretch a saved view belongs to**
+
+When you click a stretch row, the app composes a stable identifier
+of the form `${classId}|${barangaySlug}|${stretchIdx}` (e.g.
+`c-1|poblacion|0` for the first stretch under Poblacion C-1). That
+key is used to:
+
+- Track which stretch is the currently active selection.
+- Look up the saved viewport in `localStorage` under
+  `smv-stretch-view-v1:<municipality-slug>`.
+- Mark the row with a 📍 if a saved view exists.
+
+Saving a view writes `savedStretchViews[key] = { center, zoom, bbox }`
+to `localStorage`. Loading a stretch reads the same key.
+
+**Top-nav save / reset buttons are context-aware**
+
+- A stretch is selected → Save / Reset operates on the **stretch**
+  view.
+- No stretch selected but a barangay is → Save / Reset falls back to
+  the **barangay** view (original behaviour).
+
+So one set of buttons handles both levels — you don't think about
+which scope is in play; whatever's selected most specifically gets
+the save.
+
+**Caveats**
+
+- Viewports are persisted **per browser** via `localStorage`. They
+  don't sync between devices or to coworkers. If we ever want
+  shareable viewports, the natural path is to store them as feature
+  properties inside the GeoJSON so they travel with the data.
+- Switching class, group, or barangay clears `activeStretchIdx`, so
+  the buttons revert to the barangay-level scope automatically. No
+  way to accidentally save the wrong view.
+
 ## Going offline
 
 Boundaries and valuation data are bundled in `public/data/`, so they work

@@ -5,6 +5,7 @@ import { useMap } from "react-leaflet";
 import L from "leaflet";
 import * as turf from "@turf/turf";
 import { CLASSIFICATION_INFO, styleForClass } from "@/lib/classifications";
+import LandmarkAddForm from "./LandmarkAddForm";
 
 const DEFAULT_STORAGE_KEY = "bauko-zones-v1";
 const DEFAULT_BUNDLED_ZONES_URL = "/data/bauko_zones.geojson";
@@ -378,6 +379,9 @@ export default function EditableZones({
   frontageBandsUrl = null,
   showFrontageBands = false,
   barangaysUrl = null,
+  activeStretchKey = null,
+  stretchCatalog = [],
+  municipalitySlug = "bauko",
   classKeys = null,
 }) {
   const map = useMap();
@@ -450,6 +454,260 @@ export default function EditableZones({
   // removed a meaningful chunk of the candidate area. Cleared after a
   // few seconds so it doesn't linger.
   const [bakeNotice, setBakeNotice] = useState("");
+
+  // ---- Custom landmark adder (in-app pin tool) ----
+  // When `placingLandmark` is on, the next map click drops a pending
+  // pin and surfaces an inline form for name + kind. Submitting the
+  // form pushes the new Feature to localStorage and dispatches a
+  // custom event so LeafletMap can re-render the layer. If a sidebar
+  // stretch is currently selected (activeStretchKey is set), the new
+  // landmark inherits that key so it lights up alongside the stretch.
+  const [placingLandmark, setPlacingLandmark] = useState(false);
+  const [pendingLandmark, setPendingLandmark] = useState(null);
+  // When `movingLandmark` is on, every in-app pin becomes drag-enabled.
+  // Dropping a pin in this mode fires a `${slug}:landmark-move` event
+  // that this component listens for to persist the new lat/lng.
+  const [movingLandmark, setMovingLandmark] = useState(false);
+  const placingLandmarkRef = useRef(placingLandmark);
+  const movingLandmarkRef = useRef(movingLandmark);
+  useEffect(() => {
+    movingLandmarkRef.current = movingLandmark;
+  }, [movingLandmark]);
+  useEffect(() => {
+    placingLandmarkRef.current = placingLandmark;
+  }, [placingLandmark]);
+  const customLandmarksKey = `custom-landmarks-local-v1:${municipalitySlug}`;
+
+  // Delete a single in-app landmark. Prefers matching by stable
+  // `properties.id`; falls back to (name + lng + lat) for pins that
+  // somehow lack an id. Coordinates are compared with a tiny epsilon
+  // to absorb floating-point round-trips through JSON.
+  const deleteLandmark = ({ id, name, lng, lat }) => {
+    try {
+      const raw = window.localStorage.getItem(customLandmarksKey);
+      const arr = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(arr)) return;
+      const EPS = 1e-9;
+      const next = arr.filter((f) => {
+        const p = f?.properties || {};
+        if (id && p.id === id) return false; // primary match
+        if (!id && name && p.name === name) {
+          const c = f?.geometry?.coordinates || [];
+          if (
+            Math.abs((c[0] ?? 0) - (lng ?? 0)) < EPS &&
+            Math.abs((c[1] ?? 0) - (lat ?? 0)) < EPS
+          ) {
+            return false; // coord-fallback match
+          }
+        }
+        return true;
+      });
+      if (next.length === arr.length) {
+        console.warn(
+          "deleteLandmark: no matching entry found for",
+          { id, name, lng, lat }
+        );
+        return;
+      }
+      window.localStorage.setItem(customLandmarksKey, JSON.stringify(next));
+      window.dispatchEvent(
+        new CustomEvent(`${municipalitySlug}:custom-landmarks-updated`)
+      );
+    } catch (e) {
+      console.warn("deleteLandmark failed:", e);
+    }
+  };
+
+  // Move a single in-app landmark to new coordinates. Same id-first,
+  // (name + old coords) fallback matching as `deleteLandmark`. Fired
+  // by LeafletMap when the user drops a pin in `movingLandmark` mode.
+  const moveLandmark = ({ id, name, oldLng, oldLat, newLng, newLat }) => {
+    if (
+      !Number.isFinite(newLng) ||
+      !Number.isFinite(newLat)
+    ) {
+      console.warn("moveLandmark: invalid new coords", { newLng, newLat });
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(customLandmarksKey);
+      const arr = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(arr)) return;
+      const EPS = 1e-9;
+      let matched = false;
+      const next = arr.map((f) => {
+        if (matched) return f;
+        const p = f?.properties || {};
+        const c = f?.geometry?.coordinates || [];
+        const idMatch = id && p.id === id;
+        const fallbackMatch =
+          !id &&
+          name &&
+          p.name === name &&
+          Math.abs((c[0] ?? 0) - (oldLng ?? 0)) < EPS &&
+          Math.abs((c[1] ?? 0) - (oldLat ?? 0)) < EPS;
+        if (!idMatch && !fallbackMatch) return f;
+        matched = true;
+        return {
+          ...f,
+          properties: {
+            ...p,
+            updated_at: new Date().toISOString(),
+          },
+          geometry: {
+            ...(f?.geometry || { type: "Point" }),
+            type: "Point",
+            coordinates: [newLng, newLat],
+          },
+        };
+      });
+      if (!matched) {
+        console.warn(
+          "moveLandmark: no matching entry found for",
+          { id, name, oldLng, oldLat }
+        );
+        return;
+      }
+      window.localStorage.setItem(customLandmarksKey, JSON.stringify(next));
+      window.dispatchEvent(
+        new CustomEvent(`${municipalitySlug}:custom-landmarks-updated`)
+      );
+    } catch (e) {
+      console.warn("moveLandmark failed:", e);
+    }
+  };
+
+  // Broadcast the move-mode toggle to LeafletMap so it can re-render
+  // the custom-landmarks layer with `draggable: true` on every in-app
+  // pin. Plain custom-event bus — they're sibling renders so we can't
+  // just thread a prop down without lifting state.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(`${municipalitySlug}:moving-landmark-mode`, {
+        detail: { enabled: movingLandmark },
+      })
+    );
+  }, [movingLandmark, municipalitySlug]);
+
+  // Listen for events from the in-pin Leaflet popups (which live in
+  // LeafletMap's render). Three events:
+  //   - "delete" → remove by id (or name + coords fallback)
+  //   - "edit"   → seed pendingLandmark with the existing values so
+  //                 the user can re-pick stretches / fix the location.
+  //   - "move"   → persist the new lat/lng after the user drags a pin.
+  useEffect(() => {
+    const editName = `${municipalitySlug}:landmark-edit`;
+    const deleteName = `${municipalitySlug}:landmark-delete`;
+    const moveName = `${municipalitySlug}:landmark-move`;
+    const onEdit = (e) => {
+      const f = e?.detail;
+      if (!f) return;
+      const props = f.properties || {};
+      const coords = f.geometry?.coordinates || [];
+      setPendingLandmark({
+        id: props.id,
+        lat: coords[1],
+        lng: coords[0],
+        name: props.name || "",
+        kind: props.kind || "business",
+        stretchKeys: Array.isArray(props.stretch_keys)
+          ? [...props.stretch_keys]
+          : props.stretch_key
+            ? [props.stretch_key]
+            : [],
+      });
+    };
+    const onDelete = (e) => {
+      const detail = e?.detail;
+      if (!detail) return;
+      if (window.confirm("Delete this landmark? This can't be undone.")) {
+        deleteLandmark(detail);
+      }
+    };
+    const onMove = (e) => {
+      const detail = e?.detail;
+      if (!detail) return;
+      moveLandmark(detail);
+    };
+    window.addEventListener(editName, onEdit);
+    window.addEventListener(deleteName, onDelete);
+    window.addEventListener(moveName, onMove);
+    return () => {
+      window.removeEventListener(editName, onEdit);
+      window.removeEventListener(deleteName, onDelete);
+      window.removeEventListener(moveName, onMove);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [municipalitySlug]);
+
+  // Toggle a CSS class on the map container so the cursor turns to a
+  // crosshair while the user is in placing mode — clear feedback
+  // that the next click drops a pin.
+  useEffect(() => {
+    if (!map) return undefined;
+    const el = map.getContainer();
+    if (placingLandmark) {
+      el.classList.add("placing-landmark");
+    } else {
+      el.classList.remove("placing-landmark");
+    }
+    return () => el.classList.remove("placing-landmark");
+  }, [placingLandmark, map]);
+
+  const commitLandmark = (data) => {
+    if (!data?.name?.trim()) return;
+    const keys = Array.isArray(data.stretchKeys)
+      ? data.stretchKeys.filter(Boolean)
+      : data.stretchKey
+        ? [data.stretchKey]
+        : [];
+    // If we're editing an existing in-app landmark, keep its stable
+    // id so localStorage updates replace the entry in place instead
+    // of appending a duplicate.
+    const editingId = data.id || null;
+    const id =
+      editingId ||
+      `lm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const feature = {
+      type: "Feature",
+      properties: {
+        id,
+        name: data.name.trim(),
+        kind: data.kind || "business",
+        source: "in-app",
+        ...(editingId
+          ? { updated_at: new Date().toISOString() }
+          : { added_at: new Date().toISOString() }),
+        // Array form is the primary going forward — one pin can be
+        // referenced by multiple schedule stretches. Omit the property
+        // entirely if no links so old singletons don't bloat the file.
+        ...(keys.length > 0 ? { stretch_keys: keys } : {}),
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [data.lng, data.lat],
+      },
+    };
+    try {
+      const raw = window.localStorage.getItem(customLandmarksKey);
+      const arr = raw ? JSON.parse(raw) : [];
+      const list = Array.isArray(arr) ? arr : [];
+      const idx = editingId
+        ? list.findIndex((f) => f?.properties?.id === editingId)
+        : -1;
+      const next =
+        idx >= 0
+          ? [...list.slice(0, idx), feature, ...list.slice(idx + 1)]
+          : [...list, feature];
+      window.localStorage.setItem(customLandmarksKey, JSON.stringify(next));
+      window.dispatchEvent(
+        new CustomEvent(`${municipalitySlug}:custom-landmarks-updated`)
+      );
+    } catch (e) {
+      console.warn("Could not save landmark to localStorage:", e);
+    }
+    setPendingLandmark(null);
+  };
 
   // ---- Polygon layers tree (Photoshop-style) ----
   // Hierarchical view of every zone polygon, grouped by barangay →
@@ -2142,7 +2400,26 @@ export default function EditableZones({
       refresh();
     };
     const onEdit = () => pushHistory();
-    const onMapClick = () => selectLayer(null);
+    const onMapClick = (e) => {
+      // If the user has the "+ Landmark" placing tool active, this
+      // click drops a pending pin. Otherwise (default behaviour), the
+      // click clears any layer selection.
+      if (placingLandmarkRef.current && e?.latlng) {
+        setPendingLandmark({
+          lat: e.latlng.lat,
+          lng: e.latlng.lng,
+          name: "",
+          kind: "business",
+          // Always an array — one landmark can link to many stretches.
+          // Auto-seeded with whatever's active in the sidebar so the
+          // user gets one click for "link to this stretch".
+          stretchKeys: activeStretchKey ? [activeStretchKey] : [],
+        });
+        setPlacingLandmark(false);
+        return;
+      }
+      selectLayer(null);
+    };
     const setDrawingActive = (active) => {
       map.getContainer().classList.toggle("zone-editing-active", active);
     };
@@ -2166,6 +2443,21 @@ export default function EditableZones({
       const wantsDelete =
         !mod && !e.altKey && (e.key === "Delete" || e.key === "Backspace");
 
+      // Escape cancels the "+ Landmark" placing mode, any pending
+      // landmark form, or the "Move pin" mode — gives a no-mouse-needed
+      // way to bail out.
+      if (
+        e.key === "Escape" &&
+        (placingLandmarkRef.current ||
+          pendingLandmark ||
+          movingLandmarkRef.current)
+      ) {
+        e.preventDefault();
+        setPlacingLandmark(false);
+        setPendingLandmark(null);
+        setMovingLandmark(false);
+        return;
+      }
       if (wantsUndo) {
         e.preventDefault();
         undo();
@@ -3130,6 +3422,53 @@ export default function EditableZones({
           </button>
         )}
         <button
+          onClick={() => {
+            setPlacingLandmark((on) => !on);
+            // Cancel any in-flight pending landmark when toggling.
+            setPendingLandmark(null);
+          }}
+          style={{
+            ...smallBtn,
+            background: placingLandmark ? "#fef3c7" : "white",
+            borderColor: placingLandmark ? "#d97706" : "#cbd5e1",
+            color: placingLandmark ? "#92400e" : "#7c3aed",
+            fontWeight: placingLandmark ? 700 : 600,
+          }}
+          title={
+            placingLandmark
+              ? "Click the map to drop a pin (Esc to cancel)"
+              : activeStretchKey
+                ? `Add a custom landmark. The new pin will be auto-linked to the active stretch (${activeStretchKey}) so it lights up when that stretch is selected.`
+                : "Add a custom landmark. Click this, then click the map to drop a pin and name it."
+          }
+        >
+          {placingLandmark ? "Click map to pin…" : "+ Landmark"}
+        </button>
+        <button
+          onClick={() => {
+            setMovingLandmark((on) => !on);
+            // Can't be in placing mode and moving mode simultaneously —
+            // they'd fight over the next map click. Drop any pending
+            // form too so the user has a clean slate.
+            setPlacingLandmark(false);
+            setPendingLandmark(null);
+          }}
+          style={{
+            ...smallBtn,
+            background: movingLandmark ? "#fef3c7" : "white",
+            borderColor: movingLandmark ? "#d97706" : "#cbd5e1",
+            color: movingLandmark ? "#92400e" : "#7c3aed",
+            fontWeight: movingLandmark ? 700 : 600,
+          }}
+          title={
+            movingLandmark
+              ? "Drag any pin to reposition it. Click this button again (or press Esc) to exit move mode."
+              : "Turn every in-app landmark pin into a drag-handle. Drag a pin to a new spot — the position is saved automatically."
+          }
+        >
+          {movingLandmark ? "Drop pin where you want…" : "Move pin"}
+        </button>
+        <button
           onClick={() => setMultiVertexMode((m) => !m)}
           disabled={!editorState.hasSelection}
           style={{
@@ -3314,6 +3653,18 @@ export default function EditableZones({
         </div>
       )}
     </div>
+
+    {/* Pending custom-landmark form — extracted to its own component
+        for cleanliness. Header + scrollable body + sticky footer so
+        the Cancel / Add buttons stay reachable no matter how many
+        stretch chips the user attaches. */}
+    <LandmarkAddForm
+      pending={pendingLandmark}
+      setPending={setPendingLandmark}
+      stretchCatalog={stretchCatalog}
+      onCommit={commitLandmark}
+      onCancel={() => setPendingLandmark(null)}
+    />
 
     {/* ---- Polygon layers tree (Photoshop-style) ----
         Floating panel on the right side, toggleable via the "Layers tree"

@@ -35,10 +35,13 @@ const TARGETS_BY_SLUG = {
   "bauko-dxf": "bauko_zones_dxf.geojson",
   barlig: "barlig_zones.geojson",
   tadian: "tadian_zones.geojson",
+  "tadian-dxf": "tadian_zones_dxf.geojson",
   sagada: "sagada_zones.geojson",
   "sagada-dxf": "sagada_zones_dxf.geojson",
   bontoc: "bontoc_zones.geojson",
   "bontoc-dxf": "bontoc_zones_dxf.geojson",
+  sabangan: "sabangan_zones.geojson",
+  "sabangan-dxf": "sabangan_zones_dxf.geojson",
 };
 
 function authorize(request) {

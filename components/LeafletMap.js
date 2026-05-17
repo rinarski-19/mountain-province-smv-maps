@@ -128,6 +128,9 @@ export default function LeafletMap({
   activeClass,
   activeBarangaySlug,
   savedBarangayViews,
+  activeStretchView = null,
+  activeStretchKey = null,
+  stretchCatalog = [],
   focusRequestId = 0,
   layers,
   onDataChange,
@@ -145,6 +148,7 @@ export default function LeafletMap({
     monamonNorteRoads: null,
     frontageBands: null,
     landmarks: null,
+    customLandmarks: null,
   });
 
   useEffect(() => {
@@ -166,6 +170,7 @@ export default function LeafletMap({
         const zonesFile = municipality?.dataFiles?.zones ?? "/data/bauko_zones.geojson";
         const frontageBandsFile = municipality?.dataFiles?.frontageBands;
         const landmarksFile = municipality?.dataFiles?.landmarks;
+        const customLandmarksFile = municipality?.dataFiles?.customLandmarks;
         const barangayFile =
           sources.has_custom_barangays && customBarangaysFile
             ? customBarangaysFile
@@ -179,6 +184,7 @@ export default function LeafletMap({
           monamonNorteRoads,
           frontageBands,
           landmarks,
+          customLandmarks,
         ] = await Promise.all([
           fetch(outlineFile).then((r) => r.json()),
           fetch(barangayFile).then((r) => r.json()),
@@ -210,6 +216,12 @@ export default function LeafletMap({
                 .then((r) => (r.ok ? r.json() : EMPTY_FC))
                 .catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
+          // LGU-curated POIs (hand-edited GeoJSON, e.g. Kalangeg Bldg).
+          customLandmarksFile
+            ? fetch(customLandmarksFile)
+                .then((r) => (r.ok ? r.json() : EMPTY_FC))
+                .catch(() => EMPTY_FC)
+            : Promise.resolve(EMPTY_FC),
         ]);
         if (!active) return;
         setData({
@@ -221,6 +233,7 @@ export default function LeafletMap({
           monamonNorteRoads,
           frontageBands,
           landmarks,
+          customLandmarks,
         });
       } catch (e) {
         console.error("Failed to load map data:", e);
@@ -234,6 +247,82 @@ export default function LeafletMap({
   useEffect(() => {
     onDataChange?.(data);
   }, [data, onDataChange]);
+
+  // Locally-added custom landmarks (from the in-app "+ Landmark" tool
+  // in EditableZones). Stored in localStorage and merged with the
+  // file-based custom landmarks at render. Listens for a custom event
+  // that EditableZones fires on add/remove so the map updates live.
+  const [localCustomLandmarks, setLocalCustomLandmarks] = useState([]);
+  useEffect(() => {
+    const slug = municipality?.slug;
+    if (!slug) return undefined;
+    const storageKey = `custom-landmarks-local-v1:${slug}`;
+    const load = () => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(parsed)) {
+          setLocalCustomLandmarks([]);
+          return;
+        }
+        // Backfill `properties.id` for entries that pre-date the id
+        // refactor. Without an id, the click-popup's Delete button
+        // had no way to identify which row in localStorage to remove,
+        // so deletes silently no-op'd. Generating a stable id here
+        // (and writing back) makes them deletable.
+        let mutated = false;
+        const fixed = parsed.map((f) => {
+          if (f?.properties?.id) return f;
+          mutated = true;
+          return {
+            ...f,
+            properties: {
+              ...(f?.properties || {}),
+              id: `lm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            },
+          };
+        });
+        if (mutated) {
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(fixed));
+          } catch {}
+        }
+        setLocalCustomLandmarks(fixed);
+      } catch {
+        setLocalCustomLandmarks([]);
+      }
+    };
+    load();
+    const eventName = `${slug}:custom-landmarks-updated`;
+    window.addEventListener(eventName, load);
+    return () => window.removeEventListener(eventName, load);
+  }, [municipality?.slug]);
+
+  // "Move pin" mode lives in EditableZones (the toolbar lives there).
+  // When the toggle flips, EditableZones broadcasts on a custom event;
+  // we mirror it into local state so the GeoJSON layer can re-render
+  // each in-app pin with `draggable: true`.
+  const [isMovingLandmarks, setIsMovingLandmarks] = useState(false);
+  useEffect(() => {
+    const slug = municipality?.slug;
+    if (!slug) return undefined;
+    const eventName = `${slug}:moving-landmark-mode`;
+    const onToggle = (e) => {
+      setIsMovingLandmarks(Boolean(e?.detail?.enabled));
+    };
+    window.addEventListener(eventName, onToggle);
+    return () => window.removeEventListener(eventName, onToggle);
+  }, [municipality?.slug]);
+
+  // Add/remove a body-level class so the entire map gets a "move"
+  // cursor while move-mode is on — visual cue that hovering a pin
+  // means "I can drag this."
+  useEffect(() => {
+    const cls = "moving-landmarks";
+    if (isMovingLandmarks) document.body.classList.add(cls);
+    else document.body.classList.remove(cls);
+    return () => document.body.classList.remove(cls);
+  }, [isMovingLandmarks]);
 
   // Refresh the zones layer when EditableZones saves to disk via /api/zones/save.
   // Without this, the read-only SMV-zones layer (rendered outside edit mode)
@@ -300,9 +389,16 @@ export default function LeafletMap({
       features: featuresForSlug(activeBarangaySlug, data.barangays),
     };
   }, [activeBarangaySlug, data.barangays]);
-  const activeSavedView = activeBarangaySlug
-    ? savedBarangayViews?.[activeBarangaySlug] ?? null
-    : null;
+  // Resolve the most specific saved viewport that applies right now.
+  // Order of precedence:
+  //   1. Active stretch's saved view (the most granular — landmark-level)
+  //   2. Active barangay's saved view (Bauko fallback)
+  //   3. None — auto-fit to barangay polygon happens in BarangayFocus
+  const activeSavedView = activeStretchView
+    ? activeStretchView
+    : activeBarangaySlug
+      ? savedBarangayViews?.[activeBarangaySlug] ?? null
+      : null;
   const activeBarangayLabel = useMemo(() => {
     if (!activeBarangaySlug) return "";
     const features = activeFeatureCollection?.features ?? [];
@@ -401,6 +497,164 @@ export default function LeafletMap({
             opacity={1}
           />
         )}
+
+        {/* Custom landmarks layer — LGU-curated POIs that aren't well-
+            mapped in OSM (e.g. Kalangeg Bldg in Bontoc). Edit by hand:
+            public/data/<slug>_custom_landmarks.geojson. Each Feature
+            becomes a Leaflet divIcon marker with a kind-coloured teardrop
+            pin + a white pill carrying the name, on the top labels-pane.
+            Always rendered — no UI toggle.
+            If a feature carries a `stretch_key` matching the currently
+            active sidebar stretch (e.g. "c-1|poblacion|0"), the pin
+            gets an extra "is-active-stretch" class so it visually
+            pops while that schedule entry is the focus. */}
+        {(() => {
+          // Merge file-based custom landmarks with locally-added ones
+          // from the in-app "+ Landmark" tool. Local entries are
+          // tagged with `source: "in-app"` so they're distinguishable
+          // in audits and the "Save to project" flow.
+          const fileFeatures = data.customLandmarks?.features || [];
+          const merged = [...fileFeatures, ...localCustomLandmarks];
+          if (merged.length === 0) return null;
+          return (
+            <GeoJSON
+              key={`custom-landmarks-${municipality?.slug ?? "bauko"}-${activeStretchKey ?? ""}-${localCustomLandmarks.length}-${isMovingLandmarks ? "drag" : "static"}`}
+              data={{ type: "FeatureCollection", features: merged }}
+            pane="labels-pane"
+            pointToLayer={(feature, latlng) => {
+              const props = feature?.properties || {};
+              const kind = props.kind || "business";
+              const name = String(props.name || "");
+              const isInApp = props.source === "in-app";
+              // Accept both `stretch_keys` (array) and legacy
+              // `stretch_key` (string). Highlight when any linked key
+              // matches the active sidebar stretch.
+              const featKeys = Array.isArray(props.stretch_keys)
+                ? props.stretch_keys
+                : props.stretch_key
+                  ? [props.stretch_key]
+                  : [];
+              const isActive =
+                Boolean(activeStretchKey) &&
+                featKeys.includes(activeStretchKey);
+              const safeName = name
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+              const draggable = isInApp && isMovingLandmarks;
+              const marker = L.marker(latlng, {
+                icon: L.divIcon({
+                  html:
+                    `<span class="custom-pin custom-pin--${kind}"></span>` +
+                    `<span class="custom-pin-name">${safeName}</span>`,
+                  className:
+                    "custom-landmark" +
+                    (isActive ? " is-active-stretch" : "") +
+                    (draggable ? " is-draggable" : ""),
+                  iconSize: [0, 0],
+                  iconAnchor: [9, 9],
+                }),
+                // Only in-app pins are interactive — clicking them
+                // opens an edit/delete popup. File-based pins
+                // (curated in *_custom_landmarks.geojson) stay
+                // non-interactive so they can't be modified through
+                // the UI.
+                interactive: isInApp,
+                keyboard: isInApp,
+                draggable,
+                autoPan: draggable,
+                pane: "labels-pane",
+              });
+              if (draggable) {
+                // Persist the new lat/lng when the user finishes
+                // dragging. We pass both the stable id and the OLD
+                // coords so EditableZones can fall back to (name +
+                // coord) matching for legacy entries without an id.
+                marker.on("dragend", () => {
+                  const ll = marker.getLatLng();
+                  const oldCoords = feature?.geometry?.coordinates || [];
+                  window.dispatchEvent(
+                    new CustomEvent(
+                      `${municipality?.slug ?? "bauko"}:landmark-move`,
+                      {
+                        detail: {
+                          id: props.id,
+                          name: props.name,
+                          oldLng: oldCoords[0],
+                          oldLat: oldCoords[1],
+                          newLng: ll.lng,
+                          newLat: ll.lat,
+                        },
+                      }
+                    )
+                  );
+                });
+              }
+              if (isInApp && !draggable) {
+                const linksHtml =
+                  featKeys.length > 0
+                    ? `<div class="landmark-popup__links">${featKeys.length} linked stretch${featKeys.length === 1 ? "" : "es"}</div>`
+                    : `<div class="landmark-popup__links landmark-popup__links--none">no linked stretches</div>`;
+                marker.bindPopup(
+                  `<div class="landmark-popup">` +
+                    `<strong class="landmark-popup__name">${safeName}</strong>` +
+                    `<div class="landmark-popup__kind">${kind}</div>` +
+                    linksHtml +
+                    `<div class="landmark-popup__actions">` +
+                    `<button type="button" data-action="edit">Edit</button>` +
+                    `<button type="button" data-action="delete">Delete</button>` +
+                    `</div>` +
+                    `</div>`,
+                  { closeButton: true, autoClose: true }
+                );
+                marker.on("popupopen", (e) => {
+                  const el = e.popup.getElement();
+                  if (!el) return;
+                  const editBtn = el.querySelector("[data-action=edit]");
+                  const deleteBtn = el.querySelector("[data-action=delete]");
+                  if (editBtn) {
+                    editBtn.onclick = () => {
+                      window.dispatchEvent(
+                        new CustomEvent(
+                          `${municipality?.slug ?? "bauko"}:landmark-edit`,
+                          { detail: feature }
+                        )
+                      );
+                      marker.closePopup();
+                    };
+                  }
+                  if (deleteBtn) {
+                    deleteBtn.onclick = () => {
+                      // Pass enough info for the listener to find the
+                      // entry even if `id` is somehow missing on an
+                      // old entry that slipped past the migration —
+                      // (lng,lat) + name is unique in practice for
+                      // user-placed pins.
+                      const coords = feature?.geometry?.coordinates;
+                      window.dispatchEvent(
+                        new CustomEvent(
+                          `${municipality?.slug ?? "bauko"}:landmark-delete`,
+                          {
+                            detail: {
+                              id: props.id,
+                              name: props.name,
+                              lng: coords?.[0],
+                              lat: coords?.[1],
+                            },
+                          }
+                        )
+                      );
+                      marker.closePopup();
+                    };
+                  }
+                });
+              }
+              return marker;
+            }}
+            />
+          );
+        })()}
         <MapFocus key={`municipality-focus-${municipality?.slug ?? "bauko"}`} feature={baukoFeature} />
         <BarangayFocus
           slug={activeBarangaySlug}
@@ -607,6 +861,9 @@ export default function LeafletMap({
             frontageBandsUrl={municipality?.dataFiles?.frontageBands}
             showFrontageBands={!!layers?.frontageBands}
             barangaysUrl={municipality?.dataFiles?.barangays}
+            activeStretchKey={activeStretchKey}
+            stretchCatalog={stretchCatalog}
+            municipalitySlug={municipality?.slug}
             classKeys={municipality?.schedule?.classifications?.map((row) => row?.subClass)}
           />
         )}

@@ -1,0 +1,94 @@
+{
+  "type": "FeatureCollection",
+  "_meta": {
+    "description": "LGU-curated POIs for Bontoc that aren't well-mapped in OpenStreetMap or visible on Google's basemap tiles. Edit this file by hand to add more. Each Feature must be a Point with name + kind in properties.",
+    "kinds": [
+      "govt",
+      "hospital",
+      "clinic",
+      "school",
+      "worship",
+      "market",
+      "tourism",
+      "business",
+      "transport"
+    ],
+    "how_to_add": "Search the business on Google Maps; the URL contains coordinates like @17.0918222,120.9782217. Paste them in below.",
+    "stretch_keys_format": "Optional `stretch_keys` field (array) links a landmark to one OR MANY schedule stretches. Each key is `${classId}|${barangaySlug}|${stretchIdx}`. The pin lights up yellow whenever ANY of its linked stretches is the active sidebar selection. Legacy singular `stretch_key` (string) is still read for backwards compat."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kalangeg Bldg.",
+        "kind": "business",
+        "barangay": "Poblacion",
+        "source": "google-maps",
+        "stretch_keys": ["c-1|poblacion|0"],
+        "notes": "5.0★ business center, opens 8 AM closes 5 PM. Endpoint of the C-1 'Circle → Kalangeg building' stretch."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [120.9782217, 17.0918222]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bontoc Circle",
+        "kind": "tourism",
+        "barangay": "Poblacion",
+        "source": "google-maps",
+        "stretch_keys": [
+          "c-1|poblacion|0",
+          "c-1|poblacion|1",
+          "c-1|poblacion|2",
+          "c-1|poblacion|5",
+          "r-1|poblacion|0",
+          "r-1|poblacion|1",
+          "r-1|samoki|0",
+          "r-1|calutit|0",
+          "r-1|calutit|1"
+        ],
+        "source_url": "https://www.google.com/maps/search/bontoc+circle/@17.0897373,120.9744053,17z/data=!4m10!1m2!2m1!1sbontoc+circle!3m6!1s0x338fd332784e0e03:0x95f25affdbf2bd9c!8m2!3d17.0899394!4d120.9771021!15sCg1ib250b2MgY2lyY2xlkgETaGlzdG9yaWNhbF9sYW5kbWFy-ABAA!16s%2Fg%2F11vdqc98gh?entry=ttu&g_ep=EgoyMDI2MDUxMy4wIKXMDSoASAFQAw%3D%3D",
+        "notes": "The central rotunda — referenced as the start (or end) of 9 SMV stretches: 4 in C-1 (Circle → Kalangeg / Bridge / Capitol; Wanchakan → Pines Kitchenette → Circle); 5 in R-1 across Poblacion / Samoki / Caluttit (Circle → EDNP → Barracks; Wanchakan → Pines Kitchenette → Circle; Circle → Malichom Samoki; Circle → Pakkil Caluttit; Circle → Tikitik). Highlights whenever any of those is active."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [120.9771021, 17.0899394]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mountain Province General Comprehensive High School",
+        "kind": "school",
+        "barangay": "Poblacion",
+        "source": "google-maps",
+        "stretch_keys": ["c-1|poblacion|1"],
+        "source_url": "https://www.google.com/maps/place/Mountain+Province+General+Comprehensive+High+School,+Nueva+Vizcaya+-+Ifugao+-+Mountain+Province+Rd,+Bontoc,+Mountain+Province/@17.0901345,120.9772611,18z/data=!3m1!4b1!4m6!3m5!1s0x338fd224f9218199:0xac035b96ff605a55!8m2!3d17.0902574!4d120.9784903!16s%2Fg%2F11b8tdjhf9?entry=ttu&g_ep=EgoyMDI2MDUxMy4wIKXMDSoASAFQAw%3D%3D",
+        "notes": "MPGCHS — high school referenced in the C-1 'Circle → National Bridge fronting MPGCHS' stretch."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [120.9784903, 17.0902574]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "CHICO / EDNP Building",
+        "kind": "govt",
+        "barangay": "Poblacion",
+        "source": "google-maps",
+        "stretch_keys": ["c-1|poblacion|3"],
+        "source_url": "https://www.google.com/maps/search/CHICO%2FEDNP+BUILDING+bontoc/@17.0832839,120.9688888,15z/data=!3m1!4b1?entry=ttu&g_ep=EgoyMDI2MDUxMy4wIKXMDSoASAFQAw%3D%3D",
+        "notes": "EDNP building — referenced in the C-1 'EDNP building → Barracks' stretch. NOTE: coordinates are approximate (from the search map-center, not an exact place pin). Click the actual building on Google Maps and replace with the !3d!4d coords for higher accuracy."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [120.9688888, 17.0832839]
+      }
+    }
+  ]
+}

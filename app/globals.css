@@ -203,6 +203,315 @@ code {
 }
 
 
+/* Custom-landmark add form. Header (purple) + scrollable body + sticky
+   footer with the Cancel / Add buttons. Footer-as-flex-shrink:0 means
+   the action buttons are always visible no matter how many stretch
+   chips the user attaches (was the off-screen bug in the previous
+   inline-JSX version). */
+.landmark-form {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  width: 360px;
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  font-size: 12px;
+  overflow: hidden;
+}
+.landmark-form__head {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  background: #7c3aed;
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+.landmark-form__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.landmark-form__foot {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.landmark-form__field {
+  display: grid;
+  gap: 3px;
+}
+.landmark-form__label {
+  color: #475569;
+  font-weight: 600;
+  font-size: 11px;
+}
+.landmark-form__input {
+  padding: 5px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  background: white;
+}
+.landmark-form__hint {
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.landmark-form__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0;
+}
+.landmark-form__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  background: #ede9fe;
+  border: 1px solid #c4b5fd;
+  border-radius: 12px;
+  font-size: 11px;
+  color: #5b21b6;
+  max-width: 100%;
+}
+.landmark-form__chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+.landmark-form__chip-remove {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #5b21b6;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 50%;
+}
+.landmark-form__chip-remove:hover {
+  background: rgba(91, 33, 182, 0.1);
+}
+.landmark-form__btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.landmark-form__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.landmark-form__btn--ghost {
+  color: #475569;
+}
+.landmark-form__btn--primary {
+  background: #7c3aed;
+  border-color: #6d28d9;
+  color: white;
+  font-weight: 600;
+}
+.landmark-form__btn--primary:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
+/* Popup shown when an in-app landmark pin is clicked. Gives the user
+   a quick way to fix mistakes — re-pick stretches via "Edit" or
+   remove the pin entirely via "Delete". File-based landmarks stay
+   non-interactive (no popup) so the curated set isn't editable from
+   the UI. */
+.landmark-popup {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", sans-serif;
+  min-width: 200px;
+}
+.landmark-popup__name {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+.landmark-popup__kind {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: capitalize;
+  margin-bottom: 6px;
+}
+.landmark-popup__links {
+  font-size: 11px;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+.landmark-popup__links--none {
+  background: #fff7ed;
+  color: #c2410c;
+}
+.landmark-popup__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.landmark-popup__actions button {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  color: #475569;
+}
+.landmark-popup__actions button[data-action="edit"] {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #5b21b6;
+  font-weight: 600;
+}
+.landmark-popup__actions button[data-action="edit"]:hover {
+  background: #ddd6fe;
+}
+.landmark-popup__actions button[data-action="delete"] {
+  color: #b91c1c;
+}
+.landmark-popup__actions button[data-action="delete"]:hover {
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+/* While the "+ Landmark" tool is active in the editor, give the map
+   a crosshair cursor so the user knows the next click drops a pin. */
+.leaflet-container.placing-landmark,
+.leaflet-container.placing-landmark .leaflet-tile-pane,
+.leaflet-container.placing-landmark .leaflet-overlay-pane {
+  cursor: crosshair !important;
+}
+
+/* Custom landmarks: LGU-curated POIs (e.g. Kalangeg Bldg in Bontoc)
+   the locals expect to see but that OSM / Google tile renderers don't
+   surface as default labels. Rendered as a kind-coloured teardrop pin
+   plus a white name pill that sits cleanly above any basemap. Always
+   on (no UI toggle). Pin scales up when the linked stretch is the
+   active sidebar selection. */
+.custom-landmark {
+  background: none;
+  border: none;
+  padding: 0;
+  white-space: nowrap;
+  line-height: 1;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.custom-pin {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #1d4ed8;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35),
+    0 2px 4px rgba(15, 23, 42, 0.35);
+  transition: transform 140ms ease, width 140ms ease, height 140ms ease;
+}
+.custom-pin--business { background: #ea580c; }
+.custom-pin--govt { background: #1d4ed8; }
+.custom-pin--hospital { background: #dc2626; }
+.custom-pin--clinic { background: #f87171; }
+.custom-pin--school { background: #2563eb; }
+.custom-pin--worship { background: #7c3aed; }
+.custom-pin--market { background: #059669; }
+.custom-pin--tourism { background: #0891b2; }
+.custom-pin--transport { background: #f59e0b; }
+.custom-pin-name {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", sans-serif;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  padding: 2px 7px;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+}
+
+/* When a landmark's stretch_key matches the active sidebar stretch
+   (e.g. clicking "Circle → Kalangeg" under C-1 / Poblacion lights up
+   the Kalangeg Bldg pin) the pin gets a saturated yellow halo + scales
+   to ~24px so it reads clearly across the map. */
+.custom-landmark.is-active-stretch .custom-pin {
+  width: 24px;
+  height: 24px;
+  border-color: #fde047;
+  box-shadow: 0 0 0 3px rgba(253, 224, 71, 0.85),
+    0 0 0 4px rgba(15, 23, 42, 0.45),
+    0 3px 6px rgba(15, 23, 42, 0.35);
+}
+.custom-landmark.is-active-stretch .custom-pin-name {
+  background: #fde047;
+  border-color: #ca8a04;
+  color: #422006;
+  font-weight: 700;
+}
+
+/* "Move pin" mode: while toggled on (from the editor toolbar) the
+   pin itself becomes a Leaflet drag handle. We re-enable
+   pointer-events on the pin only (so the name pill doesn't intercept
+   drags), tint the dot teal as a visual cue, and switch the cursor to
+   "move". */
+.custom-landmark.is-draggable {
+  pointer-events: auto;
+  cursor: move;
+}
+.custom-landmark.is-draggable .custom-pin {
+  cursor: move;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.5),
+    0 0 0 4px rgba(15, 23, 42, 0.45),
+    0 3px 6px rgba(15, 23, 42, 0.35);
+}
+.custom-landmark.is-draggable .custom-pin-name {
+  border-color: #0d9488;
+  color: #134e4a;
+  cursor: move;
+}
+/* Body-level cue: while move-mode is on, the whole map gets a
+   "move" cursor so the user knows hovering a pin = drag handle. */
+body.moving-landmarks .leaflet-container,
+body.moving-landmarks .leaflet-container .leaflet-tile-pane,
+body.moving-landmarks .leaflet-container .leaflet-overlay-pane {
+  cursor: move !important;
+}
+
 /* Multi-vertex tool: custom vertex handles rendered when the user
    toggles "Vertices: multi" on the editor panel. Click toggles solo
    selection, Shift+click adds to selection, drag any selected handle
@@ -367,6 +676,87 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Small badge showing how many stretches a barangay has under the
+   active class. Hint that more detail will appear when clicked. */
+.smv-brgy__count {
+  flex-shrink: 0;
+  margin-left: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text);
+  border-radius: 999px;
+  line-height: 1.3;
+}
+
+/* Per-barangay stretches: appears under the active barangay when the
+   schedule has landmark-level detail (e.g. Bontoc's "Circle →
+   Kalangeg building" within Poblacion C-1). Compact bullet list that
+   reads like a survey description rather than UI chrome. */
+.smv-stretches {
+  list-style: none;
+  margin: 4px 0 8px;
+  padding: 4px 0 4px 24px;
+  display: grid;
+  gap: 2px;
+  border-left: 2px solid rgba(15, 23, 42, 0.08);
+}
+.smv-stretch {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.smv-stretch__btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 80ms ease, border-color 80ms ease;
+}
+.smv-stretch__btn:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+.smv-stretch__btn.is-active {
+  background: rgba(29, 78, 216, 0.08);
+  border-color: rgba(29, 78, 216, 0.25);
+  color: var(--text-strong, #0f172a);
+  font-weight: 600;
+}
+.smv-stretch__bullet {
+  flex-shrink: 0;
+  margin-top: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  opacity: 0.85;
+}
+.smv-stretch__btn.is-active .smv-stretch__bullet {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  opacity: 1;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+}
+.smv-stretch__label {
+  flex: 1;
+}
+.smv-stretch__saved {
+  flex-shrink: 0;
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.85;
+  filter: saturate(1.2);
 }
 
 /* ===========================================================

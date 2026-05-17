@@ -3,12 +3,15 @@
 export default function Sidebar({
   activeClassId,
   activeBarangaySlug,
+  activeStretchIdx = null,
   onSelectClass,
   onSelectBarangay,
+  onSelectStretch = () => {},
   commercialRows = [],
   residentialRows = [],
   getBarangayBySlug = () => null,
   getUniqueBarangaysForClass = () => [],
+  savedStretchViews = {},
 }) {
   return (
     <aside className="smv-sidebar" aria-label="SMV schedule">
@@ -17,20 +20,26 @@ export default function Sidebar({
         rows={commercialRows}
         activeClassId={activeClassId}
         activeBarangaySlug={activeBarangaySlug}
+        activeStretchIdx={activeStretchIdx}
         onSelectClass={onSelectClass}
         onSelectBarangay={onSelectBarangay}
+        onSelectStretch={onSelectStretch}
         getBarangayBySlug={getBarangayBySlug}
         getUniqueBarangaysForClass={getUniqueBarangaysForClass}
+        savedStretchViews={savedStretchViews}
       />
       <SidebarTable
         title="Residential Lands"
         rows={residentialRows}
         activeClassId={activeClassId}
         activeBarangaySlug={activeBarangaySlug}
+        activeStretchIdx={activeStretchIdx}
         onSelectClass={onSelectClass}
         onSelectBarangay={onSelectBarangay}
+        onSelectStretch={onSelectStretch}
         getBarangayBySlug={getBarangayBySlug}
         getUniqueBarangaysForClass={getUniqueBarangaysForClass}
+        savedStretchViews={savedStretchViews}
         scroll
       />
     </aside>
@@ -42,11 +51,14 @@ function SidebarTable({
   rows,
   activeClassId,
   activeBarangaySlug,
+  activeStretchIdx = null,
   onSelectClass,
   onSelectBarangay,
+  onSelectStretch = () => {},
   scroll = false,
   getBarangayBySlug,
   getUniqueBarangaysForClass,
+  savedStretchViews = {},
 }) {
   return (
     <div className={`smv-section ${scroll ? "smv-section--scroll" : ""}`}>
@@ -116,6 +128,12 @@ function SidebarTable({
                     if (!b) return null;
                     const isBarangayActive =
                       isClassActive && activeBarangaySlug === slug;
+                    // Gather every stretch label this barangay carries
+                    // across all locationGroups in the class. Optional —
+                    // many schedules (Bauko, Sagada, Tadian) don't have
+                    // per-stretch detail; for those, the barangay row
+                    // just shows the name on its own.
+                    const stretches = collectStretchesFor(row, slug);
                     return (
                       <li
                         key={`${row.id}-${slug}`}
@@ -139,7 +157,74 @@ function SidebarTable({
                             aria-hidden="true"
                           />
                           <span className="smv-brgy__name">{b.name}</span>
+                          {stretches.length > 0 && (
+                            <span
+                              className="smv-brgy__count"
+                              aria-label={`${stretches.length} stretches`}
+                            >
+                              {stretches.length}
+                            </span>
+                          )}
                         </button>
+                        {/* Sub-stretches appear when the barangay is the
+                            active selection in this class. Keeps the
+                            sidebar compact by default; users see detail
+                            only for the barangay they're focused on.
+                            Each stretch is clickable — picks that stretch
+                            as the active view target. */}
+                        {isBarangayActive && stretches.length > 0 && (
+                          <ul className="smv-stretches">
+                            {stretches.map((stretch, i) => {
+                              const stretchKey = `${row.id}|${slug}|${i}`;
+                              const isStretchActive =
+                                activeStretchIdx === i;
+                              const hasSavedView = Boolean(
+                                savedStretchViews?.[stretchKey]
+                              );
+                              return (
+                                <li
+                                  key={stretchKey}
+                                  className="smv-stretch"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onSelectStretch(row.id, slug, i);
+                                    }}
+                                    aria-pressed={isStretchActive}
+                                    className={`smv-stretch__btn ${
+                                      isStretchActive ? "is-active" : ""
+                                    }`}
+                                    title={
+                                      hasSavedView
+                                        ? `${stretch} — has a saved viewport (click to fly to it)`
+                                        : stretch
+                                    }
+                                  >
+                                    <span
+                                      className="smv-stretch__bullet"
+                                      style={{ backgroundColor: row.color }}
+                                      aria-hidden="true"
+                                    />
+                                    <span className="smv-stretch__label">
+                                      {stretch}
+                                    </span>
+                                    {hasSavedView && (
+                                      <span
+                                        className="smv-stretch__saved"
+                                        aria-label="Has saved view"
+                                        title="This stretch has a saved viewport"
+                                      >
+                                        📍
+                                      </span>
+                                    )}
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
                       </li>
                     );
                   })}
@@ -151,6 +236,24 @@ function SidebarTable({
       </ul>
     </div>
   );
+}
+
+// Gather every per-stretch label this barangay carries across every
+// locationGroup in the class. Each locationGroup can optionally provide
+// a `stretches: { [barangaySlug]: [label, ...] }` map; classes that
+// haven't been annotated (yet) return an empty list and the sidebar
+// just shows the barangay name on its own.
+function collectStretchesFor(row, barangaySlug) {
+  const out = [];
+  for (const group of row?.locationGroups || []) {
+    const list = group?.stretches?.[barangaySlug];
+    if (Array.isArray(list)) {
+      for (const stretch of list) {
+        if (stretch && typeof stretch === "string") out.push(stretch);
+      }
+    }
+  }
+  return out;
 }
 
 // Trim long descriptive labels (which list every barangay in the class)

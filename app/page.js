@@ -9,6 +9,11 @@ import TopNav from "@/components/TopNav";
 import { getMunicipalityConfig, MUNICIPALITY_OPTIONS } from "@/lib/municipalities";
 
 const BARANGAY_VIEW_PRESETS_KEY_PREFIX = "smv-barangay-view-v1:";
+// Per-stretch saved viewports. Keyed by `${classId}|${barangaySlug}|${stretchIdx}`
+// where stretchIdx is the index within the flat stretches list for that
+// (class, barangay) pair. Falls back to the barangay-level view when
+// no stretch-specific view has been saved.
+const STRETCH_VIEW_PRESETS_KEY_PREFIX = "smv-stretch-view-v1:";
 
 export default function Home() {
   const mapApiRef = useRef(null);
@@ -39,6 +44,11 @@ export default function Home() {
     frontageBands: false,
   });
   const [savedBarangayViews, setSavedBarangayViews] = useState({});
+  const [savedStretchViews, setSavedStretchViews] = useState({});
+  // Which stretch (sub-item) under the active barangay is currently
+  // selected. Null when no stretch is picked — falls back to the
+  // barangay-level view behaviour.
+  const [activeStretchIdx, setActiveStretchIdx] = useState(null);
   const [focusRequestId, setFocusRequestId] = useState(0);
 
   const municipality = useMemo(
@@ -47,6 +57,7 @@ export default function Home() {
   );
   const schedule = municipality.schedule;
   const viewPresetsKey = `${BARANGAY_VIEW_PRESETS_KEY_PREFIX}${municipality.slug}`;
+  const stretchViewPresetsKey = `${STRETCH_VIEW_PRESETS_KEY_PREFIX}${municipality.slug}`;
   const classifications = schedule.classifications;
   const total = classifications.length;
   const active = classIdx != null ? classifications[classIdx] : null;
@@ -220,6 +231,33 @@ export default function Home() {
     } catch {}
   }, [savedBarangayViews, viewPresetsKey]);
 
+  // Load + persist stretch viewports per municipality. Same pattern
+  // as savedBarangayViews above.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(stretchViewPresetsKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      setSavedStretchViews(parsed && typeof parsed === "object" ? parsed : {});
+    } catch {
+      setSavedStretchViews({});
+    }
+  }, [stretchViewPresetsKey]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        stretchViewPresetsKey,
+        JSON.stringify(savedStretchViews)
+      );
+    } catch {}
+  }, [savedStretchViews, stretchViewPresetsKey]);
+
+  // Reset the active stretch whenever the user moves to a different
+  // class or barangay — stretch indices are scoped to a (class,
+  // barangay) pair and otherwise carry over incorrectly.
+  useEffect(() => {
+    setActiveStretchIdx(null);
+  }, [classIdx, groupIdx, barangayIdx, municipalitySlug]);
+
   // Mirror the active municipality into the URL so /?m=barlig is a
   // direct link. Bauko is the default — drop the param entirely for it
   // to keep the canonical link clean. replaceState avoids polluting
@@ -314,6 +352,110 @@ export default function Home() {
     });
   }, [activeBarangaySlug]);
 
+  // Compose the key used in savedStretchViews for whatever stretch is
+  // currently active. Returns null when nothing's selected, which
+  // shifts the TopNav save/reset buttons back to the barangay flow.
+  const activeStretchKey =
+    active && activeBarangaySlug && activeStretchIdx != null
+      ? `${active.id}|${activeBarangaySlug}|${activeStretchIdx}`
+      : null;
+
+  // Flat catalog of every named stretch in this municipality's
+  // schedule. Used by the in-app "+ Landmark" form so the user can
+  // pick a stretch from a dropdown instead of typing the cryptic
+  // composite key. Each entry includes the same classId|barangay|idx
+  // value the rest of the app uses.
+  const stretchCatalog = useMemo(() => {
+    const out = [];
+    for (const cls of classifications || []) {
+      for (const group of cls.locationGroups || []) {
+        for (const slug of group.barangays || []) {
+          const stretches = group.stretches?.[slug];
+          if (!Array.isArray(stretches)) continue;
+          const b = schedule.getBarangayBySlug?.(slug);
+          const brgyName = b?.name || slug;
+          for (let i = 0; i < stretches.length; i++) {
+            out.push({
+              value: `${cls.id}|${slug}|${i}`,
+              classId: cls.id,
+              classLabel: cls.subClass,
+              barangayName: brgyName,
+              stretchText: stretches[i],
+            });
+          }
+        }
+      }
+    }
+    return out;
+  }, [classifications, schedule]);
+  const activeStretchView = activeStretchKey
+    ? savedStretchViews[activeStretchKey]
+    : null;
+
+  const saveCurrentStretchView = useCallback(() => {
+    if (!activeStretchKey || !mapApiRef.current?.getView) return;
+    const view = mapApiRef.current.getView();
+    if (!view) return;
+    setSavedStretchViews((prev) => ({ ...prev, [activeStretchKey]: view }));
+  }, [activeStretchKey]);
+
+  const clearCurrentStretchView = useCallback(() => {
+    if (!activeStretchKey) return;
+    setSavedStretchViews((prev) => {
+      if (!(activeStretchKey in prev)) return prev;
+      const next = { ...prev };
+      delete next[activeStretchKey];
+      return next;
+    });
+  }, [activeStretchKey]);
+
+  // The TopNav Save/Reset buttons act on the active stretch when one
+  // is selected, otherwise on the active barangay. One UI, both
+  // levels — users don't have to think about which is in scope.
+  const saveCurrentView = useCallback(() => {
+    if (activeStretchKey) saveCurrentStretchView();
+    else saveCurrentBarangayView();
+  }, [activeStretchKey, saveCurrentStretchView, saveCurrentBarangayView]);
+
+  const clearCurrentView = useCallback(() => {
+    if (activeStretchKey) clearCurrentStretchView();
+    else clearCurrentBarangayView();
+  }, [activeStretchKey, clearCurrentStretchView, clearCurrentBarangayView]);
+
+  // Click handler routed to Sidebar — selects a stretch under the
+  // current (class, barangay) and triggers a fly-to.
+  const selectStretch = useCallback(
+    (classId, barangaySlug, stretchIdx) => {
+      // Ensure the matching class is active too — if the user clicked
+      // a stretch under a non-active class, jump there first.
+      const targetClassIdx = classifications.findIndex(
+        (c) => c.id === classId
+      );
+      if (targetClassIdx < 0) return;
+      // Find the location group + barangay position to keep classIdx /
+      // groupIdx / barangayIdx coherent (the slideshow nav reads them).
+      const cls = classifications[targetClassIdx];
+      let foundGroup = 0;
+      let foundBarangay = 0;
+      outer: for (let gi = 0; gi < cls.locationGroups.length; gi++) {
+        const g = cls.locationGroups[gi];
+        for (let bi = 0; bi < g.barangays.length; bi++) {
+          if (g.barangays[bi] === barangaySlug) {
+            foundGroup = gi;
+            foundBarangay = bi;
+            break outer;
+          }
+        }
+      }
+      setClassIdx(targetClassIdx);
+      setGroupIdx(foundGroup);
+      setBarangayIdx(foundBarangay);
+      setActiveStretchIdx(stretchIdx);
+      setFocusRequestId((n) => n + 1);
+    },
+    [classifications]
+  );
+
   return (
     <main className="consultation-page">
       <TopNav
@@ -325,10 +467,14 @@ export default function Home() {
         setMunicipalitySlug={setMunicipalitySlug}
         municipalities={MUNICIPALITY_OPTIONS}
         provinceName={municipality.province}
-        canSaveView={Boolean(activeBarangaySlug)}
-        hasSavedView={Boolean(activeBarangaySlug && savedBarangayViews[activeBarangaySlug])}
-        onSaveView={saveCurrentBarangayView}
-        onResetView={clearCurrentBarangayView}
+        canSaveView={Boolean(activeStretchKey || activeBarangaySlug)}
+        hasSavedView={Boolean(
+          activeStretchKey
+            ? savedStretchViews[activeStretchKey]
+            : activeBarangaySlug && savedBarangayViews[activeBarangaySlug]
+        )}
+        onSaveView={saveCurrentView}
+        onResetView={clearCurrentView}
       />
       <div className="page-body">
         <div className="map-wrapper">
@@ -339,6 +485,9 @@ export default function Home() {
             activeClass={active}
             activeBarangaySlug={activeBarangaySlug}
             savedBarangayViews={savedBarangayViews}
+            activeStretchView={activeStretchView}
+            activeStretchKey={activeStretchKey}
+            stretchCatalog={stretchCatalog}
             focusRequestId={focusRequestId}
             layers={layers}
             onDataChange={setMapData}
@@ -355,12 +504,15 @@ export default function Home() {
         <Sidebar
           activeClassId={active?.id ?? null}
           activeBarangaySlug={activeBarangaySlug}
+          activeStretchIdx={activeStretchIdx}
           onSelectClass={selectClass}
           onSelectBarangay={selectClassBarangay}
+          onSelectStretch={selectStretch}
           commercialRows={schedule.commercial}
           residentialRows={schedule.residential}
           getBarangayBySlug={schedule.getBarangayBySlug}
           getUniqueBarangaysForClass={schedule.getUniqueBarangaysForClass}
+          savedStretchViews={savedStretchViews}
         />
       </div>
       <BottomBar

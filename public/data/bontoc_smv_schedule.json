@@ -30,8 +30,19 @@
       "value_2024": 8910,
       "location_groups": [
         {
-          "label": "Commercial lots along National Road within Barangay Poblacion — both sides from Circle to Kalangeg building, Circle to start of the National Bridge fronting MPGCHS, Circle to Municipal Capitol, EDNP building to the Barracks, and Gomez residence to the National Road Junction at the Municipal Capitol. Also along Municipal Road from Wanchakan building to Pines Kitchenette down to Circle, and from JBA building to Pooten building.",
-          "barangays": ["Poblacion"]
+          "label": "Commercial lots along National Road within Barangay Poblacion — both sides from Circle to Kalangeg building, Circle to start of National Bridge fronting MPGCHS, Circle to Municipal Capitol, EDNP building to the Barracks, and Gomez residence to the National Road Junction at the Municipal Capitol. Also along Municipal Road from Wanchakan building to Pines Kitchenette down to Circle, and from JBA building to Pooten building.",
+          "barangays": ["Poblacion"],
+          "stretches": {
+            "Poblacion": [
+              "National Road: Circle → Kalangeg building (both sides)",
+              "National Road: Circle → start of National Bridge fronting MPGCHS",
+              "National Road: Circle → Municipal Capitol",
+              "National Road: EDNP building → Barracks",
+              "National Road: Gomez residence → Capitol junction",
+              "Municipal Road: Wanchakan building → Pines Kitchenette → Circle (both sides)",
+              "Municipal Road: JBA building → Pooten building"
+            ]
+          }
         }
       ]
     },
@@ -42,8 +53,40 @@
       "value_2024": 7710,
       "location_groups": [
         {
-          "label": "Commercial lots along National Road of Bontoc Ili to Gonogon (both sides, Joel Tad-awan building to Palinga-aw, Gonogon), Lanao Road, National Road of Caluttit (Centrum building to Pingew Restaurant), National Road of Samoki (end of National Bridge to Sukit / Anayas's Restaurant), and National Road from Barracks to Cadre Road. Also along Municipal Roads: Akfab, Fakeg, Kayyab, Sengang, Layad, Ayyoweng, Tugwi, and Bishop Claver Road.",
-          "barangays": ["Bontoc Ili", "Calutit", "Gonogon", "Poblacion", "Samoki"]
+          "label": "Commercial lots along National Road of Bontoc Ili to Gonogon (Joel Tad-awan building to Palinga-aw, Gonogon), Lanao Road, National Road of Caluttit (Centrum building to Pingew Restaurant), National Road of Samoki (end of National Bridge to Sukit / Anayas's Restaurant), and National Road from Barracks to Cadre Road. Also along Municipal Roads: Akfab, Fakeg, Kayyab, Sengang, Layad, Ayyoweng, Tugwi, and Bishop Claver Road.",
+          "barangays": [
+            "Bontoc Ili",
+            "Calutit",
+            "Gonogon",
+            "Poblacion",
+            "Samoki"
+          ],
+          "stretches": {
+            "Bontoc Ili": [
+              "National Road: Joel Tad-awan building → Palinga-aw (toward Gonogon, both sides)",
+              "Lanao Road"
+            ],
+            "Calutit": [
+              "National Road: Centrum building (in front of DPWH) → Pingew Restaurant (both sides)"
+            ],
+            "Gonogon": [
+              "National Road: Palinga-aw end (continues from Bontoc Ili stretch)"
+            ],
+            "Poblacion": [
+              "National Road: Barracks → Cadre Road",
+              "Municipal Road: Akfab Street",
+              "Municipal Road: Fakeg Street",
+              "Municipal Road: Kayyab Street",
+              "Municipal Road: Sengang Street",
+              "Municipal Road: Layad Street",
+              "Municipal Road: Ayyoweng Street",
+              "Municipal Road: Tugwi Street",
+              "Municipal Road: Bishop Claver Road"
+            ],
+            "Samoki": [
+              "National Road: end of National Bridge → Sukit (Anayas's Restaurant), both sides"
+            ]
+          }
         }
       ]
     },
@@ -54,8 +97,24 @@
       "value_2024": 8910,
       "location_groups": [
         {
-          "label": "Residential lots along National Roads from Circle to Malichom Samoki, Circle to Pakkil Caluttit, Circle to Tikitik (Bontoc-Baguio Road), and EDNP building to the Barracks. Also along Caluttit–Plaza Road and Eyeb–Lanao Road, and along Municipal Road from Wanchakan building to Pines Kitchenette down to Circle, and from JBA building to Pooten building.",
-          "barangays": ["Bontoc Ili", "Calutit", "Poblacion", "Samoki"]
+          "label": "Residential lots along National Roads from Circle to Malichom Samoki, Circle to Pakkil Caluttit, Circle to Tikitik (Bontoc–Baguio Road), and EDNP building to the Barracks. Also along Caluttit–Plaza Road, Eyeb–Lanao Road, and Municipal Road from Wanchakan building to Pines Kitchenette down to Circle, and from JBA building to Pooten building.",
+          "barangays": ["Bontoc Ili", "Calutit", "Poblacion", "Samoki"],
+          "stretches": {
+            "Poblacion": [
+              "National Road: Circle → EDNP building → Barracks",
+              "Municipal Road: Wanchakan building → Pines Kitchenette → Circle (both sides)",
+              "Municipal Road: JBA building → Pooten building"
+            ],
+            "Samoki": [
+              "National Road: Circle → Malichom (Romel Lengwa Residence)"
+            ],
+            "Calutit": [
+              "National Road: Circle → Pakkil (Morareng Residence)",
+              "Bontoc–Baguio Road: Circle → Tikitik",
+              "Caluttit–Plaza Road"
+            ],
+            "Bontoc Ili": ["Eyeb–Lanao Road"]
+          }
         }
       ]
     },
@@ -67,7 +126,24 @@
       "location_groups": [
         {
           "label": "Residential lots along National Road from end of Balikian Bridge to Amlosong, along National Road of Caluttit (Fagyan Residence to Pingew Restaurant), and along National Road of Samoki starting from Malichom. Also along Municipal Roads: Akfab, Fakeg, Kayyab, Sengang, Layad, Ayyoweng, Tugwi, and inner lots of Poblacion.",
-          "barangays": ["Calutit", "Poblacion", "Samoki"]
+          "barangays": ["Calutit", "Poblacion", "Samoki"],
+          "stretches": {
+            "Poblacion": [
+              "National Road: end of Balikian Bridge → Amlosong",
+              "Municipal Road: Akfab Street",
+              "Municipal Road: Fakeg Street",
+              "Municipal Road: Kayyab Street",
+              "Municipal Road: Sengang Street",
+              "Municipal Road: Layad Street",
+              "Municipal Road: Ayyoweng Street",
+              "Municipal Road: Tugwi Street",
+              "Inner lots of Poblacion"
+            ],
+            "Calutit": [
+              "National Road: Fagyan Residence → Pingew Restaurant"
+            ],
+            "Samoki": ["National Road of Samoki: from Malichom outward"]
+          }
         }
       ]
     },
@@ -79,7 +155,15 @@
       "location_groups": [
         {
           "label": "Residential lots along Provincial Road (Bontoc–Maligcong Road) from Bilibid Junction to Lengsad, and along Bontoc–Mainit Road from Post Office Junction to Pagturao.",
-          "barangays": ["Mainit", "Maligcong"]
+          "barangays": ["Mainit", "Maligcong"],
+          "stretches": {
+            "Maligcong": [
+              "Provincial Road (Bontoc–Maligcong): Bilibid Junction → Lengsad"
+            ],
+            "Mainit": [
+              "Bontoc–Mainit Road: Post Office Junction → Pagturao"
+            ]
+          }
         }
       ]
     },
@@ -89,7 +173,11 @@
       "value_2012": 145.5,
       "value_2024": 5220,
       "location_groups": [
-        { "label": "Inner lots of Poblacion.", "barangays": ["Poblacion"] }
+        {
+          "label": "Inner lots of Poblacion.",
+          "barangays": ["Poblacion"],
+          "stretches": { "Poblacion": ["Inner lots of Poblacion"] }
+        }
       ]
     },
     {
@@ -100,7 +188,12 @@
       "location_groups": [
         {
           "label": "Inner lots of Caluttit, Bontoc Ili, and Samoki.",
-          "barangays": ["Bontoc Ili", "Calutit", "Samoki"]
+          "barangays": ["Bontoc Ili", "Calutit", "Samoki"],
+          "stretches": {
+            "Bontoc Ili": ["Inner lots of Bontoc Ili"],
+            "Calutit": ["Inner lots of Caluttit"],
+            "Samoki": ["Inner lots of Samoki"]
+          }
         }
       ]
     },
@@ -112,7 +205,22 @@
       "location_groups": [
         {
           "label": "Along national roads of Tocucan, Talubin, Bayyo, Alab Proper, Alab Oriente, and Gonogon.",
-          "barangays": ["Alab Oriente", "Alab Proper", "Bayyo", "Gonogon", "Talubin", "Tocucan"]
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Bayyo",
+            "Gonogon",
+            "Talubin",
+            "Tocucan"
+          ],
+          "stretches": {
+            "Alab Oriente": ["National Road frontage"],
+            "Alab Proper": ["National Road frontage"],
+            "Bayyo": ["National Road frontage"],
+            "Gonogon": ["National Road frontage"],
+            "Talubin": ["National Road frontage"],
+            "Tocucan": ["National Road frontage"]
+          }
         }
       ]
     },
@@ -124,7 +232,22 @@
       "location_groups": [
         {
           "label": "Inner lots along national roads of Tocucan, Talubin, Bayyo, Alab Proper, Alab Oriente, and Gonogon.",
-          "barangays": ["Alab Oriente", "Alab Proper", "Bayyo", "Gonogon", "Talubin", "Tocucan"]
+          "barangays": [
+            "Alab Oriente",
+            "Alab Proper",
+            "Bayyo",
+            "Gonogon",
+            "Talubin",
+            "Tocucan"
+          ],
+          "stretches": {
+            "Alab Oriente": ["Inner lots along national road"],
+            "Alab Proper": ["Inner lots along national road"],
+            "Bayyo": ["Inner lots along national road"],
+            "Gonogon": ["Inner lots along national road"],
+            "Talubin": ["Inner lots along national road"],
+            "Tocucan": ["Inner lots along national road"]
+          }
         }
       ]
     },
@@ -136,7 +259,22 @@
       "location_groups": [
         {
           "label": "Residential lots along provincial roads of Maligcong, Guina-ang, Mainit, Talubin, Can-eo, and Balili.",
-          "barangays": ["Balili", "Caneo", "Guinaang", "Mainit", "Maligcong", "Talubin"]
+          "barangays": [
+            "Balili",
+            "Caneo",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Talubin"
+          ],
+          "stretches": {
+            "Balili": ["Provincial Road frontage"],
+            "Caneo": ["Provincial Road frontage"],
+            "Guinaang": ["Provincial Road frontage"],
+            "Mainit": ["Provincial Road frontage"],
+            "Maligcong": ["Provincial Road frontage"],
+            "Talubin": ["Provincial Road frontage"]
+          }
         }
       ]
     },
@@ -148,7 +286,22 @@
       "location_groups": [
         {
           "label": "Inner lots along provincial roads of Maligcong, Guina-ang, Mainit, Talubin, Can-eo, and Balili.",
-          "barangays": ["Balili", "Caneo", "Guinaang", "Mainit", "Maligcong", "Talubin"]
+          "barangays": [
+            "Balili",
+            "Caneo",
+            "Guinaang",
+            "Mainit",
+            "Maligcong",
+            "Talubin"
+          ],
+          "stretches": {
+            "Balili": ["Inner lots along provincial road"],
+            "Caneo": ["Inner lots along provincial road"],
+            "Guinaang": ["Inner lots along provincial road"],
+            "Mainit": ["Inner lots along provincial road"],
+            "Maligcong": ["Inner lots along provincial road"],
+            "Talubin": ["Inner lots along provincial road"]
+          }
         }
       ]
     },
@@ -160,7 +313,14 @@
       "location_groups": [
         {
           "label": "Residential lots along barangay roads of Balili, Maligcong, Guina-ang, Mainit, and Talubin.",
-          "barangays": ["Balili", "Guinaang", "Mainit", "Maligcong", "Talubin"]
+          "barangays": ["Balili", "Guinaang", "Mainit", "Maligcong", "Talubin"],
+          "stretches": {
+            "Balili": ["Barangay Road frontage"],
+            "Guinaang": ["Barangay Road frontage"],
+            "Mainit": ["Barangay Road frontage"],
+            "Maligcong": ["Barangay Road frontage"],
+            "Talubin": ["Barangay Road frontage"]
+          }
         }
       ]
     },
@@ -172,7 +332,14 @@
       "location_groups": [
         {
           "label": "Inner lots along barangay roads of Balili, Maligcong, Guina-ang, Mainit, and Talubin.",
-          "barangays": ["Balili", "Guinaang", "Mainit", "Maligcong", "Talubin"]
+          "barangays": ["Balili", "Guinaang", "Mainit", "Maligcong", "Talubin"],
+          "stretches": {
+            "Balili": ["Inner lots along barangay road"],
+            "Guinaang": ["Inner lots along barangay road"],
+            "Mainit": ["Inner lots along barangay road"],
+            "Maligcong": ["Inner lots along barangay road"],
+            "Talubin": ["Inner lots along barangay road"]
+          }
         }
       ]
     },
@@ -184,7 +351,12 @@
       "location_groups": [
         {
           "label": "Talubin (lower portions), Tocucan interior, and Gonogon outskirts.",
-          "barangays": ["Gonogon", "Talubin", "Tocucan"]
+          "barangays": ["Gonogon", "Talubin", "Tocucan"],
+          "stretches": {
+            "Gonogon": ["Gonogon outskirts"],
+            "Talubin": ["Talubin (lower portions)"],
+            "Tocucan": ["Tocucan interior"]
+          }
         }
       ]
     },
@@ -196,7 +368,12 @@
       "location_groups": [
         {
           "label": "Upper Talubin, hillside portions of Gonogon, and interior sitios of Can-eo.",
-          "barangays": ["Caneo", "Gonogon", "Talubin"]
+          "barangays": ["Caneo", "Gonogon", "Talubin"],
+          "stretches": {
+            "Caneo": ["Interior sitios of Can-eo"],
+            "Gonogon": ["Hillside portions of Gonogon"],
+            "Talubin": ["Upper Talubin"]
+          }
         }
       ]
     },
@@ -208,7 +385,11 @@
       "location_groups": [
         {
           "label": "Remote sitios of Dalican and Mainit.",
-          "barangays": ["Dalican", "Mainit"]
+          "barangays": ["Dalican", "Mainit"],
+          "stretches": {
+            "Dalican": ["Remote sitios of Dalican"],
+            "Mainit": ["Remote sitios of Mainit"]
+          }
         }
       ]
     },
@@ -220,7 +401,12 @@
       "location_groups": [
         {
           "label": "Mountainous and far-flung sitios of Maligcong, Guina-ang, and Can-eo (Chapyosen).",
-          "barangays": ["Caneo", "Guinaang", "Maligcong"]
+          "barangays": ["Caneo", "Guinaang", "Maligcong"],
+          "stretches": {
+            "Caneo": ["Far-flung sitios (incl. Chapyosen)"],
+            "Guinaang": ["Mountainous, far-flung sitios"],
+            "Maligcong": ["Mountainous, far-flung sitios"]
+          }
         }
       ]
     }
