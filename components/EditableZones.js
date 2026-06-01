@@ -96,6 +96,60 @@ const ROAD_STYLE_SELECTED = {
   dashArray: null,
 };
 
+// Visual styles for the OSM buildings layer (per-building override
+// mode). Default fill is a translucent neutral gray so the basemap
+// shows through; hover and selected get bolder treatments. Selected
+// uses the same orange as ROAD_STYLE_SELECTED for visual consistency
+// with the road click-to-tag flow.
+const BUILDING_STYLE_DEFAULT = {
+  color: "#475569",
+  weight: 1,
+  opacity: 0.8,
+  fillColor: "#64748b",
+  fillOpacity: 0.15,
+  dashArray: null,
+};
+const BUILDING_STYLE_HOVER = {
+  color: "#1d4ed8",
+  weight: 2,
+  opacity: 1,
+  fillColor: "#3b82f6",
+  fillOpacity: 0.3,
+  dashArray: null,
+};
+const BUILDING_STYLE_SELECTED = {
+  color: "#ea580c",
+  weight: 2.5,
+  opacity: 1,
+  fillColor: "#fb923c",
+  fillOpacity: 0.45,
+  dashArray: null,
+};
+
+// Stable key for a building feature so click selection survives layer
+// re-renders. Combines the OSM id (rare collision possible) with the
+// first coordinate as a tag.
+// Minimal HTML escape so building names with quotes / brackets
+// don't break the popup markup.
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildingFeatureKey(feature) {
+  const p = feature?.properties || {};
+  let firstCoord;
+  const g = feature?.geometry;
+  if (g?.type === "Polygon") firstCoord = g.coordinates?.[0]?.[0];
+  else if (g?.type === "MultiPolygon") firstCoord = g.coordinates?.[0]?.[0]?.[0];
+  const tag = Array.isArray(firstCoord) ? firstCoord.join(",") : "";
+  return `${p.osm_id ?? "?"}|${tag}`;
+}
+
 // Clamp helper for the draggable editor panel — keeps the panel from
 // being dragged off-screen.
 function clamp(n, min, max) {
@@ -112,6 +166,200 @@ function roadFeatureKey(feature) {
   const firstCoord = feature?.geometry?.coordinates?.[0];
   const tag = Array.isArray(firstCoord) ? firstCoord.join(",") : "";
   return `${p.osm_way_id ?? "?"}|${p.barangay_slug ?? "?"}|${tag}`;
+}
+
+// Auto-align + densify a freshly-drawn polygon to neighboring zones.
+// Runs once on pm:create. Two-phase:
+//
+//   Phase 1 (snap): for each vertex in the new polygon, find the
+//   nearest neighbor vertex (preferred) or edge point (fallback)
+//   within thresholdMeters. Replace the vertex with the snap target.
+//
+//   Phase 2 (densify): for each consecutive pair of vertices in the
+//   snapped polygon, if BOTH landed on the same neighbor ring, walk
+//   that ring in the shorter direction and insert every intermediate
+//   vertex into the new polygon. This is the load-bearing trick that
+//   turns "I clicked 5 rough points along this road" into a polygon
+//   that follows the road's curves vertex-for-vertex with the
+//   existing zone.
+//
+// Returns { snapped, densified }. Only handles single-ring Polygons
+// for now; MultiPolygons and polygons with holes skip the densify
+// pass (snap still runs).
+function autoAlignAndDensify(layer, group, thresholdMeters = 5) {
+  const neighbors = [];
+  group.eachLayer((other) => {
+    if (other === layer) return;
+    try {
+      const g = other.toGeoJSON();
+      if (
+        g?.geometry &&
+        (g.geometry.type === "Polygon" || g.geometry.type === "MultiPolygon")
+      ) {
+        neighbors.push(g);
+      }
+    } catch {}
+  });
+  if (neighbors.length === 0) return { snapped: 0, densified: 0 };
+
+  // Flat list of all neighbor rings, each tagged with an id so the
+  // densify pass can confirm two snaps landed on the SAME ring.
+  const neighborRings = [];
+  for (const n of neighbors) {
+    const polyCoords =
+      n.geometry.type === "Polygon"
+        ? [n.geometry.coordinates]
+        : n.geometry.coordinates;
+    for (let p = 0; p < polyCoords.length; p++) {
+      const polyRings = polyCoords[p];
+      for (let r = 0; r < polyRings.length; r++) {
+        neighborRings.push({
+          ringId: neighborRings.length,
+          coords: polyRings[r],
+        });
+      }
+    }
+  }
+
+  // Find best snap for a single [lng, lat]. Returns
+  // { coord, ringId, vertexIdx, isEdgeSnap } or null.
+  function findSnap(lng, lat) {
+    const pt = turf.point([lng, lat]);
+    // Vertex-to-vertex first
+    let bestV = null;
+    let bestVDist = thresholdMeters;
+    for (const ring of neighborRings) {
+      for (let j = 0; j < ring.coords.length; j++) {
+        const v = ring.coords[j];
+        const d = turf.distance(pt, turf.point(v), { units: "meters" });
+        if (d < bestVDist) {
+          bestVDist = d;
+          bestV = { coord: [...v], ringId: ring.ringId, vertexIdx: j };
+        }
+      }
+    }
+    if (bestV) return bestV;
+    // Vertex-to-edge fallback
+    let bestE = null;
+    let bestEDist = thresholdMeters;
+    for (const ring of neighborRings) {
+      try {
+        const ls = turf.lineString(ring.coords);
+        const np = turf.nearestPointOnLine(ls, pt, { units: "meters" });
+        const d = np?.properties?.dist;
+        if (typeof d === "number" && d < bestEDist) {
+          bestEDist = d;
+          // `np.properties.index` is the index of the start vertex of
+          // the segment containing the snapped point. We store that
+          // so the densify pass can pivot off it.
+          bestE = {
+            coord: np.geometry.coordinates,
+            ringId: ring.ringId,
+            vertexIdx: np.properties.index,
+            isEdgeSnap: true,
+          };
+        }
+      } catch {}
+    }
+    return bestE;
+  }
+
+  const geo = layer.toGeoJSON?.();
+  if (!geo?.geometry || geo.geometry.type !== "Polygon") {
+    // Snap-only path for unsupported geometries (MultiPolygon, etc.)
+    const oldLatLngs = layer.getLatLngs?.();
+    if (!oldLatLngs) return { snapped: 0, densified: 0 };
+    let snappedCount = 0;
+    const walk = (arr) =>
+      arr.map((item) => {
+        if (item instanceof L.LatLng) {
+          const s = findSnap(item.lng, item.lat);
+          if (s) {
+            snappedCount++;
+            return L.latLng(s.coord[1], s.coord[0]);
+          }
+          return item;
+        }
+        return walk(item);
+      });
+    const newLatLngs = walk(oldLatLngs);
+    if (snappedCount > 0) {
+      try {
+        layer.setLatLngs(newLatLngs);
+      } catch (e) {
+        console.warn("auto-align: setLatLngs failed", e);
+        return { snapped: 0, densified: 0 };
+      }
+    }
+    return { snapped: snappedCount, densified: 0 };
+  }
+
+  // Outer ring (single-ring Polygon path). Snap each vertex and
+  // remember its snap info parallel-array style.
+  const oldRing = geo.geometry.coordinates[0];
+  const snappedRing = [];
+  const snapInfo = [];
+  let snappedCount = 0;
+  for (let i = 0; i < oldRing.length; i++) {
+    const [lng, lat] = oldRing[i];
+    const s = findSnap(lng, lat);
+    if (s) {
+      snappedRing.push(s.coord);
+      snapInfo.push(s);
+      snappedCount++;
+    } else {
+      snappedRing.push([lng, lat]);
+      snapInfo.push(null);
+    }
+  }
+
+  // Densify. Walk each consecutive pair; when both snapped to the
+  // same neighbor ring, fill in the intermediate vertices along the
+  // shorter direction.
+  const finalRing = [snappedRing[0]];
+  let densifiedCount = 0;
+  for (let i = 1; i < snappedRing.length; i++) {
+    const prev = snapInfo[i - 1];
+    const curr = snapInfo[i];
+    if (prev && curr && prev.ringId === curr.ringId) {
+      const ring = neighborRings.find((r) => r.ringId === prev.ringId);
+      // Last coord of a closed GeoJSON ring duplicates the first;
+      // treat the ring as having `ringLen` unique positions.
+      const ringLen = ring.coords.length - 1;
+      const prevIdx = prev.vertexIdx % ringLen;
+      const currIdx = curr.vertexIdx % ringLen;
+      if (prevIdx !== currIdx && ringLen > 1) {
+        const forwardSteps = (currIdx - prevIdx + ringLen) % ringLen;
+        const backwardSteps = (prevIdx - currIdx + ringLen) % ringLen;
+        if (forwardSteps > 0 && forwardSteps <= backwardSteps) {
+          for (let s = 1; s < forwardSteps; s++) {
+            const idx = (prevIdx + s) % ringLen;
+            finalRing.push([...ring.coords[idx]]);
+            densifiedCount++;
+          }
+        } else if (backwardSteps > 0) {
+          for (let s = 1; s < backwardSteps; s++) {
+            const idx = (prevIdx - s + ringLen) % ringLen;
+            finalRing.push([...ring.coords[idx]]);
+            densifiedCount++;
+          }
+        }
+      }
+    }
+    finalRing.push(snappedRing[i]);
+  }
+
+  // Apply if anything changed.
+  if (snappedCount > 0 || densifiedCount > 0) {
+    const newLatLngs = [finalRing.map(([lng, lat]) => L.latLng(lat, lng))];
+    try {
+      layer.setLatLngs(newLatLngs);
+    } catch (e) {
+      console.warn("autoAlignAndDensify: setLatLngs failed", e);
+      return { snapped: 0, densified: 0 };
+    }
+  }
+  return { snapped: snappedCount, densified: densifiedCount };
 }
 
 function flattenLayerCandidates(input, out = []) {
@@ -379,6 +627,10 @@ export default function EditableZones({
   frontageBandsUrl = null,
   showFrontageBands = false,
   barangaysUrl = null,
+  // OSM building polygons for per-building override mode. Currently
+  // only Sadanga sets this in its municipality config; other LGUs
+  // pass null and skip the buildings layer entirely.
+  osmBuildingsUrl = null,
   activeStretchKey = null,
   stretchCatalog = [],
   municipalitySlug = "bauko",
@@ -418,6 +670,49 @@ export default function EditableZones({
       if (layer?.options) layer.options.snapIgnore = ignore;
     });
   }, [snapToZones]);
+  // Snap-to-road-EDGES: project-wide default ON. SMV zones run from
+  // the curb outward, so the curb is the boundary the cursor should
+  // latch onto, NOT the road centerline. The road-edges layer
+  // (computed from `turf.buffer(centerlines, 3m)` outlined to
+  // polylines) is what Geoman's snap probe targets. Centerlines
+  // remain snap-ignored — snapping to the middle of the road would
+  // put zone boundaries on top of the carriageway, which is wrong.
+  const [snapToRoads, setSnapToRoads] = useState(true);
+  const snapToRoadsRef = useRef(snapToRoads);
+  useEffect(() => {
+    snapToRoadsRef.current = snapToRoads;
+  }, [snapToRoads]);
+  useEffect(() => {
+    const edgesLayer = roadEdgesLayerRef.current;
+    if (!edgesLayer) return;
+    const ignore = !snapToRoads;
+    edgesLayer.eachLayer((layer) => {
+      if (layer?.options) layer.options.snapIgnore = ignore;
+    });
+  }, [snapToRoads]);
+  // Per-building override mode. Off by default. Only meaningful when
+  // osmBuildingsUrl is provided by the municipality config (currently
+  // Sadanga only). When on, the OSM buildings layer renders and
+  // becomes clickable: shift+click toggles selection; clicking a
+  // class chip while buildings are selected bakes each selected
+  // building polygon as a single-feature zone with the chosen class.
+  // Single click (no shift) opens a popup with building metadata +
+  // an "Open in Street View" link button for ground-truth checking.
+  const [perBuildingMode, setPerBuildingMode] = useState(false);
+  const perBuildingModeRef = useRef(perBuildingMode);
+  useEffect(() => {
+    perBuildingModeRef.current = perBuildingMode;
+  }, [perBuildingMode]);
+  const [selectedBuildingIds, setSelectedBuildingIds] = useState(
+    () => new Set()
+  );
+  const selectedBuildingIdsRef = useRef(selectedBuildingIds);
+  useEffect(() => {
+    selectedBuildingIdsRef.current = selectedBuildingIds;
+  }, [selectedBuildingIds]);
+  const buildingsLayerRef = useRef(null);
+  const buildingsByIdRef = useRef(new Map());
+
   const [secondaryClass, setSecondaryClass] = useState("");
   const [tertiaryClass, setTertiaryClass] = useState("");
   const [bufferMeters, setBufferMeters] = useState(DEFAULT_BUFFER_METERS);
@@ -437,6 +732,12 @@ export default function EditableZones({
   // so the in-app and one-time cleanup stay symmetric.
   const ROAD_CARVE_METERS = 3;
   const roadBufferRef = useRef(null);
+  // Road-edge layer: the outline of the road buffer rendered as
+  // (faintly visible) polylines. These are the actual snap targets
+  // for "Snap: roads" — i.e. the curb lines, not the centerline. SMV
+  // zones run from the curb outward to 30m, so the curb is the
+  // boundary the cursor should latch onto when tracing.
+  const roadEdgesLayerRef = useRef(null);
   // Frontage-band selection — parallel to roads but each chip is already
   // a polygon, so bake-to-zone uses the geometry directly (no buffer
   // step). Set members are the chip_id from the bands file.
@@ -1596,18 +1897,16 @@ export default function EditableZones({
         const layer = L.geoJSON(fc, {
           pane: "osm-roads-pane",
           style: () => ROAD_STYLE_DEFAULT,
-          // pmIgnore on the parent group + every child line tells
-          // leaflet-geoman to skip the road network entirely. Without
-          // this, the global snap (snapDistance: 8px) latches a
-          // dragged zone vertex onto whichever road centerline is
-          // closest, which routinely produces weird "bent into the
-          // road" shapes when editing corridor polygons that hug a
-          // road.
+          // Centerlines are NOT snap targets. They're the visual
+          // reference + click target for the shift+click tagging
+          // flow, but snapping zone vertices to the middle of a road
+          // would put zone boundaries on top of the carriageway. The
+          // actual snap targets are built below as a separate
+          // road-edges layer (the curb on either side of the road),
+          // derived from the same buffer this layer's bake-time carve
+          // uses.
           pmIgnore: true,
           onEachFeature: (feature, leafletLayer) => {
-            // Belt-and-suspenders: also flag each child line. The
-            // parent group's pmIgnore is enough for Geoman 2.19+, but
-            // some snap probes still walk children directly.
             leafletLayer.options = leafletLayer.options || {};
             leafletLayer.options.pmIgnore = true;
             leafletLayer.options.snapIgnore = true;
@@ -1668,6 +1967,41 @@ export default function EditableZones({
             roadBufferRef.current = turf.buffer(mls, ROAD_CARVE_METERS / 1000, {
               units: "kilometers",
             });
+
+            // Outline the road buffer into polylines. Each polygon's
+            // outer ring becomes one polyline (the curb on either
+            // side of the road, joined at the ends). These are the
+            // actual snap targets for the "Snap: roads" toggle. We
+            // render them as a faint gray stroke so the user can see
+            // where the cursor is going to latch, but the visual
+            // weight is far below the centerline so it doesn't
+            // dominate the map.
+            try {
+              const edgeLines = turf.polygonToLine(roadBufferRef.current);
+              const edgesLayer = L.geoJSON(edgeLines, {
+                pane: "osm-roads-pane",
+                style: () => ({
+                  color: "#94a3b8",
+                  weight: 1,
+                  opacity: 0.55,
+                  dashArray: null,
+                }),
+                pmIgnore: false,
+                onEachFeature: (_feat, lyr) => {
+                  lyr.options = lyr.options || {};
+                  lyr.options.pmIgnore = false;
+                  lyr.options.snapIgnore = !snapToRoadsRef.current;
+                  // No interaction — these exist purely as a snap
+                  // surface and a visual hint for where the curb is.
+                  if (typeof lyr.bringToBack === "function") lyr.bringToBack();
+                },
+                interactive: false,
+              });
+              edgesLayer.addTo(map);
+              roadEdgesLayerRef.current = edgesLayer;
+            } catch (e) {
+              console.warn("Could not derive road edges for snap:", e);
+            }
           }
         } catch (e) {
           console.warn("Could not pre-buffer road network for carve:", e);
@@ -1684,10 +2018,151 @@ export default function EditableZones({
         map.removeLayer(roadsLayerRef.current);
         roadsLayerRef.current = null;
       }
+      if (roadEdgesLayerRef.current) {
+        map.removeLayer(roadEdgesLayerRef.current);
+        roadEdgesLayerRef.current = null;
+      }
       roadsByKeyRef.current = new Map();
       roadBufferRef.current = null;
     };
   }, [roadsUrl, visible, map]);
+
+  // ---- OSM buildings layer (per-building override mode) ----
+  // Loaded only when a buildings URL is provided AND the editor is
+  // visible AND per-building mode is on. Click handlers mirror the
+  // road click-to-tag flow: shift+click toggles selection, a plain
+  // click opens a popup with metadata + Street View link. When the
+  // mode is off (default everywhere except Sadanga-with-toggle-on),
+  // the layer is removed entirely so it doesn't slow rendering.
+  useEffect(() => {
+    if (!osmBuildingsUrl || !visible || !map || !perBuildingMode) return;
+    let cancelled = false;
+    const byId = new Map();
+    buildingsByIdRef.current = byId;
+
+    if (!map.getPane("osm-buildings-pane")) {
+      const pane = map.createPane("osm-buildings-pane");
+      // Below the road centerlines (442) but above the SMV zones so
+      // the user can see buildings without zone fills covering them.
+      pane.style.zIndex = 438;
+    }
+
+    fetch(osmBuildingsUrl, { cache: "force-cache" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((fc) => {
+        if (cancelled || !fc?.features) return;
+        const layer = L.geoJSON(fc, {
+          pane: "osm-buildings-pane",
+          style: () => BUILDING_STYLE_DEFAULT,
+          // pmIgnore true so Geoman doesn't try to edit buildings.
+          // snapIgnore true so vertex snap doesn't latch onto building
+          // corners during normal corridor drawing.
+          pmIgnore: true,
+          onEachFeature: (feature, lyr) => {
+            lyr.options = lyr.options || {};
+            lyr.options.pmIgnore = true;
+            lyr.options.snapIgnore = true;
+            const key = buildingFeatureKey(feature);
+            byId.set(key, { feature, leafletLayer: lyr });
+
+            lyr.on("click", (ev) => {
+              const isShift = !!ev?.originalEvent?.shiftKey;
+              L.DomEvent.stopPropagation(ev);
+              if (isShift) {
+                // Toggle selection.
+                setSelectedBuildingIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(key)) next.delete(key);
+                  else next.add(key);
+                  return next;
+                });
+                return;
+              }
+              // Plain click: popup with metadata + Street View link.
+              const p = feature.properties || {};
+              const center = lyr.getBounds?.()?.getCenter?.();
+              const lat = center?.lat;
+              const lng = center?.lng;
+              const svUrl =
+                typeof lat === "number" && typeof lng === "number"
+                  ? `https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}&layer=c`
+                  : "#";
+              const html = `
+                <div style="font-size:12px; line-height:1.45; min-width:180px;">
+                  <div style="font-weight:600; margin-bottom:4px;">
+                    ${p.name ? escapeHtml(p.name) : `(${escapeHtml(p.building || "building")})`}
+                  </div>
+                  <div style="color:#555;">Barangay: ${escapeHtml(p.barangay_name || p.barangay_slug || "?")}</div>
+                  ${p.addr ? `<div style="color:#555;">Addr: ${escapeHtml(p.addr)}</div>` : ""}
+                  <div style="color:#555;">Area: ${p.area_m2 ?? "?"} m²</div>
+                  <div style="color:#888; font-family:ui-monospace,monospace; font-size:10px; margin-top:2px;">${escapeHtml(p.osm_id || "")}</div>
+                  <div style="margin-top:8px;">
+                    <a href="${svUrl}" target="_blank" rel="noopener noreferrer"
+                       style="display:inline-block; padding:5px 10px; background:#1d4ed8; color:#fff; text-decoration:none; border-radius:4px; font-weight:600;">
+                      Open in Street View ↗
+                    </a>
+                  </div>
+                  <div style="margin-top:6px; color:#666; font-size:11px;">
+                    Shift+click to select for class tagging.
+                  </div>
+                </div>
+              `;
+              lyr.bindPopup(html, { autoPan: true }).openPopup();
+            });
+            lyr.on("mouseover", () => {
+              if (!selectedBuildingIdsRef.current.has(key)) {
+                lyr.setStyle(BUILDING_STYLE_HOVER);
+              }
+            });
+            lyr.on("mouseout", () => {
+              if (!selectedBuildingIdsRef.current.has(key)) {
+                lyr.setStyle(BUILDING_STYLE_DEFAULT);
+              }
+            });
+            const tip = [
+              p.name || (p.building && p.building !== "yes" ? p.building : "building"),
+              p.barangay_name,
+              p.area_m2 ? `${p.area_m2} m²` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            lyr.bindTooltip(tip, { sticky: true });
+          },
+        });
+        layer.addTo(map);
+        buildingsLayerRef.current = layer;
+      })
+      .catch(() => {
+        // File missing — fine, per-building mode just won't have
+        // anything clickable. The toggle stays available so the user
+        // can notice the file is missing.
+      });
+
+    return () => {
+      cancelled = true;
+      if (buildingsLayerRef.current) {
+        map.removeLayer(buildingsLayerRef.current);
+        buildingsLayerRef.current = null;
+      }
+      buildingsByIdRef.current = new Map();
+    };
+  }, [osmBuildingsUrl, visible, map, perBuildingMode]);
+
+  // Restyle every building sub-layer whenever the selection set
+  // changes, so toggling shift+click on/off reflects visually.
+  useEffect(() => {
+    const layer = buildingsLayerRef.current;
+    if (!layer) return;
+    layer.eachLayer((lyr) => {
+      const key = lyr.feature ? buildingFeatureKey(lyr.feature) : null;
+      if (!key) return;
+      lyr.setStyle(
+        selectedBuildingIds.has(key)
+          ? BUILDING_STYLE_SELECTED
+          : BUILDING_STYLE_DEFAULT
+      );
+    });
+  }, [selectedBuildingIds]);
 
   // Fetch the chipped frontage-bands file when the bands toggle is on.
   // Each chip is one road segment's 0–30 m or 30–60 m polygon. Shift+
@@ -2340,6 +2815,67 @@ export default function EditableZones({
     return true;
   };
 
+  // Per-building bake: each selected building polygon becomes ONE
+  // standalone zone with the chosen class. Unlike the roads/bands
+  // path above (which unions everything into a single combined
+  // polygon), buildings stay as individual features so each can be
+  // tracked, edited, and reclassified independently. The selected
+  // buildings remain visible in the underlying OSM buildings layer;
+  // the new zones sit on top of whatever corridor they fall inside
+  // and act as per-building overrides.
+  const bakeBuildingsAsZones = (klass) => {
+    const group = groupRef.current;
+    const bldgByKey = buildingsByIdRef.current;
+    const sel = selectedBuildingIdsRef.current;
+    if (!group || !bldgByKey || sel.size === 0) return false;
+
+    let firstAdded = null;
+    let count = 0;
+    for (const key of sel) {
+      const entry = bldgByKey.get(key);
+      const feat = entry?.feature;
+      if (!feat?.geometry) continue;
+      const props = {
+        classification: klass,
+        source: "building-override",
+        building_osm_id: feat.properties?.osm_id ?? null,
+        building_name: feat.properties?.name ?? null,
+        building_addr: feat.properties?.addr ?? null,
+        barangay_slug: feat.properties?.barangay_slug ?? null,
+        barangay_name: feat.properties?.barangay_name ?? null,
+        area_m2: feat.properties?.area_m2 ?? null,
+      };
+      try {
+        const wrap = L.geoJSON(
+          { type: "Feature", geometry: feat.geometry, properties: props },
+          { style: () => ({}) }
+        );
+        wrap.eachLayer((sub) => {
+          sub.feature = sub.feature || { type: "Feature", properties: {} };
+          sub.feature.properties = { ...sub.feature.properties, ...props };
+          applyFeatureStyle(sub, klass);
+          prepareLayer(sub);
+          group.addLayer(sub);
+          if (!firstAdded) firstAdded = sub;
+          count++;
+        });
+      } catch (e) {
+        console.warn("bakeBuildingsAsZones: failed for", key, e);
+      }
+    }
+    if (count === 0) return false;
+
+    setSelectedBuildingIds(new Set());
+    pushHistory();
+    refresh();
+    setBakeNotice(
+      `Tagged ${count} building${count === 1 ? "" : "s"} as ${klass} override zone${count === 1 ? "" : "s"}.`
+    );
+    setTimeout(() => setBakeNotice(""), 5000);
+    if (firstAdded) selectLayer(firstAdded);
+    return true;
+  };
+
   useEffect(() => {
     // Geoman is imported at module scope in LeafletMap.js so its init-hook
     // is already registered on L.Map by the time react-leaflet creates the
@@ -2664,6 +3200,57 @@ export default function EditableZones({
       applyFeatureStyle(e.layer, klass);
       prepareLayer(e.layer);
       group.addLayer(e.layer);
+      // Automatic post-draw alignment + densify. Runs only on
+      // freehand polygons (not on the line-to-corridor buffer path
+      // above — those are already mathematically positioned along
+      // the road). Two-phase: snap each rough vertex to the nearest
+      // neighbor vertex/edge within 5m, then for any consecutive
+      // pair of vertices that landed on the same neighbor ring,
+      // insert all of that neighbor's intermediate vertices between
+      // them. Turns a 4-click sloppy trace into a 30+-vertex polygon
+      // that exactly follows the existing zone's curves along the
+      // shared boundary.
+      try {
+        const beforeGeo = e.layer.toGeoJSON?.();
+        const beforeVerts =
+          beforeGeo?.geometry?.coordinates?.[0]?.length - 1 || 0;
+        let neighborCount = 0;
+        group.eachLayer((other) => {
+          if (other !== e.layer) neighborCount++;
+        });
+        const { snapped, densified } = autoAlignAndDensify(e.layer, group, 5);
+        const afterGeo = e.layer.toGeoJSON?.();
+        const afterVerts =
+          afterGeo?.geometry?.coordinates?.[0]?.length - 1 || 0;
+
+        // Loud console diagnostic so the user can confirm in DevTools.
+        console.log(
+          `[auto-align] polygon created: ${beforeVerts} vertices in, ${afterVerts} out. ` +
+            `${neighborCount} neighbors in group, threshold 5m. ` +
+            `Result: snapped=${snapped}, densified=${densified}.`
+        );
+
+        // Always show a notice now, even when nothing changed — so the
+        // user can tell the feature ran at all.
+        let msg;
+        if (snapped > 0 && densified > 0) {
+          msg = `Auto-align: aligned ${snapped} vertex${snapped === 1 ? "" : "es"}, traced ${densified} from neighbor (${beforeVerts} → ${afterVerts} vertices).`;
+        } else if (snapped > 0) {
+          msg = `Auto-align: aligned ${snapped} vertex${snapped === 1 ? "" : "es"} to neighbors. (No edges shared so no densify ran.)`;
+        } else if (neighborCount === 0) {
+          msg = `Auto-align ran but there are 0 existing zones in this group. Nothing to snap to.`;
+        } else {
+          msg = `Auto-align ran but no vertex was within 5m of any of the ${neighborCount} existing zone${neighborCount === 1 ? "" : "s"}. Click closer to a shared edge next time.`;
+        }
+        setBakeNotice(msg);
+        setTimeout(() => setBakeNotice(""), 8000);
+      } catch (err) {
+        console.warn("autoAlignAndDensify failed", err);
+        setBakeNotice(
+          `Auto-align CRASHED: ${err?.message || "unknown"}. Open DevTools console for stack.`
+        );
+        setTimeout(() => setBakeNotice(""), 8000);
+      }
       selectLayer(e.layer);
       pushHistory();
       refresh();
@@ -2733,6 +3320,39 @@ export default function EditableZones({
         setMovingLandmark(false);
         return;
       }
+
+      // Shift+P toggles Geoman's polygon draw tool. Mirrors the way
+      // QGIS / illustration tools let you flip into "draw polygon"
+      // mode without reaching for the toolbar. If polygon draw is
+      // already active, Shift+P disables it (so the same shortcut
+      // cancels the in-progress draw without losing what's already
+      // clicked — Geoman keeps the click stack on disable).
+      if (e.shiftKey && key === "p" && !mod && !e.altKey) {
+        e.preventDefault();
+        try {
+          const currentlyDrawing =
+            typeof map.pm?.globalDrawModeEnabled === "function"
+              ? map.pm.globalDrawModeEnabled()
+              : false;
+          const currentShape = map.pm?.Draw?.getActiveShape?.();
+          if (currentlyDrawing && currentShape === "Polygon") {
+            map.pm.disableDraw();
+          } else {
+            // disable any other active draw mode first so we don't
+            // stack (e.g. switching from Line to Polygon mid-draw)
+            if (currentlyDrawing) map.pm.disableDraw();
+            map.pm.enableDraw("Polygon", {
+              snappable: true,
+              snapDistance: 20,
+              allowSelfIntersection: true,
+            });
+          }
+        } catch (err) {
+          console.warn("Shift+P polygon toggle failed:", err);
+        }
+        return;
+      }
+
       if (wantsUndo) {
         e.preventDefault();
         undo();
@@ -3386,10 +4006,16 @@ export default function EditableZones({
               key={k}
               onClick={() => {
                 setActiveClass(k);
-                // Click-to-tag flow: if road segments are selected,
-                // buffer them into a corridor zone tagged with this
-                // class and clear the selection. Takes precedence
-                // over the polygon-reassign branch below.
+                // Click-to-tag, in priority order:
+                //   1. If buildings are selected (per-building override
+                //      mode), bake each as a standalone zone with this
+                //      class. Per-building takes precedence because the
+                //      user explicitly entered that mode.
+                //   2. Otherwise if road segments / band chips are
+                //      selected, buffer/bake them into a corridor zone.
+                //   3. Otherwise fall through to retag-selected /
+                //      set-next-draw-class behavior.
+                if (bakeBuildingsAsZones(k)) return;
                 if (bakeRoadsIntoCorridor(k)) return;
                 // If a shape is currently selected, reassign its
                 // classification on the spot — same chip click that picks
@@ -3769,6 +4395,44 @@ export default function EditableZones({
         >
           {snapToZones ? "Snap: edges ✓" : "Snap: edges ✗"}
         </button>
+        <button
+          onClick={() => setSnapToRoads((on) => !on)}
+          style={{
+            ...smallBtn,
+            background: snapToRoads ? "#dbeafe" : "white",
+            borderColor: snapToRoads ? "#1d4ed8" : "#cbd5e1",
+            color: snapToRoads ? "#1d4ed8" : "#475569",
+            fontWeight: snapToRoads ? 700 : 600,
+          }}
+          title={
+            snapToRoads
+              ? "Snap-to-road-edges is ON (project standard). While drawing or dragging vertices, the cursor latches onto the curb line (3m offset from the OSM centerline) within 20px. SMV zones run from the curb outward to 30m, so the curb is the right boundary. Click to turn off for freehand placement near a road."
+              : "Snap-to-road-edges is OFF. Turn on to make new-polygon vertices stick to the curb line on either side of every road — the project standard, since SMV zones start at the curb."
+          }
+        >
+          {snapToRoads ? "Snap: road edges ✓" : "Snap: road edges ✗"}
+        </button>
+        {osmBuildingsUrl && (
+          <button
+            onClick={() => setPerBuildingMode((on) => !on)}
+            style={{
+              ...smallBtn,
+              background: perBuildingMode ? "#fce7f3" : "white",
+              borderColor: perBuildingMode ? "#be185d" : "#cbd5e1",
+              color: perBuildingMode ? "#be185d" : "#475569",
+              fontWeight: perBuildingMode ? 700 : 600,
+            }}
+            title={
+              perBuildingMode
+                ? "Per-building override mode is ON. OSM building polygons render as a clickable layer; shift+click to select; click a class chip to tag each selected building as its own override zone sitting on top of the corridor. Plain click opens a popup with metadata + Open in Street View."
+                : "Per-building override mode is OFF. Turn on to see and tag individual OSM buildings as their own override zones (e.g. a hotel inside an R-3 area)."
+            }
+          >
+            {perBuildingMode
+              ? `Per-building ✓ (${selectedBuildingIds.size})`
+              : "Per-building"}
+          </button>
+        )}
         <button
           onClick={() => setMultiVertexMode((m) => !m)}
           disabled={!editorState.hasSelection}

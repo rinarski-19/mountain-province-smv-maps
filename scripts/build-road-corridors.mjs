@@ -75,6 +75,31 @@ const MUNICIPALITY_CONFIG = {
     classificationsExport: "BONTOC_CLASSIFICATIONS",
     slugFnExport: "slugForBontocName",
   },
+  sabangan: {
+    module: "../lib/sabangan.js",
+    classificationsExport: "SABANGAN_CLASSIFICATIONS",
+    slugFnExport: "slugForSabanganName",
+  },
+  besao: {
+    module: "../lib/besao.js",
+    classificationsExport: "BESAO_CLASSIFICATIONS",
+    slugFnExport: "slugForBesaoName",
+  },
+  sadanga: {
+    module: "../lib/sadanga.js",
+    classificationsExport: "SADANGA_CLASSIFICATIONS",
+    slugFnExport: "slugForSadangaName",
+  },
+  natonin: {
+    module: "../lib/natonin.js",
+    classificationsExport: "NATONIN_CLASSIFICATIONS",
+    slugFnExport: "slugForNatoninName",
+  },
+  paracelis: {
+    module: "../lib/paracelis.js",
+    classificationsExport: "PARACELIS_CLASSIFICATIONS",
+    slugFnExport: "slugForParacelisName",
+  },
 };
 
 // OSM highway-tag → schedule tier kind.

@@ -1,0 +1,4 @@
+{
+  "_comment": "Per-barangay valuation overrides for Besao. Empty until LGU-specific overrides are needed. Class-level prices come from lib/besao.js.",
+  "barangays": {}
+}

@@ -38,6 +38,17 @@ const MUNICIPALITY_CONFIG = {
   tadian: { module: "../lib/tadian.js", slugFnExport: "slugForTadianName" },
   sagada: { module: "../lib/sagada.js", slugFnExport: "slugForSagadaName" },
   bontoc: { module: "../lib/bontoc.js", slugFnExport: "slugForBontocName" },
+  sabangan: {
+    module: "../lib/sabangan.js",
+    slugFnExport: "slugForSabanganName",
+  },
+  besao: { module: "../lib/besao.js", slugFnExport: "slugForBesaoName" },
+  sadanga: { module: "../lib/sadanga.js", slugFnExport: "slugForSadangaName" },
+  natonin: { module: "../lib/natonin.js", slugFnExport: "slugForNatoninName" },
+  paracelis: {
+    module: "../lib/paracelis.js",
+    slugFnExport: "slugForParacelisName",
+  },
 };
 
 // Drop pre-chip ways shorter than this — OSM noise (driveways, dead

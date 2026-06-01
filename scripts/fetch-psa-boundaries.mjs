@@ -60,6 +60,36 @@ const MUNICIPALITY_PARAMS = {
     expectedBarangays: 16,
     displayName: "Bontoc",
   },
+  sabangan: {
+    cityName: "Sabangan",
+    pcode: "PH144407000",
+    expectedBarangays: 15,
+    displayName: "Sabangan",
+  },
+  besao: {
+    cityName: "Besao",
+    pcode: "PH144403000",
+    expectedBarangays: 14,
+    displayName: "Besao",
+  },
+  sadanga: {
+    cityName: "Sadanga",
+    pcode: "PH144408000",
+    expectedBarangays: 8,
+    displayName: "Sadanga",
+  },
+  natonin: {
+    cityName: "Natonin",
+    pcode: "PH144405000",
+    expectedBarangays: 11,
+    displayName: "Natonin",
+  },
+  paracelis: {
+    cityName: "Paracelis",
+    pcode: "PH144406000",
+    expectedBarangays: 9,
+    displayName: "Paracelis",
+  },
 };
 
 const slug = parseSlugFromArgs(process.argv.slice(2));

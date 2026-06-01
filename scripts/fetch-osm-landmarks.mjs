@@ -38,12 +38,23 @@ const MUNICIPALITY_CONFIG = {
   tadian: { module: "../lib/tadian.js", slugFnExport: "slugForTadianName" },
   sagada: { module: "../lib/sagada.js", slugFnExport: "slugForSagadaName" },
   bontoc: { module: "../lib/bontoc.js", slugFnExport: "slugForBontocName" },
+  sabangan: {
+    module: "../lib/sabangan.js",
+    slugFnExport: "slugForSabanganName",
+  },
+  besao: { module: "../lib/besao.js", slugFnExport: "slugForBesaoName" },
+  sadanga: { module: "../lib/sadanga.js", slugFnExport: "slugForSadangaName" },
+  natonin: { module: "../lib/natonin.js", slugFnExport: "slugForNatoninName" },
+  paracelis: {
+    module: "../lib/paracelis.js",
+    slugFnExport: "slugForParacelisName",
+  },
 };
 
 // OSM tag → normalised "kind" + display label. Anything not in this map
-// is dropped. Kept tight on purpose: civic + religious + commercial
-// landmarks people use for wayfinding, no convenience POIs (kiosks,
-// petrol stations, ATMs) which would clutter the map.
+// is dropped. This intentionally includes named local businesses now:
+// the app renders these as its own overlay so public-consultation users
+// can see familiar POI names even when the raster basemap omits them.
 const KIND_BY_TAG = {
   // amenity=*
   hospital: { kind: "hospital", label: "Hospital" },
@@ -59,16 +70,51 @@ const KIND_BY_TAG = {
   library: { kind: "govt", label: "Library" },
   post_office: { kind: "govt", label: "Post office" },
   marketplace: { kind: "market", label: "Market" },
+  restaurant: { kind: "food", label: "Restaurant" },
+  cafe: { kind: "food", label: "Cafe" },
+  fast_food: { kind: "food", label: "Fast food" },
+  bar: { kind: "food", label: "Bar" },
+  pub: { kind: "food", label: "Pub" },
+  bank: { kind: "finance", label: "Bank" },
+  atm: { kind: "finance", label: "ATM" },
+  pharmacy: { kind: "clinic", label: "Pharmacy" },
+  fuel: { kind: "fuel", label: "Fuel station" },
   // shop=*
   supermarket: { kind: "market", label: "Supermarket" },
+  convenience: { kind: "shop", label: "Convenience store" },
+  general: { kind: "shop", label: "General store" },
+  grocery: { kind: "market", label: "Grocery" },
+  bakery: { kind: "food", label: "Bakery" },
+  butcher: { kind: "shop", label: "Butcher" },
+  hardware: { kind: "shop", label: "Hardware" },
+  doityourself: { kind: "shop", label: "Hardware" },
+  clothes: { kind: "shop", label: "Clothes shop" },
+  department_store: { kind: "shop", label: "Department store" },
+  mall: { kind: "shop", label: "Mall" },
+  chemist: { kind: "clinic", label: "Drugstore" },
+  car_repair: { kind: "shop", label: "Car repair" },
+  motorcycle: { kind: "shop", label: "Motorcycle shop" },
+  mobile_phone: { kind: "shop", label: "Mobile phone shop" },
+  electronics: { kind: "shop", label: "Electronics shop" },
+  variety_store: { kind: "shop", label: "Variety store" },
+  furniture: { kind: "shop", label: "Furniture shop" },
+  copyshop: { kind: "shop", label: "Copy shop" },
+  hairdresser: { kind: "shop", label: "Hairdresser" },
   // tourism=*
   museum: { kind: "tourism", label: "Museum" },
   attraction: { kind: "tourism", label: "Attraction" },
+  hotel: { kind: "lodging", label: "Hotel" },
+  guest_house: { kind: "lodging", label: "Guest house" },
+  hostel: { kind: "lodging", label: "Hostel" },
+  motel: { kind: "lodging", label: "Motel" },
   // historic=*
   monument: { kind: "tourism", label: "Monument" },
   memorial: { kind: "tourism", label: "Memorial" },
   // building=*
   government: { kind: "govt", label: "Government building" },
+  // office=*
+  company: { kind: "business", label: "Company office" },
+  ngo: { kind: "govt", label: "NGO office" },
   // amenity=community_centre
   community_centre: { kind: "govt", label: "Community center" },
 };
@@ -77,11 +123,16 @@ const KIND_BY_TAG = {
 const QUERY_TAGS = [
   ["amenity", ["hospital", "clinic", "school", "university", "college",
     "kindergarten", "place_of_worship", "townhall", "fire_station", "police",
-    "library", "post_office", "marketplace", "community_centre"]],
-  ["shop", ["supermarket"]],
-  ["tourism", ["museum", "attraction"]],
+    "library", "post_office", "marketplace", "community_centre", "restaurant",
+    "cafe", "fast_food", "bar", "pub", "bank", "atm", "pharmacy", "fuel"]],
+  ["shop", ["supermarket", "convenience", "general", "grocery", "bakery",
+    "butcher", "hardware", "doityourself", "clothes", "department_store",
+    "mall", "chemist", "car_repair", "motorcycle", "mobile_phone",
+    "electronics", "variety_store", "furniture", "copyshop", "hairdresser"]],
+  ["tourism", ["museum", "attraction", "hotel", "guest_house", "hostel", "motel"]],
   ["historic", ["monument", "memorial"]],
   ["building", ["government"]],
+  ["office", ["company", "government", "ngo"]],
 ];
 
 async function main() {

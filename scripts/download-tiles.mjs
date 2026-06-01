@@ -84,6 +84,9 @@ if (!Number.isFinite(zMin) || !Number.isFinite(zMax)) {
 }
 
 const DELAY_MS = parseInt(arg("delay", "1100"), 10);
+const RETRIES = parseInt(arg("retries", "4"), 10);
+const RETRY_DELAY_MS = parseInt(arg("retry-delay", "2500"), 10);
+const TIMEOUT_MS = parseInt(arg("timeout", "20000"), 10);
 const USER_AGENT =
   arg("ua", null) ||
   "BaukoLandValuationApp/0.1 (+https://github.com/local-dev/leaflet-test-app)";
@@ -246,6 +249,33 @@ function buildSmartMaskBboxes(key) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function downloadTile(url, headers) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= RETRIES; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, { headers });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return Buffer.from(await res.arrayBuffer());
+    } catch (err) {
+      lastError = err;
+      if (attempt >= RETRIES) break;
+      const wait = RETRY_DELAY_MS * Math.pow(1.6, attempt);
+      await sleep(wait);
+    }
+  }
+  throw lastError;
+}
+
 // --- plan ---
 const plan = [];
 const allByZoom = {};
@@ -325,10 +355,10 @@ for (const { z, x, y } of plan) {
         ? { Referer: "https://www.openstreetmap.org/" }
         : {}),
     };
-    const res = await fetch(url, { headers });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    fs.writeFileSync(file, buf);
+    const buf = await downloadTile(url, headers);
+    const tmpFile = `${file}.tmp`;
+    fs.writeFileSync(tmpFile, buf);
+    fs.renameSync(tmpFile, file);
     done++;
     if (done % 25 === 0) {
       console.log(

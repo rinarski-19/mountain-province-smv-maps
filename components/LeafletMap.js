@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { leafletLayer } from "protomaps-leaflet";
 import {
   GeoJSON,
   MapContainer,
@@ -54,6 +55,7 @@ const MUNICIPALITY_STROKE = {
 };
 const OFFLINE_MAPBOX_TILE_REV = "2026-05-16-hidpi";
 const OFFLINE_MAPBOX_TILE_ROOT = "/tiles-mapbox-hidpi";
+const BAUKO_VECTOR_PM_TILES = "/data/bauko.pmtiles";
 
 // Basemap providers. The "settings" menu in TopNav lets the user
 // switch between these. Online OSM is the default; satellite and
@@ -179,8 +181,12 @@ export default function LeafletMap({
           municipality?.dataFiles?.valuations ?? "/data/bauko_valuations.json";
         const zonesFile = municipality?.dataFiles?.zones ?? "/data/bauko_zones.geojson";
         const frontageBandsFile = municipality?.dataFiles?.frontageBands;
-        const landmarksFile = municipality?.dataFiles?.landmarks;
-        const customLandmarksFile = municipality?.dataFiles?.customLandmarks;
+        const slug = municipality?.slug ?? "bauko";
+        const landmarksFile =
+          municipality?.dataFiles?.landmarks ?? `/data/${slug}_landmarks.geojson`;
+        const customLandmarksFile =
+          municipality?.dataFiles?.customLandmarks ??
+          `/data/${slug}_custom_landmarks.geojson`;
         const barangayFile =
           sources.has_custom_barangays && customBarangaysFile
             ? customBarangaysFile
@@ -196,11 +202,45 @@ export default function LeafletMap({
           landmarks,
           customLandmarks,
         ] = await Promise.all([
-          fetch(outlineFile).then((r) => r.json()),
-          fetch(barangayFile).then((r) => r.json()),
-          fetch(valuationsFile).then((r) => r.json()),
+          // Outline / barangays / valuations used to be required, so the
+          // fetches were unguarded. With more LGUs being scaffolded
+          // ahead of their PSA fetch, a missing file would return an
+          // HTML 404 and crash the whole map on `r.json()`. Treat all
+          // three as best-effort now: log a console warning and fall
+          // back to empty FC / null so the rest of the map (chips,
+          // tabs, editor toolbar) still renders. Run the data-fetch
+          // scripts (boundaries:fetch:<slug>, etc.) to populate them.
+          fetch(outlineFile)
+            .then((r) => {
+              if (!r.ok) {
+                console.warn(`Missing outline file: ${outlineFile} (HTTP ${r.status}). Run \`npm run boundaries:fetch:${slug}\`.`);
+                return EMPTY_FC;
+              }
+              return r.json();
+            })
+            .catch(() => EMPTY_FC),
+          fetch(barangayFile)
+            .then((r) => {
+              if (!r.ok) {
+                console.warn(`Missing barangays file: ${barangayFile} (HTTP ${r.status}). Run \`npm run boundaries:fetch:${slug}\`.`);
+                return EMPTY_FC;
+              }
+              return r.json();
+            })
+            .catch(() => EMPTY_FC),
+          fetch(valuationsFile)
+            .then((r) => {
+              if (!r.ok) {
+                console.warn(`Missing valuations file: ${valuationsFile} (HTTP ${r.status}). This is optional but the rich popups won't have prices.`);
+                return null;
+              }
+              return r.json();
+            })
+            .catch(() => null),
           sources.has_zones && zonesFile
-            ? fetch(zonesFile).then((r) => r.json())
+            ? fetch(zonesFile)
+                .then((r) => (r.ok ? r.json() : EMPTY_FC))
+                .catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
           municipality?.slug === "bauko"
             ? fetch("/data/bauko_monamon_sur_roads_highlight.geojson")
@@ -372,6 +412,11 @@ export default function LeafletMap({
         const lon = (w + e) / 2;
         const lat = (s + n) / 2;
         const z = 10;
+        if (tileMode === "offline_vector_bauko") {
+          const res = await fetch(BAUKO_VECTOR_PM_TILES, { method: "HEAD" });
+          if (active) setTilesAvailable(res.ok);
+          return;
+        }
         const tileRoot =
           tileMode === "offline_mapbox" ? OFFLINE_MAPBOX_TILE_ROOT : "/tiles";
         const res = await fetch(
@@ -388,9 +433,13 @@ export default function LeafletMap({
     };
   }, [data.bauko, tileMode]);
 
+  const vectorModeAvailable =
+    tileMode === "offline_vector_bauko" && municipality?.slug === "bauko";
   const tile = TILE_SOURCES[tileMode] ?? TILE_SOURCES.offline;
   const showLabelsOverlay =
-    tileMode !== "offline" && tileMode !== "offline_mapbox";
+    tileMode !== "offline" &&
+    tileMode !== "offline_mapbox" &&
+    !vectorModeAvailable;
   const baukoFeature = data.bauko?.features?.[0] ?? null;
   const center = municipality?.map?.center ?? DEFAULT_CENTER;
   const defaultZoom = municipality?.map?.defaultZoom ?? DEFAULT_ZOOM;
@@ -473,13 +522,17 @@ export default function LeafletMap({
         <MapBridge onMapReady={onMapReady} />
         <MapZoomBridge onZoomChange={setMapZoom} />
         <ZoomTier />
-        <TileLayer
-          key={tileMode}
-          url={tile.url}
-          attribution={tile.attribution}
-          maxZoom={tile.maxZoom}
-          maxNativeZoom={tile.maxNativeZoom}
-        />
+        {vectorModeAvailable ? (
+          <BaukoVectorBasemap />
+        ) : (
+          <TileLayer
+            key={tileMode}
+            url={tile.url}
+            attribution={tile.attribution}
+            maxZoom={tile.maxZoom}
+            maxNativeZoom={tile.maxNativeZoom}
+          />
+        )}
 
         <Pane name="smv-pane" style={{ zIndex: 425 }} />
         <Pane name="muni-pane" style={{ zIndex: 430 }} />
@@ -512,6 +565,25 @@ export default function LeafletMap({
             maxZoom={19}
             pane="labels-pane"
             opacity={1}
+          />
+        )}
+
+        {/* OSM POI labels fetched into public/data/<slug>_landmarks.geojson.
+            Basemap tile labels are baked into PNG/JPEG imagery, so we
+            cannot force missing business names to appear there. This
+            overlay renders named OSM POIs above SMV fills at close zooms
+            where people are inspecting buildings and roads. */}
+        {!drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
+          <GeoJSON
+            key={`osm-landmarks-${municipality?.slug ?? "bauko"}-${data.landmarks.features.length}`}
+            data={data.landmarks}
+            pane="labels-pane"
+            pointToLayer={(feature, latlng) =>
+              landmarkLabelMarker(feature, latlng, {
+                className: "custom-landmark custom-landmark--osm",
+                interactive: false,
+              })
+            }
           />
         )}
 
@@ -901,6 +973,7 @@ export default function LeafletMap({
             saveSlug={municipality?.zones?.saveSlug ?? municipality?.slug}
             savePathLabel={municipality?.zones?.savePathLabel}
             roadsUrl={municipality?.dataFiles?.osmRoads}
+            osmBuildingsUrl={municipality?.dataFiles?.osmBuildings}
             frontageBandsUrl={municipality?.dataFiles?.frontageBands}
             showFrontageBands={!!layers?.frontageBands}
             barangaysUrl={municipality?.dataFiles?.barangays}
@@ -928,11 +1001,15 @@ export default function LeafletMap({
         />
       )}
 
-      {(tileMode === "offline" || tileMode === "offline_mapbox") &&
+      {(tileMode === "offline" ||
+        tileMode === "offline_mapbox" ||
+        tileMode === "offline_vector_bauko") &&
         !tilesAvailable && (
         <OfflineTilesMissingOverlay
           offlineHintCommand={
-            tileMode === "offline_mapbox"
+            tileMode === "offline_vector_bauko"
+              ? "npm run tiles:bauko:vector"
+              : tileMode === "offline_mapbox"
               ? `MAPBOX_TOKEN=... npm run ${
                   municipality?.slug === "bauko"
                     ? "tiles:bauko:mapbox:hires"
@@ -944,6 +1021,26 @@ export default function LeafletMap({
       )}
     </div>
   );
+}
+
+function BaukoVectorBasemap() {
+  const map = useMap();
+
+  useEffect(() => {
+    const layer = leafletLayer({
+      url: BAUKO_VECTOR_PM_TILES,
+      flavor: "light",
+      lang: "en",
+      maxDataZoom: 15,
+      attribution: "© OpenStreetMap © Protomaps — locally cached vector map",
+    });
+    layer.addTo(map);
+    return () => {
+      map.removeLayer(layer);
+    };
+  }, [map]);
+
+  return null;
 }
 
 function zoneStyle(feature, activeClass, tileMode) {
@@ -1210,6 +1307,28 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function landmarkLabelMarker(feature, latlng, options = {}) {
+  const props = feature?.properties || {};
+  const kind = String(props.kind || "business")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-");
+  const name = escapeHtml(props.name || "");
+  return L.marker(latlng, {
+    icon: L.divIcon({
+      html:
+        `<span class="custom-pin custom-pin--${kind}"></span>` +
+        `<span class="custom-pin-name">${name}</span>`,
+      className: options.className || "custom-landmark",
+      iconSize: [0, 0],
+      iconAnchor: [9, 9],
+    }),
+    interactive: Boolean(options.interactive),
+    keyboard: Boolean(options.interactive),
+    pane: "labels-pane",
+  });
 }
 
 // Pan + zoom to the single active barangay. Uses a fixed target zoom

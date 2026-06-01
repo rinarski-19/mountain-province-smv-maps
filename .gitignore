@@ -9,6 +9,7 @@ out/
 # `npm run tiles:bauko` / `npm run tiles:barlig` etc. Cloned repo
 # defaults to Online mode, so missing tiles never break the app.
 public/tiles/
+public/tiles-mapbox-hidpi/
 
 # Build/cache artifacts that don't belong in version control.
 *.tsbuildinfo

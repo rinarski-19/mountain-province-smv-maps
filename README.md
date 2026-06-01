@@ -282,6 +282,17 @@ Mapbox offline hybrid (higher clarity):
   `npm run tiles:bauko:mapbox:smart` (full z10–16, smart-clipped z17–18 around
   zones/frontage/roads).
 
+Bauko offline vector map (lightweight):
+
+- The settings menu includes **Offline Vector (Bauko)**. It reads
+  `public/data/bauko.pmtiles` and renders a crisp vector basemap in Leaflet.
+- Download a Bauko-only PMTiles extract by setting `PROTOMAPS_SOURCE` to the
+  current Protomaps planet build URL, then running:
+  `PROTOMAPS_SOURCE=https://build.protomaps.com/<build>.pmtiles npm run tiles:bauko:vector`
+- This is much smaller than raster satellite. It shows roads, labels, rivers,
+  landuse, and OSM building footprints where available. It is not satellite
+  imagery, so it will not show roof photos.
+
 All municipalities (batch mode):
 
 - OSM detailed (z10–16) for all Mountain Province municipalities:

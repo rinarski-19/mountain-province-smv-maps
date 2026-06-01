@@ -46,6 +46,10 @@ LAYER_TO_CLASS = {
     # Sagada-style lowercase Commercial → top commercial tier
     "Commercial": "C-1",
     "commercial": "C-1",
+    # Sadanga DXF uses uppercase COMMERCIAL — same C-1 tier
+    "COMMERCIAL": "C-1",
+    # Natonin DXF uses "Commercial Lots" — same C-1 tier
+    "Commercial Lots": "C-1",
     # Bontoc legacy small commercial layer ("com1" — 2 polys in Poblacion
     # alongside the main `commercial` layer; appears to be an older copy
     # of the same C-1 tier).
@@ -69,6 +73,14 @@ def classify_layer(layer_name):
     """Map a DXF layer name to a canonical SMV class string, or None."""
     if layer_name in LAYER_TO_CLASS:
         return LAYER_TO_CLASS[layer_name]
+    # Case-insensitive fallback: lots of LGU CAD offices use
+    # mixed/inconsistent capitalisation (Commercial / commercial /
+    # COMMERCIAL all mean the same C-1 tier). Try a lowercased
+    # match before falling back to the regex.
+    lower = layer_name.lower() if isinstance(layer_name, str) else ""
+    for k, v in LAYER_TO_CLASS.items():
+        if k.lower() == lower:
+            return v
     m = _RX_CLASS.match(layer_name)
     if m:
         return f"{m.group(1)}-{m.group(2)}"

@@ -118,7 +118,11 @@ function SidebarTable({
                   {shortLabel}
                 </span>
                 <span className="smv-row__value tnum">
-                  ₱{row.marketValue2027.toLocaleString()}
+                  {row.marketValue2027 == null
+                    ? row.provisional
+                      ? "Pending"
+                      : "—"
+                    : `₱${row.marketValue2027.toLocaleString()}`}
                 </span>
               </button>
               {isExpanded && (

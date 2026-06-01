@@ -7,6 +7,8 @@ export default function TopNav({
   setDrawMode,
   tileMode,
   setTileMode,
+  calculatorOpen = false,
+  setCalculatorOpen,
   municipalitySlug,
   setMunicipalitySlug,
   municipalities = [],
@@ -211,6 +213,45 @@ export default function TopNav({
             } catch {}
           }}
         />
+        <button
+          type="button"
+          className={`icon-button icon-button--compact ${
+            calculatorOpen ? "is-active" : ""
+          }`}
+          aria-label={calculatorOpen ? "Hide RPT calculator" : "Show RPT calculator"}
+          aria-pressed={calculatorOpen}
+          title="RPT calculator"
+          onClick={() => {
+            setCalculatorOpen?.((value) => !value);
+            setMenuOpen(false);
+            setEditOpen(false);
+            setSettingsOpen(false);
+          }}
+        >
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <rect
+              x="5"
+              y="3"
+              width="14"
+              height="18"
+              rx="2.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <path
+              d="M8 7h8M8 11h2.2M12 11h2.2M16 11h.1M8 15h2.2M12 15h2.2M16 15h.1"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
         <div className="top-nav__settings-wrap" ref={settingsRef}>
           <button
             type="button"
@@ -246,6 +287,7 @@ export default function TopNav({
                 ["google_satellite", "Google Satellite"],
                 ["google_hybrid", "Google Hybrid"],
                 ["offline", "Offline (OSM cache)"],
+                ["offline_vector_bauko", "Offline Vector (Bauko)"],
                 ["offline_mapbox", "Offline (Mapbox Hybrid)"],
               ].map(([mode, label]) => (
                 <button

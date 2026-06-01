@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BottomBar from "@/components/BottomBar";
 import Map from "@/components/Map";
 import MapPanel from "@/components/MapPanel";
+import RPTImpactCalculator from "@/components/RPTImpactCalculator";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
 import { getMunicipalityConfig, MUNICIPALITY_OPTIONS } from "@/lib/municipalities";
@@ -18,6 +19,7 @@ const STRETCH_VIEW_PRESETS_KEY_PREFIX = "smv-stretch-view-v1:";
 export default function Home() {
   const mapApiRef = useRef(null);
   const [drawMode, setDrawMode] = useState(false);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [tileMode, setTileMode] = useState("online");
   // Always start from "bauko" so the first server render and the first
   // client render match (no hydration mismatch). The URL slug is read
@@ -208,40 +210,80 @@ export default function Home() {
   // Switching municipalities should reset the slideshow walkthrough so
   // a stale (classIdx, groupIdx, barangayIdx) from a longer schedule
   // doesn't index past the end of the new municipality's classes.
+  // It should also honour the new LGU's defaultTileMode (if defined)
+  // — e.g. Sadanga defaults to Google Streets because PAO staff need
+  // accurate rooftop imagery for the per-building override workflow.
+  // Users can override per-session via the gear-icon tile picker.
   useEffect(() => {
     setClassIdx(null);
     setGroupIdx(0);
     setBarangayIdx(0);
-  }, [municipalitySlug]);
-
-  // Per-municipality saved map views keyed by barangay slug.
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(viewPresetsKey);
-      const parsed = raw ? JSON.parse(raw) : {};
-      setSavedBarangayViews(parsed && typeof parsed === "object" ? parsed : {});
-    } catch {
-      setSavedBarangayViews({});
+    const defaultTile = municipality?.tiles?.defaultTileMode;
+    if (defaultTile) {
+      setTileMode(defaultTile);
     }
-  }, [viewPresetsKey]);
+  }, [municipalitySlug, municipality?.tiles?.defaultTileMode]);
 
+  // Per-municipality saved map views, two sources, in order of
+  // priority:
+  //   1. public/data/<slug>_saved_views.json  (shipped with the
+  //      static export, so the offline build at the venue laptop
+  //      gets exactly what the author published)
+  //   2. localStorage                          (per-browser working
+  //      drafts; covers the live editor session between publishes)
+  // The merge prefers the file when an entry exists in both, since
+  // the file is the canonical record. When the user saves a new
+  // view, we write to localStorage immediately AND push to the file
+  // via /api/views/save (debounced).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let fromFile = { barangays: {}, stretches: {} };
+      try {
+        const res = await fetch(`/data/${municipalitySlug}_saved_views.json`, {
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && typeof json === "object") {
+            fromFile = {
+              barangays: json.barangays ?? {},
+              stretches: json.stretches ?? {},
+            };
+          }
+        }
+      } catch {
+        // File missing or unreadable, that's fine, fall through to
+        // localStorage-only. The offline static export will show
+        // whatever was published at build time.
+      }
+      let fromLocal = { barangays: {}, stretches: {} };
+      try {
+        const rawB = localStorage.getItem(viewPresetsKey);
+        const rawS = localStorage.getItem(stretchViewPresetsKey);
+        fromLocal = {
+          barangays: rawB ? JSON.parse(rawB) || {} : {},
+          stretches: rawS ? JSON.parse(rawS) || {} : {},
+        };
+      } catch {}
+      if (cancelled) return;
+      // File wins on overlap, localStorage fills in everything the
+      // file doesn't have yet.
+      setSavedBarangayViews({ ...fromLocal.barangays, ...fromFile.barangays });
+      setSavedStretchViews({ ...fromLocal.stretches, ...fromFile.stretches });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [municipalitySlug, viewPresetsKey, stretchViewPresetsKey]);
+
+  // localStorage is the immediate-feedback layer, mirrors every
+  // state change.
   useEffect(() => {
     try {
       localStorage.setItem(viewPresetsKey, JSON.stringify(savedBarangayViews));
     } catch {}
   }, [savedBarangayViews, viewPresetsKey]);
-
-  // Load + persist stretch viewports per municipality. Same pattern
-  // as savedBarangayViews above.
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(stretchViewPresetsKey);
-      const parsed = raw ? JSON.parse(raw) : {};
-      setSavedStretchViews(parsed && typeof parsed === "object" ? parsed : {});
-    } catch {
-      setSavedStretchViews({});
-    }
-  }, [stretchViewPresetsKey]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -250,6 +292,46 @@ export default function Home() {
       );
     } catch {}
   }, [savedStretchViews, stretchViewPresetsKey]);
+
+  // Debounced push to /api/views/save so the static export picks
+  // up the published views. We skip the first effect-run on mount
+  // (there's nothing to publish before the user has done anything
+  // in this session) and skip when both maps are empty.
+  const viewsPublishTimerRef = useRef(null);
+  const viewsPublishMountedRef = useRef(false);
+  useEffect(() => {
+    if (!viewsPublishMountedRef.current) {
+      viewsPublishMountedRef.current = true;
+      return;
+    }
+    if (typeof window === "undefined") return;
+    if (viewsPublishTimerRef.current) {
+      clearTimeout(viewsPublishTimerRef.current);
+    }
+    viewsPublishTimerRef.current = setTimeout(() => {
+      const password = localStorage.getItem("smv-save-password") || "";
+      fetch(`/api/views/save?slug=${encodeURIComponent(municipalitySlug)}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(password ? { Authorization: `Bearer ${password}` } : {}),
+        },
+        body: JSON.stringify({
+          barangays: savedBarangayViews,
+          stretches: savedStretchViews,
+        }),
+      }).catch(() => {
+        // Best-effort. If the endpoint is unavailable (e.g. static
+        // export, no network), the localStorage copy still works
+        // for the current browser. Next online edit will retry.
+      });
+    }, 1500);
+    return () => {
+      if (viewsPublishTimerRef.current) {
+        clearTimeout(viewsPublishTimerRef.current);
+      }
+    };
+  }, [savedBarangayViews, savedStretchViews, municipalitySlug]);
 
   // Reset the active stretch whenever the user moves to a different
   // class or barangay — stretch indices are scoped to a (class,
@@ -463,6 +545,8 @@ export default function Home() {
         setDrawMode={setDrawMode}
         tileMode={tileMode}
         setTileMode={setTileMode}
+        calculatorOpen={calculatorOpen}
+        setCalculatorOpen={setCalculatorOpen}
         municipalitySlug={municipalitySlug}
         setMunicipalitySlug={setMunicipalitySlug}
         municipalities={MUNICIPALITY_OPTIONS}
@@ -528,6 +612,13 @@ export default function Home() {
         onClear={clear}
         barangays={schedule.barangays}
         getBarangayBySlug={schedule.getBarangayBySlug}
+      />
+      <RPTImpactCalculator
+        open={calculatorOpen}
+        onClose={() => setCalculatorOpen(false)}
+        municipality={municipality}
+        classifications={classifications}
+        activeClass={active}
       />
     </main>
   );
