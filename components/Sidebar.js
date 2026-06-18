@@ -104,9 +104,7 @@ function SidebarTable({
                   </svg>
                 </span>
                 <span
-                  className={`smv-row__chip ${
-                    row.subClass === "C-1" ? "is-hatch" : ""
-                  }`}
+                  className="smv-row__chip"
                   style={{ backgroundColor: row.color }}
                 >
                   {row.subClass}

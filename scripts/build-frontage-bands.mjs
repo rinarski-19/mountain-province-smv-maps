@@ -33,14 +33,30 @@ import * as turf from "@turf/turf";
 
 const slug = process.argv[2];
 if (!slug) {
-  console.error("Usage: node scripts/build-frontage-bands.mjs <slug>");
+  console.error(
+    "Usage: node scripts/build-frontage-bands.mjs <source-slug> [--out-slug <output-slug>]"
+  );
   process.exit(1);
 }
 
 const ROOT = path.resolve(process.cwd());
+const outSlug = arg("out-slug", slug);
 
-const ROADS_PATH = path.join(ROOT, "public", "data", `${slug}_osm_roads.geojson`);
-const OUT_PATH = path.join(ROOT, "public", "data", `${slug}_frontage_bands.geojson`);
+const ROADS_PATH = arg(
+  "roads-file",
+  path.join(ROOT, "public", "data", `${slug}_osm_roads.geojson`)
+);
+const OUT_PATH = path.join(
+  ROOT,
+  "public",
+  "data",
+  `${outSlug}_frontage_bands.geojson`
+);
+
+function arg(name, fallback = "") {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+}
 
 // Which OSM `highway` tags count as "roads" for frontage purposes.
 // The LGU SMV schedules specifically attach the depth-of-frontage

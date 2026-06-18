@@ -388,10 +388,18 @@ function flattenLayerCandidates(input, out = []) {
 function isSliverPolygon(polygonGeom, opts = {}) {
   const minAreaM2 = opts.minAreaM2 ?? 50;
   const minCompactness = opts.minCompactness ?? 0.1;
+  // Hard "always-keep" threshold: a piece with at least this much
+  // area is never classified as a sliver, no matter how elongated.
+  // Without this, a 79-hectare R-3 cut piece with compactness 0.05
+  // (still a real swath of land, just shaped like a long river
+  // valley) gets thrown out. 1 ha = 10000 m² is the LGU-scale
+  // floor where "sliver" stops being a useful label.
+  const alwaysKeepAreaM2 = opts.alwaysKeepAreaM2 ?? 10000;
   try {
     const f = turf.feature(polygonGeom);
     const area = turf.area(f);
     if (area < minAreaM2) return true;
+    if (area >= alwaysKeepAreaM2) return false;
     // Sum the perimeter of every ring (outer + holes).
     const lineOrColl = turf.polygonToLine(f);
     let perim = 0;
@@ -560,11 +568,6 @@ function bufferAlongsideRoad(geom, outerHalfWidthM) {
   return outer;
 }
 
-// SVG hatch pattern id rendered by LeafletMap.js (`<defs>` block at the top
-// of the map). Edit-mode polygons reference the same pattern so a C-1 zone
-// looks identical whether it's the static read-only layer or being edited.
-const C1_HATCH_FILL = "url(#bauko-c1-smv-hatch)";
-
 // ---- Multi-vertex helpers ----
 // A polygon's coords from layer.getLatLngs() are nested arrays of L.LatLng:
 //   - Polygon:        [[ring]]
@@ -713,6 +716,20 @@ export default function EditableZones({
   const buildingsLayerRef = useRef(null);
   const buildingsByIdRef = useRef(new Map());
 
+  // Fill-barangay mode. Off by default. When on, the LGU's barangay
+  // polygons render as a translucent clickable overlay. Clicking any
+  // barangay immediately creates a new zone with that barangay's
+  // entire polygon geometry, tagged with the currently active class
+  // chip. Useful for inner-tier classes (R-4 / R-5 / R-6) where the
+  // whole barangay is one class — one click per zone instead of
+  // tracing the boundary by hand.
+  const [fillBarangayMode, setFillBarangayMode] = useState(false);
+  const fillBarangayModeRef = useRef(fillBarangayMode);
+  useEffect(() => {
+    fillBarangayModeRef.current = fillBarangayMode;
+  }, [fillBarangayMode]);
+  const fillBarangaysLayerRef = useRef(null);
+
   const [secondaryClass, setSecondaryClass] = useState("");
   const [tertiaryClass, setTertiaryClass] = useState("");
   const [bufferMeters, setBufferMeters] = useState(DEFAULT_BUFFER_METERS);
@@ -786,6 +803,56 @@ export default function EditableZones({
   // removed a meaningful chunk of the candidate area. Cleared after a
   // few seconds so it doesn't linger.
   const [bakeNotice, setBakeNotice] = useState("");
+
+  // Tracks whether we've already warned the user this session that
+  // localStorage hit its quota. Without this, every subsequent edit
+  // would re-show the notice (since the snapshot keeps growing).
+  const quotaWarnedRef = useRef(false);
+
+  // Best-effort persistence to localStorage. Browsers cap per-origin
+  // storage at ~5–10 MB, and large LGUs (e.g. Sagada after baking
+  // every road corridor) can produce snapshots that exceed that. When
+  // we hit the quota, the in-memory undo/redo history still works —
+  // we just can't restore from disk on next page load. We surface a
+  // one-shot notice so the user knows their next reload won't include
+  // unsaved edits, then keep going.
+  const persistSnapshot = (snapshot) => {
+    try {
+      localStorage.setItem(storageKey, snapshot);
+      return true;
+    } catch (err) {
+      const isQuota =
+        err &&
+        (err.name === "QuotaExceededError" ||
+          err.code === 22 ||
+          err.code === 1014 ||
+          /quota/i.test(err.message || ""));
+      if (!isQuota) {
+        console.warn("Failed to persist editor snapshot:", err);
+        return false;
+      }
+      // Free the slot so any older smaller snapshot doesn't shadow
+      // newer in-memory state on reload.
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {}
+      if (!quotaWarnedRef.current) {
+        quotaWarnedRef.current = true;
+        const sizeMb = (snapshot.length / (1024 * 1024)).toFixed(1);
+        setBakeNotice(
+          `Snapshot too large for browser storage (${sizeMb} MB). ` +
+            `In-memory undo still works, but edits won't survive a page reload — ` +
+            `save the GeoJSON to disk to keep them.`
+        );
+        setTimeout(() => setBakeNotice(""), 8000);
+        console.warn(
+          `[EditableZones] localStorage quota exceeded for ${storageKey} ` +
+            `(${sizeMb} MB snapshot). Skipping persistence.`
+        );
+      }
+      return false;
+    }
+  };
 
   // ---- Custom landmark adder (in-app pin tool) ----
   // When `placingLandmark` is on, the next map click drops a pending
@@ -1305,7 +1372,7 @@ export default function EditableZones({
 
   const prepareLayer = (layer) => {
     // Prevent layer clicks from bubbling to the map-level "clear selection"
-    // handler. Without this, some fills (notably hatched C-1) can appear
+    // handler. Without this, filled zones can appear
     // unselectable because map-click immediately clears the selection again.
     if (layer.options) {
       layer.options.bubblingMouseEvents = false;
@@ -1317,7 +1384,22 @@ export default function EditableZones({
       layer.options.snapIgnore = !snapToZonesRef.current;
     }
     layer.on("click", (e) => {
-      if (map.pm?.globalDrawModeEnabled?.()) return;
+      // If Geoman is in ANY active mode, let the click bubble to it
+      // unmodified. Without this, an existing zone's click handler
+      // ate the event before Geoman could place a vertex on top of
+      // it (or before the cut / edit / drag mode could pick it up).
+      // The narrow original check (globalDrawModeEnabled only) missed
+      // per-shape draw, drag, edit, and cut modes.
+      const pm = map.pm;
+      if (
+        pm?.globalDrawModeEnabled?.() ||
+        pm?.Draw?.getActiveShape?.() || // a per-shape draw is active
+        pm?.globalEditModeEnabled?.() ||
+        pm?.globalCutModeEnabled?.() ||
+        pm?.globalDragModeEnabled?.()
+      ) {
+        return;
+      }
       if (e.originalEvent) {
         L.DomEvent.stop(e.originalEvent);
       }
@@ -1336,7 +1418,7 @@ export default function EditableZones({
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push(snapshot);
     historyIndexRef.current = historyRef.current.length - 1;
-    if (shouldPersist) localStorage.setItem(storageKey, snapshot);
+    if (shouldPersist) persistSnapshot(snapshot);
     syncEditorState();
   };
 
@@ -1349,7 +1431,7 @@ export default function EditableZones({
     selectedLayerRef.current = null;
     loadGeoJSONIntoGroup(JSON.parse(snapshot), group, prepareLayer);
     historyIndexRef.current = nextIndex;
-    localStorage.setItem(storageKey, snapshot);
+    persistSnapshot(snapshot);
     isRestoringRef.current = false;
     syncEditorState();
     refresh();
@@ -1537,11 +1619,11 @@ export default function EditableZones({
     }
   };
 
-  // Subtract every OTHER layer's geometry from the selected layer so
-  // it no longer overlaps any neighbours. Useful when the user has
+  // Subtract every OTHER layer's geometry and the buffered road
+  // centerlines from the selected layer. Useful when the user has
   // baked the same area twice (e.g. promoted an R-2 corridor to C-2
-  // without first deleting the R-2) and now there's a "double
-  // classification" stripe on the map.
+  // without first deleting the R-2) or when an older/manual polygon
+  // still paints across the road carriageway.
   //
   // Properties (class, source, etc.) are preserved. If the selected
   // polygon is entirely covered by neighbours, the user is prompted
@@ -1632,11 +1714,47 @@ export default function EditableZones({
       }
     });
 
+    // Older imports and manually-drawn polygons may pre-date the road
+    // carve that now runs during bake. Apply the same buffered-road
+    // subtraction when the user explicitly clicks "Trim overlaps" so
+    // the selected polygon becomes two clean roadside ribbons instead
+    // of continuing to paint through the carriageway.
+    let roadTrimSqm = 0;
+    if (trimmed?.geometry && roadBufferRef.current) {
+      let beforeRoadArea = 0;
+      try {
+        beforeRoadArea = turf.area(trimmed);
+      } catch {}
+      try {
+        const carved = turf.difference(
+          turf.featureCollection([trimmed, roadBufferRef.current])
+        );
+        if (carved?.geometry) {
+          trimmed = carved;
+          if (beforeRoadArea > 0) {
+            try {
+              roadTrimSqm = Math.max(0, beforeRoadArea - turf.area(trimmed));
+            } catch {}
+          }
+        } else {
+          // Entire selected polygon was inside the road buffer.
+          trimmed = null;
+          roadTrimSqm = beforeRoadArea;
+        }
+      } catch (e) {
+        console.warn(
+          "trimSelectedAgainstNeighbors: road-carve step failed; keeping neighbour-trimmed geometry",
+          e
+        );
+      }
+    }
+
     if (!trimmed?.geometry) {
       if (
         window.confirm(
-          "This polygon is entirely covered by other zones — there'd be " +
-            "nothing left after trimming. Delete it instead?"
+          "This polygon is entirely covered by other zones or the road " +
+            "carriageway — there'd be nothing left after trimming. " +
+            "Delete it instead?"
         )
       ) {
         try {
@@ -1664,10 +1782,10 @@ export default function EditableZones({
         ? Math.round((1 - trimmedArea / originalArea) * 100)
         : 0;
 
-    if (neighborsHit === 0 || pctTrimmed === 0) {
+    if (neighborsHit === 0 && roadTrimSqm < 0.5) {
       setBakeNotice(
-        "No overlap found — this polygon already doesn't intersect any " +
-          "neighbour."
+        "No overlap found — this polygon already avoids neighbouring zones " +
+          "and road carriageways."
       );
       setTimeout(() => setBakeNotice(""), 3000);
       return;
@@ -1675,7 +1793,10 @@ export default function EditableZones({
 
     const newFeature = {
       type: "Feature",
-      properties: sourceProps,
+      properties: {
+        ...sourceProps,
+        ...(roadTrimSqm >= 0.5 ? { road_carve_m: ROAD_CARVE_METERS } : {}),
+      },
       geometry: trimmed.geometry,
     };
     const wrap = L.geoJSON(newFeature, { style: () => ({}) });
@@ -1704,9 +1825,16 @@ export default function EditableZones({
     refresh();
     if (newLayer) selectLayer(newLayer);
 
-    setBakeNotice(
-      `Trimmed ${pctTrimmed}% off — overlapped ${neighborsHit} neighbour${neighborsHit === 1 ? "" : "s"}.`
-    );
+    const reasons = [];
+    if (neighborsHit > 0) {
+      reasons.push(
+        `${neighborsHit} neighbour${neighborsHit === 1 ? "" : "s"}`
+      );
+    }
+    if (roadTrimSqm >= 0.5) {
+      reasons.push(`${roadTrimSqm.toFixed(0)} m² inside roads`);
+    }
+    setBakeNotice(`Trimmed ${pctTrimmed}% off — removed ${reasons.join(" + ")}.`);
     setTimeout(() => setBakeNotice(""), 5000);
   };
 
@@ -2148,6 +2276,132 @@ export default function EditableZones({
     };
   }, [osmBuildingsUrl, visible, map, perBuildingMode]);
 
+  // ---- Fill-barangay layer ----
+  // When fillBarangayMode is on, render the LGU's barangay polygons
+  // as a translucent clickable overlay. Each click instantly bakes
+  // that barangay's geometry into a new zone with the active class.
+  useEffect(() => {
+    if (!barangaysUrl || !visible || !map || !fillBarangayMode) return;
+    let cancelled = false;
+
+    if (!map.getPane("fill-barangay-pane")) {
+      const pane = map.createPane("fill-barangay-pane");
+      // Above the SMV zones (pane 400) but below the labels-pane
+      // (650) and the roads layer (442). Click events on this pane
+      // take priority over zones underneath so the user can click
+      // through existing zone fills to the barangay they want.
+      pane.style.zIndex = 445;
+    }
+
+    fetch(barangaysUrl, { cache: "force-cache" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((fc) => {
+        if (cancelled || !fc?.features) return;
+        const layer = L.geoJSON(fc, {
+          pane: "fill-barangay-pane",
+          style: () => ({
+            color: "#1d4ed8",
+            weight: 2,
+            opacity: 0.85,
+            fillColor: "#3b82f6",
+            fillOpacity: 0.12,
+            dashArray: "4 3",
+          }),
+          pmIgnore: true,
+          onEachFeature: (feature, lyr) => {
+            lyr.options = lyr.options || {};
+            lyr.options.pmIgnore = true;
+            lyr.options.snapIgnore = true;
+            const name =
+              feature.properties?.name ||
+              feature.properties?.NAME ||
+              "(unnamed barangay)";
+            lyr.bindTooltip(`Click to fill ${name} as ${activeClassRef.current}`, {
+              sticky: true,
+            });
+            lyr.on("mouseover", () => {
+              lyr.setStyle({
+                color: "#1d4ed8",
+                weight: 3,
+                fillColor: "#3b82f6",
+                fillOpacity: 0.28,
+              });
+            });
+            lyr.on("mouseout", () => {
+              lyr.setStyle({
+                color: "#1d4ed8",
+                weight: 2,
+                fillColor: "#3b82f6",
+                fillOpacity: 0.12,
+              });
+            });
+            lyr.on("click", (ev) => {
+              L.DomEvent.stopPropagation(ev);
+              const klass = activeClassRef.current;
+              const group = groupRef.current;
+              if (!group || !klass) {
+                setBakeNotice("Pick a class chip first, then click a barangay.");
+                setTimeout(() => setBakeNotice(""), 3000);
+                return;
+              }
+              const props = {
+                classification: klass,
+                source: "barangay-fill",
+                barangay_name: name,
+                barangay_slug: feature.properties?.slug ?? null,
+              };
+              try {
+                const wrap = L.geoJSON(
+                  {
+                    type: "Feature",
+                    geometry: feature.geometry,
+                    properties: props,
+                  },
+                  { style: () => ({}) }
+                );
+                let firstAdded = null;
+                wrap.eachLayer((sub) => {
+                  sub.feature = sub.feature || {
+                    type: "Feature",
+                    properties: {},
+                  };
+                  sub.feature.properties = {
+                    ...sub.feature.properties,
+                    ...props,
+                  };
+                  applyFeatureStyle(sub, klass);
+                  prepareLayer(sub);
+                  group.addLayer(sub);
+                  if (!firstAdded) firstAdded = sub;
+                });
+                pushHistory();
+                refresh();
+                if (firstAdded) selectLayer(firstAdded);
+                setBakeNotice(`Filled ${name} as ${klass}.`);
+                setTimeout(() => setBakeNotice(""), 3500);
+              } catch (e) {
+                console.warn("Fill barangay failed:", e);
+              }
+            });
+          },
+        });
+        layer.addTo(map);
+        fillBarangaysLayerRef.current = layer;
+      })
+      .catch(() => {
+        // Barangays file missing — fine, mode just won't have anything
+        // clickable. Toggle stays available so the user notices.
+      });
+
+    return () => {
+      cancelled = true;
+      if (fillBarangaysLayerRef.current) {
+        map.removeLayer(fillBarangaysLayerRef.current);
+        fillBarangaysLayerRef.current = null;
+      }
+    };
+  }, [barangaysUrl, visible, map, fillBarangayMode]);
+
   // Restyle every building sub-layer whenever the selection set
   // changes, so toggling shift+click on/off reflects visually.
   useEffect(() => {
@@ -2456,6 +2710,13 @@ export default function EditableZones({
       byRing.get(ringPath).add(vertexIdx);
     }
     let anyRemoved = false;
+    // Track which vertex to auto-select per ring after deletion. The
+    // rule: pick the vertex at the LOWEST deleted index in the new
+    // (shrunk) ring. That's the vertex that USED to sit immediately
+    // after the deleted ones — feels like a natural "cursor advance"
+    // after Delete. If the lowest deleted index was the last vertex
+    // of the ring, wrap to 0.
+    const nextSelectionByRing = []; // { ringPath, newIdx }
     for (const [ringPath, indices] of byRing) {
       const ring = getRingByPath(latlngs, ringPath);
       if (!Array.isArray(ring)) continue;
@@ -2466,6 +2727,9 @@ export default function EditableZones({
         );
         continue;
       }
+      const lowestDeleted = Math.min(...indices);
+      const newIdx = lowestDeleted >= survivors ? 0 : lowestDeleted;
+      nextSelectionByRing.push({ ringPath, newIdx });
       // Remove from highest index downward to keep lower indices stable.
       const sorted = [...indices].sort((a, b) => b - a);
       for (const i of sorted) ring.splice(i, 1);
@@ -2473,9 +2737,14 @@ export default function EditableZones({
     }
     if (!anyRemoved) return;
     sel.setLatLngs(latlngs);
-    // Selection no longer references valid indices — clear it and let
-    // the version bump rebuild markers from scratch.
-    setSelectedVertexKeys(new Set());
+    // Replace selection with the next-vertex picks computed above so
+    // the user can press Delete repeatedly to walk along the ring.
+    const newSelection = new Set(
+      nextSelectionByRing.map(({ ringPath, newIdx }) =>
+        vertexKey(ringPath, newIdx)
+      )
+    );
+    setSelectedVertexKeys(newSelection);
     setSelectedLayerVersion((v) => v + 1);
     pushHistory();
     refresh();
@@ -2719,10 +2988,12 @@ export default function EditableZones({
         );
         if (carved?.geometry) {
           combined = carved;
+        } else {
+          // Difference returning null means the full candidate sits
+          // inside the road carriageway. Do not keep the original
+          // uncarved polygon.
+          combined = null;
         }
-        // If the difference returned null, the entire candidate was
-        // inside the road buffer — fall through to the empty check
-        // below.
       } catch (e) {
         console.warn(
           "bakeRoadsIntoCorridor: road-carve step failed; using uncarved geometry",
@@ -3022,6 +3293,21 @@ export default function EditableZones({
     const onCut = (e) => {
       if (isRestoringRef.current) return;
 
+      // Diagnostic logging — gated on a global so it can be flipped
+      // without touching the source. To enable in a session:
+      //   localStorage.SMV_CUT_DEBUG = "1"; location.reload();
+      // To disable:
+      //   delete localStorage.SMV_CUT_DEBUG; location.reload();
+      const debugCut =
+        typeof window !== "undefined" &&
+        window.localStorage?.SMV_CUT_DEBUG === "1";
+      const logCut = (label, payload) => {
+        if (debugCut) {
+          // eslint-disable-next-line no-console
+          console.log("[SMV_CUT] " + label, payload);
+        }
+      };
+
       // Resolve the "original" polygon being cut. Three fallbacks
       // because Geoman versions are inconsistent about which fields
       // they populate on the pm:cut event:
@@ -3035,6 +3321,54 @@ export default function EditableZones({
         e?.target ??
         selectedLayerRef.current ??
         null;
+
+      logCut("event keys:", Object.keys(e ?? {}));
+      logCut("original resolved from:", {
+        originalLayer: !!e?.originalLayer,
+        target: !!e?.target,
+        selectedRef: !!selectedLayerRef.current,
+        resolved: !!original,
+      });
+      if (original) {
+        try {
+          const og = original.toGeoJSON();
+          const area = og?.geometry ? turf.area(og) : 0;
+          logCut("original polygon:", {
+            classification: og?.properties?.classification,
+            source: og?.properties?.source,
+            area_ha: (area / 1e4).toFixed(3),
+            bbox: og?.geometry ? turf.bbox(og).map((n) => n.toFixed(5)) : null,
+          });
+
+          // HARD GUARD: refuse to cut a PSA barangay/LGU boundary.
+          // If this fires, the polygon got into the editable group
+          // by accident (stale localStorage, bad import, etc.). Let
+          // the cut event complete without our re-add logic, and
+          // surface a message so the user knows what happened.
+          if (isPSABoundaryFeature(og?.properties)) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[SMV_CUT] Refused: cut target is a PSA boundary polygon",
+              og?.properties
+            );
+            setBakeNotice(
+              "Cut refused: that polygon is a PSA barangay/LGU boundary, not an SMV zone. Use the layer panel to delete it and try again."
+            );
+            setTimeout(() => setBakeNotice(""), 6000);
+            // Restore the original to the map — Geoman has already
+            // removed it as part of the cut transaction. Adding the
+            // result layers below would corrupt the data so we bail.
+            try {
+              if (!group.hasLayer(original)) group.addLayer(original);
+            } catch {}
+            pushHistory();
+            refresh();
+            return;
+          }
+        } catch (err) {
+          logCut("original measure failed:", err?.message);
+        }
+      }
 
       // Classification source priority:
       //   1. The snapshot we captured when Cut mode started (most
@@ -3097,20 +3431,52 @@ export default function EditableZones({
       if (resultLayers.length === 0) {
         pushHistory();
         refresh();
+        // The cut completed but all output was dropped as slivers (or
+        // there was no output at all). Tell the user — otherwise it
+        // looks like the cut silently did nothing.
+        setBakeNotice(
+          droppedCutSlivers > 0
+            ? `Cut produced ${droppedCutSlivers} sliver piece${droppedCutSlivers === 1 ? "" : "s"} only — all dropped. Try a less skim cut.`
+            : `Cut produced no pieces. Try drawing the cut shape so it crosses the polygon clearly.`
+        );
+        setTimeout(() => setBakeNotice(""), 5000);
         return;
       }
 
-      for (const layer of resultLayers) {
+      // Fallback classification when sourceProps somehow carries no
+      // classification value (e.g. the original was UNCLASSIFIED or
+      // the snapshot logic raced): use the active class chip rather
+      // than leaving cut results grey. Matches how new polygons drawn
+      // with a class chip selected get tagged.
+      const fallbackKlass = sourceProps.classification ?? activeClassRef.current ?? null;
+
+      // Pre-compute area per layer so we can both (a) tag the largest
+      // for post-cut selection and (b) reuse the area in any future
+      // diagnostics. Cheap: one toGeoJSON + turf.area per layer.
+      const layerInfo = resultLayers.map((layer) => {
+        let areaM2 = 0;
+        try {
+          const gj = layer.toGeoJSON();
+          if (gj?.geometry) areaM2 = turf.area(gj);
+        } catch {}
+        return { layer, areaM2 };
+      });
+
+      for (const { layer } of layerInfo) {
         layer.feature = layer.feature || { type: "Feature", properties: {} };
         // Source-class properties WIN here (previously they were
         // being overwritten by Geoman's empty `feature.properties`
         // object, which is why cut results rendered grey
         // UNCLASSIFIED). Anything Geoman did set is preserved unless
-        // sourceProps explicitly carries the same key.
+        // sourceProps explicitly carries the same key. Then if the
+        // result still has no classification, pull the active chip.
         layer.feature.properties = {
           ...(layer.feature.properties || {}),
           ...sourceProps,
         };
+        if (!layer.feature.properties.classification && fallbackKlass) {
+          layer.feature.properties.classification = fallbackKlass;
+        }
         applyFeatureStyle(layer, layer.feature.properties?.classification);
         prepareLayer(layer);
         if (!group.hasLayer(layer)) {
@@ -3118,19 +3484,37 @@ export default function EditableZones({
         }
       }
 
-      // Select the first resulting piece so follow-up edits are immediate.
-      selectLayer(resultLayers[0]);
+      logCut("result layer count after sliver filter:", resultLayers.length);
+      logCut(
+        "result layer areas (ha):",
+        layerInfo.map((x) => +(x.areaM2 / 1e4).toFixed(3))
+      );
+      logCut("sourceProps used for results:", sourceProps);
+      logCut("fallbackKlass used (if needed):", fallbackKlass);
+
+      // Select the LARGEST resulting piece so follow-up edits land
+      // on the chunk the user thinks of as "the polygon I just cut",
+      // not on whichever fragment Geoman happened to emit first.
+      const largest = layerInfo.reduce(
+        (best, cur) => (cur.areaM2 > best.areaM2 ? cur : best),
+        layerInfo[0]
+      );
+      logCut("selected largest (ha):", +(largest.areaM2 / 1e4).toFixed(3));
+      selectLayer(largest.layer);
       pushHistory();
       refresh();
+
+      // Always notify on cut completion so the user has confirmation
+      // the action ran. Combine the produced-piece count with the
+      // sliver-drop count when both are non-zero.
+      const pieceWord = resultLayers.length === 1 ? "piece" : "pieces";
+      let msg = `Cut: ${resultLayers.length} ${pieceWord} created`;
       if (droppedCutSlivers > 0) {
-        // Tell the user we filtered the cut output — otherwise they'd
-        // wonder why some thin-strip artifacts they saw a moment ago
-        // disappeared.
-        setBakeNotice(
-          `Cut: auto-dropped ${droppedCutSlivers} sliver strip${droppedCutSlivers === 1 ? "" : "s"} (thin/narrow leftover pieces).`
-        );
-        setTimeout(() => setBakeNotice(""), 5000);
+        msg += `, ${droppedCutSlivers} sliver${droppedCutSlivers === 1 ? "" : "s"} dropped`;
       }
+      msg += ".";
+      setBakeNotice(msg);
+      setTimeout(() => setBakeNotice(""), 5000);
     };
 
     // Tag any newly drawn shape with the currently selected classification.
@@ -3683,15 +4067,17 @@ export default function EditableZones({
 
   // ---- Draggable + collapsible editor panel state ----
   // panelPos is { top, left } in pixels relative to .leaflet-container.
-  // null means "use the default bottom-anchored position" (so users who
-  // haven't dragged keep the legacy bottom-left placement). Persisted to
+  // null means "use the default top-left position" so the drag handle
+  // stays reachable even on shorter screens. Persisted to
   // localStorage per municipality so re-opening the editor restores the
   // exact spot the user left the panel at.
   const PANEL_UI_KEY = `editor-panel-ui-v1:${saveSlug}`;
   const [panelPos, setPanelPos] = useState(null);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [isPanelDragging, setIsPanelDragging] = useState(false);
   const panelRef = useRef(null);
   const dragStateRef = useRef(null);
+  const dragCleanupRef = useRef(null);
 
   useEffect(() => {
     try {
@@ -3720,18 +4106,51 @@ export default function EditableZones({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelPos, panelCollapsed, saveSlug]);
 
-  const onPanelHeaderMouseDown = (e) => {
-    // Left-button only; don't initiate drag from inside the collapse
-    // button (which has its own click handler).
-    if (e.button !== 0) return;
-    if (e.target.closest("button")) return;
+  useEffect(() => {
+    if (!visible || !panelPos) return;
     const panel = panelRef.current;
     const parent = panel?.parentElement;
     if (!panel || !parent) return;
 
     const panelRect = panel.getBoundingClientRect();
     const parentRect = parent.getBoundingClientRect();
+    const nextPos = {
+      left: clamp(
+        panelPos.left,
+        0,
+        Math.max(0, parentRect.width - panelRect.width)
+      ),
+      top: clamp(
+        panelPos.top,
+        0,
+        Math.max(0, parentRect.height - panelRect.height)
+      ),
+    };
+    if (nextPos.left !== panelPos.left || nextPos.top !== panelPos.top) {
+      setPanelPos(nextPos);
+    }
+  }, [panelCollapsed, panelPos, visible]);
+
+  useEffect(() => {
+    return () => dragCleanupRef.current?.(null, { updateState: false });
+  }, []);
+
+  const onPanelHeaderPointerDown = (e) => {
+    // Left-button only; don't initiate drag from inside the collapse
+    // button (which has its own click handler).
+    if (e.button !== 0) return;
+    if (e.target instanceof Element && e.target.closest("button")) return;
+    const panel = panelRef.current;
+    const parent = panel?.parentElement;
+    if (!panel || !parent) return;
+
+    dragCleanupRef.current?.(null, { updateState: false });
+    const panelRect = panel.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    const pointerId = e.pointerId;
+    const dragHandle = e.currentTarget;
     dragStateRef.current = {
+      pointerId,
       startX: e.clientX,
       startY: e.clientY,
       startLeft: panelRect.left - parentRect.left,
@@ -3744,7 +4163,7 @@ export default function EditableZones({
 
     const onMove = (ev) => {
       const ds = dragStateRef.current;
-      if (!ds) return;
+      if (!ds || ev.pointerId !== ds.pointerId) return;
       const dx = ev.clientX - ds.startX;
       const dy = ev.clientY - ds.startY;
       const maxLeft = Math.max(0, ds.parentWidth - ds.panelWidth);
@@ -3752,14 +4171,32 @@ export default function EditableZones({
       const left = clamp(ds.startLeft + dx, 0, maxLeft);
       const top = clamp(ds.startTop + dy, 0, maxTop);
       setPanelPos({ left, top });
+      ev.preventDefault();
+      ev.stopPropagation();
     };
-    const onUp = () => {
+    const onUp = (ev, { updateState = true } = {}) => {
+      const ds = dragStateRef.current;
+      if (ev && ds && ev.pointerId !== ds.pointerId) return;
       dragStateRef.current = null;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
+      try {
+        if (dragHandle.hasPointerCapture(pointerId)) {
+          dragHandle.releasePointerCapture(pointerId);
+        }
+      } catch {}
+      dragCleanupRef.current = null;
+      if (updateState) setIsPanelDragging(false);
     };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    dragCleanupRef.current = onUp;
+    document.addEventListener("pointermove", onMove, { passive: false });
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+    try {
+      dragHandle.setPointerCapture(pointerId);
+    } catch {}
+    setIsPanelDragging(true);
     e.preventDefault();
     e.stopPropagation();
   };
@@ -3837,10 +4274,18 @@ export default function EditableZones({
     boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
     fontSize: 12,
     maxWidth: 280,
-    overflow: "hidden",
+    // Cap the panel's height to the viewport so the class chips at
+    // the top stay visible when the toolbar grows tall (Snap toggles,
+    // Move pin, Per-building override, etc.). Overflow flips to auto
+    // so users can scroll within the panel instead of having the top
+    // pushed off-screen. Horizontal overflow stays hidden so the
+    // rounded corners and shadow render cleanly at the edges.
+    maxHeight: "calc(100% - 32px)",
+    overflowY: "auto",
+    overflowX: "hidden",
     ...(panelPos
       ? { top: panelPos.top, left: panelPos.left }
-      : { bottom: 16, left: 60 }),
+      : { top: 16, left: 60 }),
   };
   // Friendly label for whatever class the selected zone currently has.
   // Falls back to "—" for unclassified zones so the title is still clear.
@@ -3897,11 +4342,16 @@ export default function EditableZones({
 
   return (
     <>
-    <div ref={panelRefCallback} style={panelStyle}>
+    <div
+      ref={panelRefCallback}
+      data-testid="editable-zones-panel"
+      style={panelStyle}
+    >
       {/* Draggable header — also doubles as the panel title. Click the
           chevron to collapse the body. */}
       <div
-        onMouseDown={onPanelHeaderMouseDown}
+        data-testid="editable-zones-drag-handle"
+        onPointerDown={onPanelHeaderPointerDown}
         style={{
           display: "flex",
           alignItems: "center",
@@ -3909,13 +4359,14 @@ export default function EditableZones({
           padding: "6px 8px 6px 10px",
           background: "#f1f5f9",
           borderBottom: panelCollapsed ? "none" : "1px solid #e2e8f0",
-          cursor: dragStateRef.current ? "grabbing" : "move",
+          cursor: isPanelDragging ? "grabbing" : "grab",
+          touchAction: "none",
           userSelect: "none",
           fontWeight: 600,
           fontSize: 11,
           color: "#0f172a",
         }}
-        title="Drag to move"
+        title="Drag toolbar around map"
       >
         <span style={{ color: "#94a3b8", letterSpacing: "0.05em" }}>⋮⋮</span>
         <span
@@ -3931,7 +4382,7 @@ export default function EditableZones({
         <button
           type="button"
           onClick={() => setPanelCollapsed((c) => !c)}
-          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
           style={{
             ...smallBtn,
             padding: "1px 6px",
@@ -4326,9 +4777,9 @@ export default function EditableZones({
           <button
             onClick={trimSelectedAgainstNeighbors}
             style={{ ...smallBtn, color: "#0d9488", fontWeight: 600 }}
-            title="Subtract every other zone's geometry from the selected polygon so it no longer overlaps any neighbour. Useful when an area was baked twice (e.g. the same corridor in R-2 and then again in C-2). Class is preserved. If the polygon ends up fully covered, you'll be asked before it's deleted."
+            title="Subtract every other zone and the buffered road carriageways from the selected polygon. Useful when an area was baked twice or an older polygon still fills across a road. Class is preserved. If the polygon ends up fully covered, you'll be asked before it's deleted."
           >
-            Trim overlaps
+            Trim overlaps + roads
           </button>
         )}
         <button
@@ -4431,6 +4882,25 @@ export default function EditableZones({
             {perBuildingMode
               ? `Per-building ✓ (${selectedBuildingIds.size})`
               : "Per-building"}
+          </button>
+        )}
+        {barangaysUrl && (
+          <button
+            onClick={() => setFillBarangayMode((on) => !on)}
+            style={{
+              ...smallBtn,
+              background: fillBarangayMode ? "#dbeafe" : "white",
+              borderColor: fillBarangayMode ? "#1d4ed8" : "#cbd5e1",
+              color: fillBarangayMode ? "#1d4ed8" : "#475569",
+              fontWeight: fillBarangayMode ? 700 : 600,
+            }}
+            title={
+              fillBarangayMode
+                ? "Fill barangay mode is ON. Barangay polygons render as a clickable blue overlay. Click any barangay to create a new zone with its entire polygon, tagged with the active class chip. Useful for inner-tier classes (R-4 / R-5 / R-6) covering whole barangays."
+                : "Fill barangay mode is OFF. Turn on to click-fill whole barangays as zones with the active class — fastest way to create inner-tier zones."
+            }
+          >
+            {fillBarangayMode ? "Fill barangay ✓" : "Fill barangay"}
           </button>
         )}
         <button
@@ -4920,11 +5390,40 @@ function actionButtonStyle(classKey, enabled, applied) {
   };
 }
 
+// PSA barangay / municipal boundary features have this source tag —
+// they're the raw geometries that come back from the GeoRiskPH ArcGIS
+// fetcher. If they slip into the editable zones group (usually from
+// stale localStorage or an accidental file-import of the barangays
+// file), the user can SELECT and CUT them, and Geoman happily cuts
+// the whole LGU outline. That's the "cut fills the whole municipality"
+// bug. Detect them and skip on load + refuse to cut.
+function isPSABoundaryFeature(props) {
+  const src = String(props?.source ?? "");
+  return /PSA Barangay Boundary|GeoRiskPH/.test(src);
+}
+
 function loadGeoJSONIntoGroup(fc, group, prepareLayer) {
   if (!fc || fc.type !== "FeatureCollection" || !Array.isArray(fc.features)) {
     return;
   }
-  L.geoJSON(fc, {
+  let droppedPsaBoundaries = 0;
+  const cleaned = {
+    type: "FeatureCollection",
+    features: fc.features.filter((ft) => {
+      if (isPSABoundaryFeature(ft?.properties)) {
+        droppedPsaBoundaries++;
+        return false;
+      }
+      return true;
+    }),
+  };
+  if (droppedPsaBoundaries > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[SMV] Dropped ${droppedPsaBoundaries} PSA-boundary feature(s) from load — these are barangay/LGU outlines and shouldn't be in the zones layer.`
+    );
+  }
+  L.geoJSON(cleaned, {
     onEachFeature: (ft, layer) => {
       applyFeatureStyle(layer, ft.properties?.classification);
       // Attach the click-to-select handler so loaded zones (e.g. the
@@ -4940,7 +5439,6 @@ function loadGeoJSONIntoGroup(fc, group, prepareLayer) {
 
 function applyFeatureStyle(layer, classification, selected = false) {
   const s = styleForClass(classification);
-  const isC1 = classification === "C-1";
   if (!layer.setStyle) return;
   // Default: no border. When selected, a thick ring in the *class color*
   // appears — that way reassigning a shape from one class to another
@@ -4953,8 +5451,8 @@ function applyFeatureStyle(layer, classification, selected = false) {
     color: s.color,
     opacity: selected ? 1 : 0,
     dashArray: undefined,
-    fillColor: isC1 ? C1_HATCH_FILL : s.fillColor,
-    fillOpacity: isC1 ? 1 : selected ? 0.75 : 0.55,
+    fillColor: s.fillColor,
+    fillOpacity: selected ? 0.75 : 0.55,
   });
 }
 

@@ -181,9 +181,7 @@ export default function RPTImpactCalculator({
           {selectedClass && (
             <div className="rpt-selected-class">
               <span
-                className={`rpt-selected-class__chip ${
-                  selectedClass.subClass === "C-1" ? "is-hatch" : ""
-                }`}
+                className="rpt-selected-class__chip"
                 style={{ backgroundColor: selectedClass.color }}
               >
                 {selectedClass.subClass}

@@ -92,6 +92,55 @@ The zones layer is separate from `bauko_barangays_custom.geojson`, which is the
 barangay administrative boundary override. Zones overlay the barangays; they do
 not replace barangay boundaries.
 
+## A3 stitched poster / detail atlas
+
+The top-nav print button opens a one-sheet A3 stitched poster:
+
+```bash
+http://localhost:3000/atlas?m=bauko-hybrid&z=16&poster=1
+```
+
+This internally builds zoomed map panels, stitches them into one A3 portrait
+poster sheet, and uses a clean OSM no-label basemap with SMV zones and POI
+labels rendered above it. Use **Print / Save PDF** on that page to create the
+single-page A3 PDF. Portrait is intentional for Bauko because the municipality
+is tall north-south; landscape wastes too much page area.
+
+For a multi-page atlas where each panel gets its own A3 sheet, remove
+`&poster=1`:
+
+```bash
+http://localhost:3000/atlas?m=bauko-hybrid&z=16
+```
+
+Zoom guidance:
+
+- `z=15` stitches about 12 panels into the A3 poster.
+- `z=16` stitches about 48 panels and is the recommended first try.
+- `z=17` stitches about 144 panels; it is very detailed as a PDF, but labels
+  will be tiny on physical A3 paper.
+
+### Bauko Hybrid reference sandbox
+
+Open `/?m=bauko-hybrid` to review Bauko road-aligned zones with Google Hybrid
+as an online visual reference. This sandbox does not overwrite the canonical
+Bauko map:
+
+- `public/data/bauko_hybrid_zones.geojson` stores its editable SMV zones.
+- `public/data/bauko_hybrid_roads.geojson` stores the road centerlines used by
+  this sandbox. It starts as a copy of the OSM roads. Replace it with an LGU
+  road-centerline GeoJSON or GPS-surveyed export when a better source is
+  available.
+- `public/data/bauko_hybrid_frontage_bands.geojson` stores its OSM-derived
+  0-30 m and 30-60 m frontage chips.
+- `public/data/bauko-hybrid_saved_views.json` stores its saved viewports.
+- `npm run bands:bauko:hybrid` regenerates only the sandbox frontage bands
+  from `public/data/bauko_hybrid_roads.geojson`.
+
+Google Hybrid is a reference basemap only. Do not trace or digitize roadways
+from Google imagery. Keep authoritative geometry based on OSM vectors, LGU
+shapefiles, or GPS coordinates.
+
 ## Drawing zones
 
 There's a panel at the bottom-left:

@@ -189,6 +189,15 @@ async function main() {
             osm_way_id: way.id,
             highway: way.tags?.highway ?? null,
             name: way.tags?.name ?? null,
+            // bridge / tunnel are passed through so cartographic
+            // renderers can give them distinct treatment (black
+            // bridge casing, dashed tunnel, etc.). Common values:
+            //   bridge = "yes" | "viaduct" | "movable" | "no"
+            //   tunnel = "yes" | "building_passage" | "no"
+            // Null when OSM doesn't tag the way, which is the norm
+            // (most roads are at-grade neither bridge nor tunnel).
+            bridge: way.tags?.bridge ?? null,
+            tunnel: way.tags?.tunnel ?? null,
             length_m: Math.round(lenM),
           },
           geometry: part.geometry,

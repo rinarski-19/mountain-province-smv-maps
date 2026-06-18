@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import SearchBar from "./SearchBar";
 
 export default function TopNav({
   drawMode,
@@ -17,6 +18,17 @@ export default function TopNav({
   hasSavedView = false,
   onSaveView,
   onResetView,
+  // Search wiring — page.js owns the data + handlers; TopNav only
+  // passes them through to the SearchBar component.
+  searchClassifications = [],
+  searchBarangaysCatalog = [],
+  searchOsmRoadsFC = null,
+  searchLandmarksFC = null,
+  searchCustomLandmarksFC = null,
+  onSearchSelectBarangay,
+  onSearchFlyToBounds,
+  onSearchFlyToPoint,
+  onPrint,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -124,6 +136,27 @@ export default function TopNav({
         )}
       </div>
 
+      <div
+        style={{
+          flex: "1 1 auto",
+          display: "flex",
+          justifyContent: "center",
+          padding: "0 12px",
+          minWidth: 0,
+        }}
+      >
+        <SearchBar
+          classifications={searchClassifications}
+          barangaysCatalog={searchBarangaysCatalog}
+          osmRoadsFC={searchOsmRoadsFC}
+          landmarksFC={searchLandmarksFC}
+          customLandmarksFC={searchCustomLandmarksFC}
+          onSelectBarangay={onSearchSelectBarangay}
+          onFlyToBounds={onSearchFlyToBounds}
+          onFlyToPoint={onSearchFlyToPoint}
+        />
+      </div>
+
       <div className="top-nav__controls">
         <div className="top-nav__edit-wrap" ref={editRef}>
           <button
@@ -201,6 +234,35 @@ export default function TopNav({
             </div>
           )}
         </div>
+        <button
+          type="button"
+          className="icon-button icon-button--compact"
+          aria-label="Open A3 land value print sheet"
+          title="Open A3 land value print sheet"
+          onClick={() => {
+            setMenuOpen(false);
+            setEditOpen(false);
+            setSettingsOpen(false);
+            onPrint?.();
+          }}
+        >
+          {/* printer glyph */}
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <path
+              d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
         <FullscreenButton
           isFullscreen={isFullscreen}
           onToggle={async () => {
@@ -281,13 +343,13 @@ export default function TopNav({
           {settingsOpen && (
             <div className="top-nav__settings-menu" role="menu" aria-label="Tile mode">
               {[
+                ["vector_basemap", "Print preview (vector)"],
                 ["online", "Online (OSM)"],
                 ["satellite", "Satellite (Esri)"],
                 ["google_street", "Google Street"],
                 ["google_satellite", "Google Satellite"],
                 ["google_hybrid", "Google Hybrid"],
                 ["offline", "Offline (OSM cache)"],
-                ["offline_vector_bauko", "Offline Vector (Bauko)"],
                 ["offline_mapbox", "Offline (Mapbox Hybrid)"],
               ].map(([mode, label]) => (
                 <button

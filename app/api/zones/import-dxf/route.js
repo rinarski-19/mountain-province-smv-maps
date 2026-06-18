@@ -32,7 +32,6 @@ import { spawn } from "node:child_process";
 // change is needed for the importer to work.
 const TARGETS_BY_SLUG = {
   bauko: "bauko_zones.geojson",
-  "bauko-dxf": "bauko_zones_dxf.geojson",
   barlig: "barlig_zones.geojson",
   tadian: "tadian_zones.geojson",
   "tadian-dxf": "tadian_zones_dxf.geojson",

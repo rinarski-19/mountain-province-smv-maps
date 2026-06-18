@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BottomBar from "@/components/BottomBar";
 import Map from "@/components/Map";
 import MapPanel from "@/components/MapPanel";
+import PrintLegend from "@/components/PrintLegend";
 import RPTImpactCalculator from "@/components/RPTImpactCalculator";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
@@ -16,11 +17,43 @@ const BARANGAY_VIEW_PRESETS_KEY_PREFIX = "smv-barangay-view-v1:";
 // no stretch-specific view has been saved.
 const STRETCH_VIEW_PRESETS_KEY_PREFIX = "smv-stretch-view-v1:";
 
+function featureCollectionBbox(featureCollection) {
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+  const visit = (coords) => {
+    if (!coords) return;
+    if (typeof coords[0] === "number") {
+      west = Math.min(west, coords[0]);
+      east = Math.max(east, coords[0]);
+      south = Math.min(south, coords[1]);
+      north = Math.max(north, coords[1]);
+      return;
+    }
+    for (const child of coords) visit(child);
+  };
+  for (const feature of featureCollection?.features || []) {
+    visit(feature?.geometry?.coordinates);
+  }
+  return Number.isFinite(west) ? [west, south, east, north] : null;
+}
+
 export default function Home() {
   const mapApiRef = useRef(null);
   const [drawMode, setDrawMode] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
-  const [tileMode, setTileMode] = useState("online");
+  const [autoPrintRequested, setAutoPrintRequested] = useState(false);
+  const [printMode, setPrintMode] = useState(false);
+  // Project-wide default basemap. "online" = OSM via OpenStreetMap
+  // tile servers (Leaflet's default tile provider). Users can switch
+  // per-session via the gear-icon tile picker (Google Streets,
+  // Satellite, Esri, offline caches all selectable). Individual LGU
+  // configs can override via tiles.defaultTileMode if a municipality
+  // needs a different default (e.g., satellite imagery for a heavily-
+  // forested municipality where road names aren't the priority).
+  const PROJECT_DEFAULT_TILE_MODE = "online";
+  const [tileMode, setTileMode] = useState(PROJECT_DEFAULT_TILE_MODE);
   // Always start from "bauko" so the first server render and the first
   // client render match (no hydration mismatch). The URL slug is read
   // from window.location.search in a post-mount effect below — that
@@ -44,6 +77,11 @@ export default function Home() {
     // Off by default — it's a guide for editors, not a consultation
     // overlay. Editors flip it on from the Layers panel while drawing.
     frontageBands: false,
+    // Off by default — landmark pinpoints (OSM POIs + LGU-curated
+    // custom landmarks) used to render unconditionally and cluttered
+    // the map. PAO staff can flip them on from the Layers panel while
+    // drawing or verifying; visitors don't see them by default.
+    landmarks: false,
   });
   const [savedBarangayViews, setSavedBarangayViews] = useState({});
   const [savedStretchViews, setSavedStretchViews] = useState({});
@@ -58,8 +96,9 @@ export default function Home() {
     [municipalitySlug]
   );
   const schedule = municipality.schedule;
-  const viewPresetsKey = `${BARANGAY_VIEW_PRESETS_KEY_PREFIX}${municipality.slug}`;
-  const stretchViewPresetsKey = `${STRETCH_VIEW_PRESETS_KEY_PREFIX}${municipality.slug}`;
+  const viewSlug = municipality.ui?.viewSlug ?? municipality.slug;
+  const viewPresetsKey = `${BARANGAY_VIEW_PRESETS_KEY_PREFIX}${viewSlug}`;
+  const stretchViewPresetsKey = `${STRETCH_VIEW_PRESETS_KEY_PREFIX}${viewSlug}`;
   const classifications = schedule.classifications;
   const total = classifications.length;
   const active = classIdx != null ? classifications[classIdx] : null;
@@ -196,7 +235,11 @@ export default function Home() {
   // client render — no hydration mismatch even when /?m=tadian is the
   // entry URL. Runs once on mount.
   useEffect(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("m");
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("m");
+    if (params.get("print") === "1") {
+      setAutoPrintRequested(true);
+    }
     if (!fromUrl) return;
     const match = MUNICIPALITY_OPTIONS.find(
       (option) => option.slug === fromUrl && option.enabled
@@ -210,19 +253,25 @@ export default function Home() {
   // Switching municipalities should reset the slideshow walkthrough so
   // a stale (classIdx, groupIdx, barangayIdx) from a longer schedule
   // doesn't index past the end of the new municipality's classes.
-  // It should also honour the new LGU's defaultTileMode (if defined)
-  // — e.g. Sadanga defaults to Google Streets because PAO staff need
-  // accurate rooftop imagery for the per-building override workflow.
+  // It should also reset the basemap to the LGU's default (or the
+  // project-wide google_street default if the LGU doesn't override).
   // Users can override per-session via the gear-icon tile picker.
   useEffect(() => {
     setClassIdx(null);
     setGroupIdx(0);
     setBarangayIdx(0);
-    const defaultTile = municipality?.tiles?.defaultTileMode;
-    if (defaultTile) {
-      setTileMode(defaultTile);
-    }
-  }, [municipalitySlug, municipality?.tiles?.defaultTileMode]);
+    const defaultTile =
+      municipality?.tiles?.defaultTileMode ?? PROJECT_DEFAULT_TILE_MODE;
+    setTileMode(defaultTile);
+    setLayers((current) => ({
+      ...current,
+      frontageBands: Boolean(municipality?.ui?.defaultFrontageBands),
+    }));
+  }, [
+    municipalitySlug,
+    municipality?.tiles?.defaultTileMode,
+    municipality?.ui?.defaultFrontageBands,
+  ]);
 
   // Per-municipality saved map views, two sources, in order of
   // priority:
@@ -240,7 +289,7 @@ export default function Home() {
     (async () => {
       let fromFile = { barangays: {}, stretches: {} };
       try {
-        const res = await fetch(`/data/${municipalitySlug}_saved_views.json`, {
+        const res = await fetch(`/data/${viewSlug}_saved_views.json`, {
           cache: "no-store",
         });
         if (res.ok) {
@@ -275,7 +324,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [municipalitySlug, viewPresetsKey, stretchViewPresetsKey]);
+  }, [viewSlug, viewPresetsKey, stretchViewPresetsKey]);
 
   // localStorage is the immediate-feedback layer, mirrors every
   // state change.
@@ -310,7 +359,7 @@ export default function Home() {
     }
     viewsPublishTimerRef.current = setTimeout(() => {
       const password = localStorage.getItem("smv-save-password") || "";
-      fetch(`/api/views/save?slug=${encodeURIComponent(municipalitySlug)}`, {
+      fetch(`/api/views/save?slug=${encodeURIComponent(viewSlug)}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -331,7 +380,7 @@ export default function Home() {
         clearTimeout(viewsPublishTimerRef.current);
       }
     };
-  }, [savedBarangayViews, savedStretchViews, municipalitySlug]);
+  }, [savedBarangayViews, savedStretchViews, viewSlug]);
 
   // Reset the active stretch whenever the user moves to a different
   // class or barangay — stretch indices are scoped to a (class,
@@ -412,6 +461,64 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [stepForward, stepBackward, clear, drawMode, total, classifications]);
+
+  // Search handlers. The SearchBar (mounted in TopNav) calls these
+  // when the user picks a result from the autocomplete dropdown.
+  // Each result type triggers a different navigation:
+  //   - Barangay  -> snap the sidebar / class indices so the sidebar
+  //                  opens at the right class + group + barangay and
+  //                  the existing BarangayFocus mechanism flies the
+  //                  map to the polygon.
+  //   - Road      -> fly the map to the road segment's bounding box.
+  //   - Landmark  -> fly the map to the landmark point at street-
+  //                  level zoom.
+  const handleSearchSelectBarangay = useCallback(
+    ({ classIdx: ci, groupIdx: gi, barangayIdx: bi }) => {
+      if (typeof ci !== "number") return;
+      setClassIdx(ci);
+      setGroupIdx(typeof gi === "number" ? gi : 0);
+      setBarangayIdx(typeof bi === "number" ? bi : 0);
+      setActiveStretchIdx(null);
+      setFocusRequestId((n) => n + 1);
+    },
+    []
+  );
+  const handleSearchFlyToBounds = useCallback((bbox) => {
+    if (!Array.isArray(bbox) || bbox.length !== 4) return;
+    mapApiRef.current?.flyToBounds?.(bbox);
+  }, []);
+  const handleSearchFlyToPoint = useCallback(({ lat, lng }) => {
+    if (typeof lat !== "number" || typeof lng !== "number") return;
+    mapApiRef.current?.flyToView?.({ lat, lng, zoom: 17 });
+  }, []);
+
+  // Open the server-rendered print SVG in a new tab. The /api/print/svg
+  // route re-reads public/data/<slug>_zones.geojson at request time,
+  // so whatever the user has saved (via /api/zones/save) is what they
+  // print — no drift between the editor and the paper.
+  //
+  // Replaces the older window.print() flow that piped the live Leaflet
+  // view through @media print CSS. That path mixed raster tiles with
+  // SVG overlays and produced pixelated output; this one returns a
+  // pure vector SVG so Cmd+P on the new tab yields a fully vector PDF.
+  const handlePrint = useCallback(() => {
+    if (!municipalitySlug) return;
+    const url = `/api/print/svg/${encodeURIComponent(municipalitySlug)}`;
+    // Open in a new tab so the user keeps the editor open behind it.
+    // They Cmd+P (or Ctrl+P) on the SVG tab to get the vector PDF.
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, [municipalitySlug]);
+
+  useEffect(() => {
+    if (!autoPrintRequested || municipalitySlug !== "bauko" || !mapApiRef.current) {
+      return;
+    }
+    setAutoPrintRequested(false);
+    const timeout = window.setTimeout(() => {
+      handlePrint();
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [autoPrintRequested, municipalitySlug, handlePrint]);
 
   const handleMapReady = useCallback((api) => {
     mapApiRef.current = api;
@@ -559,12 +666,22 @@ export default function Home() {
         )}
         onSaveView={saveCurrentView}
         onResetView={clearCurrentView}
+        searchClassifications={classifications}
+        searchBarangaysCatalog={schedule.barangays ?? []}
+        searchOsmRoadsFC={mapData?.osmRoads ?? null}
+        searchLandmarksFC={mapData?.landmarks ?? null}
+        searchCustomLandmarksFC={mapData?.customLandmarks ?? null}
+        onSearchSelectBarangay={handleSearchSelectBarangay}
+        onSearchFlyToBounds={handleSearchFlyToBounds}
+        onSearchFlyToPoint={handleSearchFlyToPoint}
+        onPrint={handlePrint}
       />
       <div className="page-body">
         <div className="map-wrapper">
           <Map
             key={`map-${municipality.slug}`}
             drawMode={drawMode}
+            printMode={printMode}
             tileMode={tileMode}
             activeClass={active}
             activeBarangaySlug={activeBarangaySlug}
@@ -583,6 +700,16 @@ export default function Home() {
             setLayers={setLayers}
             drawMode={drawMode}
             outlineLabel={municipality.ui?.outlineLabel ?? "Municipality outline"}
+          />
+          {/* Print-only legend. display:none on screen via inline
+              style; the @media print rules flip it to visible and
+              place it in the right column of the page. */}
+          <PrintLegend
+            municipalityName={municipality.name}
+            provinceName={municipality.province}
+            classifications={classifications}
+            effectiveLabel="SMV 2027 - effective Jan 1, 2027"
+            showCount={mapData?.zones?.features?.length ?? null}
           />
         </div>
         <Sidebar

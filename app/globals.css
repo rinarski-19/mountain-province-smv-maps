@@ -669,28 +669,6 @@ body.moving-landmarks .leaflet-container .leaflet-overlay-pane {
   cursor: grabbing;
 }
 
-/* C-1 chip mirrors the C-1 zone's translucent-red + bold-red-diagonals
-   fill on the map. Background-color stays the class color (set inline)
-   at full saturation so the chip is recognisable in the legend even
-   though the zone fill on the map is more translucent. The diagonal
-   stripes here use white at 35% so the chip reads at a glance — the
-   map version uses red diagonals on a paler red base, but the chip
-   only needs to evoke "stripey", not reproduce the exact rendering.
-   Applied via .is-hatch so the same rule covers the sidebar chip and
-   the bottom-bar chip. */
-.smv-row__chip.is-hatch,
-.smv-summary__chip.is-hatch {
-  background-image: repeating-linear-gradient(
-    45deg,
-    transparent 0,
-    transparent 2px,
-    rgba(255, 255, 255, 0.4) 2px,
-    rgba(255, 255, 255, 0.4) 4px,
-    transparent 4px,
-    transparent 6px
-  );
-}
-
 .smv-row__caret svg {
   transition: transform 160ms ease;
   transform: rotate(-90deg);
@@ -1165,13 +1143,6 @@ body.moving-landmarks .leaflet-container .leaflet-overlay-pane {
   height: 100%;
 }
 
-.svg-pattern-defs {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-}
-
 .leaflet-container {
   font: inherit;
   font-family: var(--font-sans);
@@ -1293,6 +1264,11 @@ body.draw-mode-off .leaflet-pm-toolbar {
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
 }
 
+.map-panel.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .map-panel__section + .map-panel__section {
   margin-top: 18px;
   padding-top: 18px;
@@ -1314,10 +1290,15 @@ body.draw-mode-off .leaflet-pm-toolbar {
   color: var(--text-strong);
   background: transparent;
   border: none;
-  cursor: pointer;
+  cursor: grab;
   text-align: left;
   -webkit-appearance: none;
   appearance: none;
+  touch-action: none;
+  user-select: none;
+}
+.map-panel__title:active {
+  cursor: grabbing;
 }
 .map-panel__title:focus-visible {
   outline: 2px solid var(--accent, #1d4ed8);
@@ -2073,5 +2054,299 @@ body.draw-mode-off .leaflet-pm-toolbar {
   .selection-idle {
     font-size: 18px;
     text-align: center;
+  }
+}
+
+/* ============================================================
+   Print mode
+   ------------------------------------------------------------
+   Triggered by clicking the Print button. JS sets body.is-printing,
+   keeps the current detail viewport, awaits whenTilesLoaded, then
+   calls window.print().
+
+   The legend is absolutely positioned over the right side of the
+   map (rather than a grid column) because Leaflet's children are
+   themselves absolute-positioned and a parent grid won't push them.
+   Map fills the whole page; legend overlays the rightmost ~72mm.
+
+   Body and html are forced to one page height so the print doesn't
+   spill across multiple sheets. The Leaflet container inside the
+   .map-wrapper gets invalidateSize'd by JS so it measures itself
+   against the new viewport.
+   ============================================================ */
+body.is-printing {
+  --print-page-width: 285mm;
+  --print-page-height: 408mm;
+  background: white !important;
+  width: var(--print-page-width) !important;
+  height: var(--print-page-height) !important;
+  margin: 0 auto !important;
+  overflow: hidden !important;
+}
+
+body.is-printing .top-nav,
+body.is-printing .sidebar,
+body.is-printing .bottom-bar,
+body.is-printing .map-panel,
+body.is-printing .print-legend,
+body.is-printing .editable-zones-panel,
+body.is-printing .editor-toolbar,
+body.is-printing .top-nav__menu,
+body.is-printing .leaflet-control-zoom,
+body.is-printing .leaflet-control-attribution {
+  display: none !important;
+}
+
+body.is-printing .consultation-page,
+body.is-printing .page-body,
+body.is-printing .map-wrapper,
+body.is-printing .leaflet-shell,
+body.is-printing .consultation-map,
+body.is-printing .leaflet-container {
+  width: var(--print-page-width) !important;
+  height: var(--print-page-height) !important;
+  max-height: var(--print-page-height) !important;
+  min-height: var(--print-page-height) !important;
+  overflow: hidden !important;
+}
+
+/* Print mode hides the raster tile basemap and replaces it with
+   vector OSM layers (water / buildings / roads / place labels). The
+   Leaflet container would otherwise show its default gray fill
+   beneath the vectors, so force white here. */
+body.is-printing .leaflet-container {
+  background: #ffffff !important;
+}
+
+/* Vector place name labels rendered as Leaflet divIcons in print
+   mode. White halo via text-shadow keeps them legible over rivers,
+   road tint, and building footprints without painting a background
+   box that would compete with the SMV color story. */
+.print-place-label-wrapper {
+  background: transparent !important;
+  border: 0 !important;
+}
+.print-place-label {
+  color: #222 !important;
+  text-shadow:
+    -1.5px -1.5px 0 #fff,
+    1.5px -1.5px 0 #fff,
+    -1.5px 1.5px 0 #fff,
+    1.5px 1.5px 0 #fff,
+    0 0 2px #fff;
+  white-space: nowrap;
+  display: inline-block;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+body.is-printing .consultation-page,
+body.is-printing .page-body,
+body.is-printing .map-wrapper {
+  position: static !important;
+  display: block !important;
+}
+
+@media print {
+  @page {
+    size: A3 portrait;
+    margin: 6mm;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.is-printing {
+    /* A3 portrait minus 6mm margins top/bottom. */
+    --print-page-width: 285mm;
+    --print-page-height: 408mm;
+    width: var(--print-page-width) !important;
+    height: var(--print-page-height) !important;
+    margin: 0 auto !important;
+    overflow: hidden !important;
+  }
+
+  /* Hide screen chrome. */
+  body.is-printing .top-nav,
+  body.is-printing .sidebar,
+  body.is-printing .bottom-bar,
+  body.is-printing .map-panel,
+  body.is-printing .print-legend,
+  body.is-printing .editable-zones-panel,
+  body.is-printing .editor-toolbar,
+  body.is-printing .top-nav__menu,
+  body.is-printing .leaflet-control-zoom,
+  body.is-printing .leaflet-control-attribution {
+    display: none !important;
+  }
+
+  /* Map fills the page. */
+  body.is-printing .consultation-page,
+  body.is-printing .page-body,
+  body.is-printing .map-wrapper,
+  body.is-printing .leaflet-shell,
+  body.is-printing .consultation-map {
+    position: static !important;
+    width: var(--print-page-width) !important;
+    height: var(--print-page-height) !important;
+    max-height: var(--print-page-height) !important;
+    min-height: var(--print-page-height) !important;
+    overflow: hidden !important;
+    display: block !important;
+  }
+  body.is-printing .leaflet-container {
+    width: var(--print-page-width) !important;
+    height: var(--print-page-height) !important;
+    min-height: var(--print-page-height) !important;
+    border: 0.5pt solid #555;
+  }
+
+  /* Print the live Leaflet map only: Online OSM tile image plus SMV zones. */
+  body.is-printing .leaflet-label-tiles-pane {
+    display: none !important;
+  }
+  body.is-printing .leaflet-zones-pane path {
+    fill-opacity: 0.38 !important;
+  }
+  body.is-printing .leaflet-smv-pane path {
+    fill-opacity: 0.18 !important;
+  }
+  body.is-printing .leaflet-pois-pane {
+    display: none !important;
+  }
+  body.is-printing .custom-landmark {
+    opacity: 1 !important;
+  }
+  body.is-printing .custom-pin {
+    width: 5mm;
+    height: 5mm;
+    border-width: 0.6mm;
+  }
+  body.is-printing .custom-pin-name {
+    font-size: 8.5pt;
+    font-weight: 800;
+    color: #0f172a;
+    background: white;
+    border: 0.35pt solid rgba(15, 23, 42, 0.45);
+    box-shadow:
+      0 0 0 1.2mm rgba(255, 255, 255, 0.92),
+      0 0.4mm 1.2mm rgba(15, 23, 42, 0.35);
+  }
+  body.is-printing .custom-landmark--osm .custom-pin-name {
+    font-size: 7.5pt;
+    background: rgba(255, 255, 255, 0.96);
+  }
+
+  /* Legend overlay: pinned to the right side of the map, opaque
+     white with a thin border. Sits on top of the map, doesn't
+     compete for layout space. */
+  body.is-printing .print-legend {
+    display: none !important;
+    flex-direction: column;
+    gap: 4mm;
+    position: absolute !important;
+    top: 6mm;
+    right: 6mm;
+    width: 72mm;
+    max-height: calc(285mm - 4mm);
+    padding: 5mm 4mm;
+    box-sizing: border-box;
+    background: white;
+    border: 0.5pt solid #555;
+    z-index: 1000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 9pt;
+    color: #1a1a1a;
+    overflow: hidden;
+  }
+  body.is-printing .print-legend__header {
+    border-bottom: 0.5pt solid #999;
+    padding-bottom: 3mm;
+  }
+  body.is-printing .print-legend__title {
+    font-size: 14pt;
+    font-weight: 700;
+    letter-spacing: 0.5pt;
+  }
+  body.is-printing .print-legend__subtitle {
+    font-size: 9pt;
+    color: #555;
+    margin-top: 1mm;
+  }
+  body.is-printing .print-legend__effective {
+    margin-top: 2mm;
+    font-size: 9pt;
+    font-weight: 600;
+    color: #2c6e49;
+  }
+  body.is-printing .print-legend__section-label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.6pt;
+    color: #888;
+  }
+  body.is-printing .print-legend__table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  body.is-printing .print-legend__table td {
+    padding: 1mm 0.5mm;
+    border-bottom: 0.25pt solid #ddd;
+    font-size: 8.5pt;
+    vertical-align: middle;
+    line-height: 1.2;
+  }
+  body.is-printing .print-legend__swatch {
+    display: inline-block;
+    width: 4mm;
+    height: 4mm;
+    border-radius: 0.7mm;
+    border: 0.25pt solid rgba(0, 0, 0, 0.15);
+  }
+  body.is-printing .print-legend__code {
+    font-weight: 700;
+    width: 12mm;
+  }
+  body.is-printing .print-legend__price {
+    text-align: right;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 8pt;
+  }
+  body.is-printing .print-legend__footer {
+    margin-top: auto;
+    font-size: 7pt;
+    color: #666;
+    border-top: 0.5pt solid #ccc;
+    padding-top: 2.5mm;
+    line-height: 1.4;
+  }
+  body.is-printing .print-legend__caveat {
+    color: #888;
+    margin-top: 1mm;
+    font-style: italic;
+  }
+  body.is-printing .print-legend__count {
+    margin-top: 1mm;
+    color: #555;
+  }
+
+  body.is-printing .leaflet-muni-pane path {
+    stroke: #000000 !important;
+    stroke-width: 3.2 !important;
+    stroke-opacity: 1 !important;
+    fill-opacity: 0 !important;
+  }
+
+  body.is-printing .leaflet-brgy-pane path {
+    stroke: #333333 !important;
+    stroke-width: 1.2 !important;
+    stroke-opacity: 0.9 !important;
+    fill-opacity: 0 !important;
   }
 }

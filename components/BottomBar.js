@@ -68,9 +68,7 @@ function ActiveSummary({ active, activeGroup, onClear }) {
   return (
     <div className="smv-summary">
       <span
-        className={`smv-summary__chip ${
-          active.subClass === "C-1" ? "is-hatch" : ""
-        }`}
+        className="smv-summary__chip"
         style={{ backgroundColor: active.color }}
       >
         {active.subClass}

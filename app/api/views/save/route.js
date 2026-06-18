@@ -23,10 +23,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 // Same slug set as /api/zones/save plus the DXF previews so the
-// authoring view on /?m=bauko-dxf can also publish its views.
+// authoring views can publish their saved viewports.
 const TARGETS_BY_SLUG = {
   bauko: "bauko_saved_views.json",
-  "bauko-dxf": "bauko-dxf_saved_views.json",
+  "bauko-print": "bauko-print_saved_views.json",
   barlig: "barlig_saved_views.json",
   tadian: "tadian_saved_views.json",
   "tadian-dxf": "tadian-dxf_saved_views.json",
