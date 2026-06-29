@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import SearchBar from "./SearchBar";
 
+const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
+
 export default function TopNav({
   drawMode,
   setDrawMode,
@@ -158,82 +160,84 @@ export default function TopNav({
       </div>
 
       <div className="top-nav__controls">
-        <div className="top-nav__edit-wrap" ref={editRef}>
-          <button
-            type="button"
-            className={`icon-button ${drawMode || editOpen ? "is-active" : ""}`}
-            aria-label="Edit options"
-            aria-expanded={editOpen}
-            aria-haspopup="menu"
-            title="Edit options"
-            onClick={() => {
-              setEditOpen((value) => !value);
-              setMenuOpen(false);
-              setSettingsOpen(false);
-            }}
-          >
-            <svg
-              aria-hidden="true"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
+        {!READ_ONLY && (
+          <div className="top-nav__edit-wrap" ref={editRef}>
+            <button
+              type="button"
+              className={`icon-button ${drawMode || editOpen ? "is-active" : ""}`}
+              aria-label="Edit options"
+              aria-expanded={editOpen}
+              aria-haspopup="menu"
+              title="Edit options"
+              onClick={() => {
+                setEditOpen((value) => !value);
+                setMenuOpen(false);
+                setSettingsOpen(false);
+              }}
             >
-              <path
-                d="M4 20h4.6L19.2 9.4a2.2 2.2 0 0 0 0-3.1L17.7 4.8a2.2 2.2 0 0 0-3.1 0L4 15.4V20Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-              <path
-                d="m13.5 5.9 4.6 4.6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-          {editOpen && (
-            <div className="top-nav__edit-menu" role="menu" aria-label="Edit options">
-              <button
-                type="button"
-                className={`top-nav__edit-item ${drawMode ? "is-active" : ""}`}
-                role="menuitemcheckbox"
-                aria-checked={drawMode}
-                onClick={() => {
-                  setDrawMode((value) => !value);
-                  setEditOpen(false);
-                }}
+              <svg
+                aria-hidden="true"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
               >
-                {drawMode ? "Hide drawing tools" : "Show drawing tools"}
-              </button>
-              <button
-                type="button"
-                className="top-nav__edit-item"
-                role="menuitem"
-                onClick={() => {
-                  onSaveView?.();
-                  setEditOpen(false);
-                }}
-                disabled={!canSaveView}
-              >
-                Save view
-              </button>
-              <button
-                type="button"
-                className="top-nav__edit-item"
-                role="menuitem"
-                onClick={() => {
-                  onResetView?.();
-                  setEditOpen(false);
-                }}
-                disabled={!canSaveView || !hasSavedView}
-              >
-                Reset view
-              </button>
-            </div>
-          )}
-        </div>
+                <path
+                  d="M4 20h4.6L19.2 9.4a2.2 2.2 0 0 0 0-3.1L17.7 4.8a2.2 2.2 0 0 0-3.1 0L4 15.4V20Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="m13.5 5.9 4.6 4.6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            {editOpen && (
+              <div className="top-nav__edit-menu" role="menu" aria-label="Edit options">
+                <button
+                  type="button"
+                  className={`top-nav__edit-item ${drawMode ? "is-active" : ""}`}
+                  role="menuitemcheckbox"
+                  aria-checked={drawMode}
+                  onClick={() => {
+                    setDrawMode((value) => !value);
+                    setEditOpen(false);
+                  }}
+                >
+                  {drawMode ? "Hide drawing tools" : "Show drawing tools"}
+                </button>
+                <button
+                  type="button"
+                  className="top-nav__edit-item"
+                  role="menuitem"
+                  onClick={() => {
+                    onSaveView?.();
+                    setEditOpen(false);
+                  }}
+                  disabled={!canSaveView}
+                >
+                  Save view
+                </button>
+                <button
+                  type="button"
+                  className="top-nav__edit-item"
+                  role="menuitem"
+                  onClick={() => {
+                    onResetView?.();
+                    setEditOpen(false);
+                  }}
+                  disabled={!canSaveView || !hasSavedView}
+                >
+                  Reset view
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <button
           type="button"
           className="icon-button icon-button--compact"

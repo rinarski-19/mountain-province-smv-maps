@@ -39,6 +39,8 @@ function featureCollectionBbox(featureCollection) {
   return Number.isFinite(west) ? [west, south, east, north] : null;
 }
 
+const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
+
 export default function Home() {
   const mapApiRef = useRef(null);
   const [drawMode, setDrawMode] = useState(false);
@@ -648,8 +650,8 @@ export default function Home() {
   return (
     <main className="consultation-page">
       <TopNav
-        drawMode={drawMode}
-        setDrawMode={setDrawMode}
+        drawMode={READ_ONLY ? false : drawMode}
+        setDrawMode={READ_ONLY ? () => {} : setDrawMode}
         tileMode={tileMode}
         setTileMode={setTileMode}
         calculatorOpen={calculatorOpen}
@@ -680,7 +682,7 @@ export default function Home() {
         <div className="map-wrapper">
           <Map
             key={`map-${municipality.slug}`}
-            drawMode={drawMode}
+            drawMode={READ_ONLY ? false : drawMode}
             printMode={printMode}
             tileMode={tileMode}
             activeClass={active}

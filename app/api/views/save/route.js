@@ -84,6 +84,9 @@ function authorize(request) {
 }
 
 export async function POST(request) {
+  if (process.env.NEXT_PUBLIC_READ_ONLY === "true") {
+    return Response.json({ ok: false, error: "Read-only deployment." }, { status: 403 });
+  }
   if (!authorize(request)) {
     return Response.json(
       { ok: false, error: "Unauthorized, set Authorization: Bearer <password>." },
