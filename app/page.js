@@ -5,7 +5,6 @@ import BottomBar from "@/components/BottomBar";
 import Map from "@/components/Map";
 import MapPanel from "@/components/MapPanel";
 import PrintLegend from "@/components/PrintLegend";
-import RPTImpactCalculator from "@/components/RPTImpactCalculator";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
 import { getMunicipalityConfig, MUNICIPALITY_OPTIONS } from "@/lib/municipalities";
@@ -40,20 +39,19 @@ function featureCollectionBbox(featureCollection) {
 }
 
 const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
+const SELECTABLE_TILE_MODES = new Set(["online", "google_hybrid"]);
+
+function normalizeTileMode(mode) {
+  return SELECTABLE_TILE_MODES.has(mode) ? mode : "online";
+}
 
 export default function Home() {
   const mapApiRef = useRef(null);
   const [drawMode, setDrawMode] = useState(false);
-  const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [autoPrintRequested, setAutoPrintRequested] = useState(false);
   const [printMode, setPrintMode] = useState(false);
-  // Project-wide default basemap. "online" = OSM via OpenStreetMap
-  // tile servers (Leaflet's default tile provider). Users can switch
-  // per-session via the gear-icon tile picker (Google Streets,
-  // Satellite, Esri, offline caches all selectable). Individual LGU
-  // configs can override via tiles.defaultTileMode if a municipality
-  // needs a different default (e.g., satellite imagery for a heavily-
-  // forested municipality where road names aren't the priority).
+  // Project-wide default basemap. Only Online OSM and Google Hybrid
+  // are exposed in the shared dev/client tile picker.
   const PROJECT_DEFAULT_TILE_MODE = "online";
   const [tileMode, setTileMode] = useState(PROJECT_DEFAULT_TILE_MODE);
   // Always start from "bauko" so the first server render and the first
@@ -214,13 +212,11 @@ export default function Home() {
     }
   }, [classifications]);
 
-  // Default to online tiles. If internet drops, fall back to offline.
+  // Keep older sessions/configs from landing on tile modes that are no
+  // longer exposed in the shared selector.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onOffline = () => setTileMode("offline");
-    if (!window.navigator.onLine) onOffline();
-    window.addEventListener("offline", onOffline);
-    return () => window.removeEventListener("offline", onOffline);
+    setTileMode((mode) => normalizeTileMode(mode));
   }, []);
 
   useEffect(() => {
@@ -262,8 +258,9 @@ export default function Home() {
     setClassIdx(null);
     setGroupIdx(0);
     setBarangayIdx(0);
-    const defaultTile =
-      municipality?.tiles?.defaultTileMode ?? PROJECT_DEFAULT_TILE_MODE;
+    const defaultTile = normalizeTileMode(
+      municipality?.tiles?.defaultTileMode ?? PROJECT_DEFAULT_TILE_MODE
+    );
     setTileMode(defaultTile);
     setLayers((current) => ({
       ...current,
@@ -654,8 +651,6 @@ export default function Home() {
         setDrawMode={READ_ONLY ? () => {} : setDrawMode}
         tileMode={tileMode}
         setTileMode={setTileMode}
-        calculatorOpen={calculatorOpen}
-        setCalculatorOpen={setCalculatorOpen}
         municipalitySlug={municipalitySlug}
         setMunicipalitySlug={setMunicipalitySlug}
         municipalities={MUNICIPALITY_OPTIONS}
@@ -741,13 +736,6 @@ export default function Home() {
         onClear={clear}
         barangays={schedule.barangays}
         getBarangayBySlug={schedule.getBarangayBySlug}
-      />
-      <RPTImpactCalculator
-        open={calculatorOpen}
-        onClose={() => setCalculatorOpen(false)}
-        municipality={municipality}
-        classifications={classifications}
-        activeClass={active}
       />
     </main>
   );

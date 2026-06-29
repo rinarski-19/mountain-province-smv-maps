@@ -2,9 +2,6 @@
 
 import { textColorForBackground } from "@/lib/classifications";
 
-const DISCLAIMER =
-  "For public consultation only. This map is illustrative, not survey-accurate. Boundaries shown are indicative and must not be used for legal, survey, or assessment purposes.";
-
 export default function BottomBar({
   active,
   activeGroup,
@@ -22,9 +19,6 @@ export default function BottomBar({
 
   return (
     <footer className="smv-bottom" aria-label="SMV walkthrough">
-      <p className="smv-bottom__disclaimer" role="note">
-        {DISCLAIMER}
-      </p>
       <div className="smv-bottom__row">
         <NavButton onClick={onPrev} arrow="◀" label="Previous" />
         <div className="smv-bottom__body">

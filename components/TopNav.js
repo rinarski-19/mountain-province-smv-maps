@@ -4,14 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import SearchBar from "./SearchBar";
 
 const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
+const TILE_MODE_OPTIONS = [
+  ["online", "Online OSM"],
+  ["google_hybrid", "Google Hybrid"],
+];
 
 export default function TopNav({
   drawMode,
   setDrawMode,
   tileMode,
   setTileMode,
-  calculatorOpen = false,
-  setCalculatorOpen,
   municipalitySlug,
   setMunicipalitySlug,
   municipalities = [],
@@ -112,7 +114,9 @@ export default function TopNav({
         </div>
         {menuOpen && (
           <div className="top-nav__menu" role="menu" aria-label="Select municipality">
-            {municipalities.map((municipality) => {
+            {municipalities
+              .filter((municipality) => !municipality.hidden)
+              .map((municipality) => {
               const isActive = municipality.slug === municipalitySlug;
               const isDisabled = municipality.enabled === false;
               return (
@@ -238,35 +242,37 @@ export default function TopNav({
             )}
           </div>
         )}
-        <button
-          type="button"
-          className="icon-button icon-button--compact"
-          aria-label="Open A3 land value print sheet"
-          title="Open A3 land value print sheet"
-          onClick={() => {
-            setMenuOpen(false);
-            setEditOpen(false);
-            setSettingsOpen(false);
-            onPrint?.();
-          }}
-        >
-          {/* printer glyph */}
-          <svg
-            aria-hidden="true"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
+        {!READ_ONLY && (
+          <button
+            type="button"
+            className="icon-button icon-button--compact"
+            aria-label="Open A3 land value print sheet"
+            title="Open A3 land value print sheet"
+            onClick={() => {
+              setMenuOpen(false);
+              setEditOpen(false);
+              setSettingsOpen(false);
+              onPrint?.();
+            }}
           >
-            <path
-              d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+            {/* printer glyph */}
+            <svg
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <path
+                d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
         <FullscreenButton
           isFullscreen={isFullscreen}
           onToggle={async () => {
@@ -279,45 +285,6 @@ export default function TopNav({
             } catch {}
           }}
         />
-        <button
-          type="button"
-          className={`icon-button icon-button--compact ${
-            calculatorOpen ? "is-active" : ""
-          }`}
-          aria-label={calculatorOpen ? "Hide RPT calculator" : "Show RPT calculator"}
-          aria-pressed={calculatorOpen}
-          title="RPT calculator"
-          onClick={() => {
-            setCalculatorOpen?.((value) => !value);
-            setMenuOpen(false);
-            setEditOpen(false);
-            setSettingsOpen(false);
-          }}
-        >
-          <svg
-            aria-hidden="true"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-          >
-            <rect
-              x="5"
-              y="3"
-              width="14"
-              height="18"
-              rx="2.5"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            />
-            <path
-              d="M8 7h8M8 11h2.2M12 11h2.2M16 11h.1M8 15h2.2M12 15h2.2M16 15h.1"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
         <div className="top-nav__settings-wrap" ref={settingsRef}>
           <button
             type="button"
@@ -346,16 +313,7 @@ export default function TopNav({
           </button>
           {settingsOpen && (
             <div className="top-nav__settings-menu" role="menu" aria-label="Tile mode">
-              {[
-                ["vector_basemap", "Print preview (vector)"],
-                ["online", "Online (OSM)"],
-                ["satellite", "Satellite (Esri)"],
-                ["google_street", "Google Street"],
-                ["google_satellite", "Google Satellite"],
-                ["google_hybrid", "Google Hybrid"],
-                ["offline", "Offline (OSM cache)"],
-                ["offline_mapbox", "Offline (Mapbox Hybrid)"],
-              ].map(([mode, label]) => (
+              {TILE_MODE_OPTIONS.map(([mode, label]) => (
                 <button
                   key={mode}
                   type="button"

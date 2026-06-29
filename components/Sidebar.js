@@ -2,109 +2,196 @@
 
 import { textColorForBackground } from "@/lib/classifications";
 
+// Road-tier legend entries. Colors match the print SVG palette in
+// lib/print-svg-builder.js (yellow national → orange provincial →
+// white barangay → gray "other"), so the sidebar reads the same way
+// the printed plate does. Reference-only — clicking these doesn't
+// filter the map (yet); they exist to tell the user which corridor
+// color means which DPWH tier.
+const ROAD_TIERS = [
+  {
+    id: "road-national",
+    label: "National",
+    sub: "Trunk + Primary",
+    color: "#fcd34d",
+    casing: "#a16207",
+  },
+  {
+    id: "road-provincial",
+    label: "Provincial",
+    sub: "Secondary",
+    color: "#fb923c",
+    casing: "#9a3412",
+  },
+  {
+    id: "road-barangay",
+    label: "Barangay / Municipal",
+    sub: "Unclassified + Residential",
+    color: "#ffffff",
+    casing: "#bababa",
+  },
+  {
+    id: "road-other",
+    label: "Other",
+    sub: "Tertiary, Track",
+    color: "#a8a39b",
+    casing: "#737373",
+  },
+];
+
+// Legend-card variant (2026-06-23): the sidebar is now a stripped-down
+// reference card showing only the class chip and its 2027 unit value.
+// The earlier accordion-with-barangay-sub-list version was useful for
+// presentation/walkthrough mode, but for the editor a quick visual
+// reference is more useful — when you're drawing, all you need is
+// "what color is which class and how much per square meter".
+//
+// Each row is still a button so clicking it filters the map to that
+// class (handled by onSelectClass higher up). The expand/collapse UI
+// for barangays + stretches is gone — fall through to the map's
+// search bar or the chip palette if you need to focus a specific
+// barangay.
 export default function Sidebar({
   activeClassId,
-  activeBarangaySlug,
-  activeStretchIdx = null,
   onSelectClass,
-  onSelectBarangay,
-  onSelectStretch = () => {},
   commercialRows = [],
   residentialRows = [],
-  getBarangayBySlug = () => null,
-  getUniqueBarangaysForClass = () => [],
-  savedStretchViews = {},
+  // Props kept in the signature so callers don't break — they're
+  // no longer used in this slimmed-down view but might come back if
+  // we add an "expand for detail" affordance later.
+  activeBarangaySlug: _activeBarangaySlug,
+  activeStretchIdx: _activeStretchIdx,
+  onSelectBarangay: _onSelectBarangay,
+  onSelectStretch: _onSelectStretch,
+  getBarangayBySlug: _getBarangayBySlug,
+  getUniqueBarangaysForClass: _getUniqueBarangaysForClass,
+  savedStretchViews: _savedStretchViews,
 }) {
+  // When any class is active, clicking it again would clear the
+  // filter — but that's not obvious. Surface an explicit "Show all"
+  // button while a filter is active so the affordance is visible.
+  const showAllVisible = activeClassId != null;
   return (
-    <aside className="smv-sidebar" aria-label="SMV schedule">
-      <SidebarTable
-        title="Commercial Lands"
+    <aside className="smv-sidebar smv-sidebar--legend" aria-label="SMV legend">
+      <div className="smv-legend__toolbar" data-active={showAllVisible}>
+        <button
+          type="button"
+          className="smv-legend__show-all"
+          onClick={() => onSelectClass(null)}
+          disabled={!showAllVisible}
+          title={
+            showAllVisible
+              ? "Clear the class filter — show every SMV class on the map"
+              : "All classes are already visible"
+          }
+        >
+          {showAllVisible ? "Show all classes" : "All classes shown"}
+        </button>
+      </div>
+      <LegendSection
+        title="Commercial"
         rows={commercialRows}
         activeClassId={activeClassId}
-        activeBarangaySlug={activeBarangaySlug}
-        activeStretchIdx={activeStretchIdx}
         onSelectClass={onSelectClass}
-        onSelectBarangay={onSelectBarangay}
-        onSelectStretch={onSelectStretch}
-        getBarangayBySlug={getBarangayBySlug}
-        getUniqueBarangaysForClass={getUniqueBarangaysForClass}
-        savedStretchViews={savedStretchViews}
       />
-      <SidebarTable
-        title="Residential Lands"
+      <LegendSection
+        title="Residential"
         rows={residentialRows}
         activeClassId={activeClassId}
-        activeBarangaySlug={activeBarangaySlug}
-        activeStretchIdx={activeStretchIdx}
         onSelectClass={onSelectClass}
-        onSelectBarangay={onSelectBarangay}
-        onSelectStretch={onSelectStretch}
-        getBarangayBySlug={getBarangayBySlug}
-        getUniqueBarangaysForClass={getUniqueBarangaysForClass}
-        savedStretchViews={savedStretchViews}
         scroll
       />
+      <RoadsLegend />
     </aside>
   );
 }
 
-function SidebarTable({
+// Static road-tier legend. Reference-only (no click handler) since
+// the map shows roads via OSM raster tiles whose colors are baked in
+// — clicking a road row wouldn't filter anything yet. Keeps the SMV
+// legend and the road tier reference in one place so the user
+// doesn't have to remember which corridor color means which DPWH
+// classification.
+function RoadsLegend() {
+  return (
+    <div className="smv-section smv-section--legend smv-section--roads">
+      <header className="smv-section__head">
+        <h3 className="smv-section__title">Roads</h3>
+        <span className="smv-section__count">{ROAD_TIERS.length} tiers</span>
+      </header>
+      <ul className="smv-section__list smv-section__list--legend">
+        {ROAD_TIERS.map((tier) => (
+          <li key={tier.id} className="smv-row smv-row--legend smv-row--road">
+            <div
+              className="smv-row__head smv-row__head--legend smv-row__head--road"
+              title={`${tier.label} road tier (${tier.sub})`}
+            >
+              <span
+                className="smv-road__swatch"
+                style={{
+                  backgroundColor: tier.color,
+                  borderColor: tier.casing,
+                }}
+                aria-hidden="true"
+              />
+              <span className="smv-road__labels">
+                <span className="smv-road__name">{tier.label}</span>
+                <span className="smv-road__sub">{tier.sub}</span>
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LegendSection({
   title,
   rows,
   activeClassId,
-  activeBarangaySlug,
-  activeStretchIdx = null,
   onSelectClass,
-  onSelectBarangay,
-  onSelectStretch = () => {},
   scroll = false,
-  getBarangayBySlug,
-  getUniqueBarangaysForClass,
-  savedStretchViews = {},
 }) {
+  if (!rows.length) return null;
   return (
-    <div className={`smv-section ${scroll ? "smv-section--scroll" : ""}`}>
+    <div
+      className={`smv-section smv-section--legend ${
+        scroll ? "smv-section--scroll" : ""
+      }`}
+    >
       <header className="smv-section__head">
         <h3 className="smv-section__title">{title}</h3>
         <span className="smv-section__count">{rows.length} classes</span>
       </header>
       <ul
-        className={`smv-section__list ${
+        className={`smv-section__list smv-section__list--legend ${
           scroll ? "smv-section__list--scroll" : ""
         }`}
       >
         {rows.map((row) => {
-          const isClassActive = activeClassId === row.id;
-          // Accordion behavior: only the active class is expanded.
-          const isExpanded = isClassActive;
-          const allBarangays = getUniqueBarangaysForClass(row);
-          const shortLabel = shortenLocationLabel(row.locationGroups[0].label);
+          const isActive = activeClassId === row.id;
+          const valueText =
+            row.marketValue2027 == null
+              ? row.provisional
+                ? "Pending"
+                : "—"
+              : `₱${row.marketValue2027.toLocaleString()}`;
           return (
-            <li key={row.id} className="smv-row">
+            <li key={row.id} className="smv-row smv-row--legend">
               <button
                 type="button"
-                className={`smv-row__head ${
-                  isClassActive ? "is-active" : ""
-                } ${isExpanded ? "is-expanded" : ""}`}
-                onClick={() => {
-                  // Selecting a class opens only this class and closes others.
-                  onSelectClass(row.id);
-                }}
-                aria-expanded={isExpanded}
-                aria-pressed={isClassActive}
+                className={`smv-row__head smv-row__head--legend ${
+                  isActive ? "is-active" : ""
+                }`}
+                onClick={() => onSelectClass(row.id)}
+                aria-pressed={isActive}
+                title={
+                  row.locationGroups?.[0]?.label
+                    ? `${row.subClass} — ${valueText}\n${row.locationGroups[0].label}`
+                    : `${row.subClass} — ${valueText}`
+                }
               >
-                <span className="smv-row__caret" aria-hidden="true">
-                  <svg viewBox="0 0 12 12" width="10" height="10">
-                    <path
-                      d="M3 4 L6 8 L9 4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
                 <span
                   className="smv-row__chip"
                   style={{
@@ -114,173 +201,12 @@ function SidebarTable({
                 >
                   {row.subClass}
                 </span>
-                <span
-                  className="smv-row__label"
-                  title={row.locationGroups[0].label}
-                >
-                  {shortLabel}
-                </span>
-                <span className="smv-row__value tnum">
-                  {row.marketValue2027 == null
-                    ? row.provisional
-                      ? "Pending"
-                      : "—"
-                    : `₱${row.marketValue2027.toLocaleString()}`}
-                </span>
+                <span className="smv-row__value tnum">{valueText}</span>
               </button>
-              {isExpanded && (
-                <ul className="smv-row__brgys">
-                  {allBarangays.map((slug) => {
-                    const b = getBarangayBySlug(slug);
-                    if (!b) return null;
-                    const isBarangayActive =
-                      isClassActive && activeBarangaySlug === slug;
-                    // Gather every stretch label this barangay carries
-                    // across all locationGroups in the class. Optional —
-                    // many schedules (Bauko, Sagada, Tadian) don't have
-                    // per-stretch detail; for those, the barangay row
-                    // just shows the name on its own.
-                    const stretches = collectStretchesFor(row, slug);
-                    return (
-                      <li
-                        key={`${row.id}-${slug}`}
-                        className="smv-brgy-cell"
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectBarangay(row.id, slug);
-                          }}
-                          aria-pressed={isBarangayActive}
-                          className={`smv-brgy ${
-                            isBarangayActive ? "is-active" : ""
-                          }`}
-                          title={`Show ${b.name} on the map`}
-                        >
-                          <span
-                            className="smv-brgy__dot"
-                            style={{ backgroundColor: row.color }}
-                            aria-hidden="true"
-                          />
-                          <span className="smv-brgy__name">{b.name}</span>
-                          {stretches.length > 0 && (
-                            <span
-                              className="smv-brgy__count"
-                              aria-label={`${stretches.length} stretches`}
-                            >
-                              {stretches.length}
-                            </span>
-                          )}
-                        </button>
-                        {/* Sub-stretches appear when the barangay is the
-                            active selection in this class. Keeps the
-                            sidebar compact by default; users see detail
-                            only for the barangay they're focused on.
-                            Each stretch is clickable — picks that stretch
-                            as the active view target. */}
-                        {isBarangayActive && stretches.length > 0 && (
-                          <ul className="smv-stretches">
-                            {stretches.map((stretch, i) => {
-                              const stretchKey = `${row.id}|${slug}|${i}`;
-                              const isStretchActive =
-                                activeStretchIdx === i;
-                              const hasSavedView = Boolean(
-                                savedStretchViews?.[stretchKey]
-                              );
-                              return (
-                                <li
-                                  key={stretchKey}
-                                  className="smv-stretch"
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onSelectStretch(row.id, slug, i);
-                                    }}
-                                    aria-pressed={isStretchActive}
-                                    className={`smv-stretch__btn ${
-                                      isStretchActive ? "is-active" : ""
-                                    }`}
-                                    title={
-                                      hasSavedView
-                                        ? `${stretch} — has a saved viewport (click to fly to it)`
-                                        : stretch
-                                    }
-                                  >
-                                    <span
-                                      className="smv-stretch__bullet"
-                                      style={{ backgroundColor: row.color }}
-                                      aria-hidden="true"
-                                    />
-                                    <span className="smv-stretch__label">
-                                      {stretch}
-                                    </span>
-                                    {hasSavedView && (
-                                      <span
-                                        className="smv-stretch__saved"
-                                        aria-label="Has saved view"
-                                        title="This stretch has a saved viewport"
-                                      >
-                                        📍
-                                      </span>
-                                    )}
-                                  </button>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
             </li>
           );
         })}
       </ul>
     </div>
   );
-}
-
-// Gather every per-stretch label this barangay carries across every
-// locationGroup in the class. Each locationGroup can optionally provide
-// a `stretches: { [barangaySlug]: [label, ...] }` map; classes that
-// haven't been annotated (yet) return an empty list and the sidebar
-// just shows the barangay name on its own.
-function collectStretchesFor(row, barangaySlug) {
-  const out = [];
-  for (const group of row?.locationGroups || []) {
-    const list = group?.stretches?.[barangaySlug];
-    if (Array.isArray(list)) {
-      for (const stretch of list) {
-        if (stretch && typeof stretch === "string") out.push(stretch);
-      }
-    }
-  }
-  return out;
-}
-
-// Trim long descriptive labels (which list every barangay in the class)
-// down to just "Along [type] of:" — the actual barangays appear in the
-// expanded children below, so listing them in the label too is
-// redundant noise that wraps onto multiple lines for big classes.
-//
-//   "Along Provincial and National Roads of Abatan"
-//     → "Along provincial and national roads of:"
-//   "all-weather roads of Mount Data, Monamon Sur, ..."
-//     → "Along all-weather roads of:"
-//   "Inner lots of Mabaay, Sinto, ..."
-//     → "Along inner lots of:"
-function shortenLocationLabel(label) {
-  if (!label) return "";
-  const idx = label.search(/\s+of\s+/i);
-  if (idx < 0) return label;
-  let prefix = label.slice(0, idx).trim();
-  // Strip a leading "Along " (case-insensitive) — we re-add it below in
-  // a consistent casing so every row reads "Along [thing] of:".
-  prefix = prefix.replace(/^Along\s+/i, "");
-  return `Along ${prefix.toLowerCase()} of:`;
 }
