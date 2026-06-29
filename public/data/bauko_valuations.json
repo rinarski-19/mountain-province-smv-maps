@@ -1,84 +1,42 @@
 {
   "municipality": "BAUKO",
-  "document_title": "SCHEDULE OF BASE UNIT MARKET VALUES FOR RESIDENTIAL, COMMERCIAL, AND INDUSTRIAL LANDS",
+  "document_title": "Schedule of Base Unit Market Values for Residential, Commercial and Industrial Lands — Bauko",
+  "province": "Mountain Province",
   "revision_year": 2027,
-  "standard_depth": {
-    "residential_lands": "30 meters",
-    "commercial_lands": "30 meters"
+  "standard_depth": null,
+  "_meta": {
+    "source": "Office of the Provincial Assessor — Bauko GR FORM No. 1 (Office Order, April 24, 2025)",
+    "act": "RA 12001 (Real Property Valuation and Assessment Reform Act), Section 15",
+    "transcribed_on": "2026-06-23",
+    "notes": [
+      "Official schedule: 3 commercial (C-1..C-3) + 7 residential (R-1..R-7). Adds R-6 and R-7 vs the earlier draft; all 2027 values shifted DOWN.",
+      "Each R class lists specific sitios/corridors per barangay — see the location_description field for the canonical text.",
+      "Mirrors BAUKO_CLASSIFICATIONS in lib/bauko.js so the editor's class chips and the printed legend stay in sync."
+    ]
   },
   "land_classifications": [
     {
       "category": "Commercial Lands",
       "items": [
         {
-          "location_description": "Along Provincial and National Roads of Abatan",
-          "unit_value_2027_per_sqm": 6240,
           "sub_classification": "C-1",
+          "unit_value_2027_per_sqm": 5170,
+          "unit_value_2012_per_sqm": 162.90,
+          "unit_value_2006_per_sqm": 19.50,
+          "location_description": "Commercial lots along Provincial and National Roads of Abatan.",
           "barangays": ["Abatan"]
         },
         {
-          "location_description": "Along National Road of Mabaay, Sinto, Sadsadan and Poblacion",
-          "unit_value_2027_per_sqm": 5140,
           "sub_classification": "C-2",
-          "barangays": ["Mabaay", "Sinto", "Sadsadan", "Poblacion"]
+          "unit_value_2027_per_sqm": 4210,
+          "location_description": "Commercial lots along National Road of Mabaay, Sinto, Sadsadan, and Poblacion; and inner lots of Abatan.",
+          "barangays": ["Mabaay", "Sinto", "Sadsadan", "Poblacion", "Abatan"]
         },
         {
-          "location_description": "Inner lots of Abatan",
-          "unit_value_2027_per_sqm": null,
-          "sub_classification": null,
-          "barangays": ["Abatan"]
-        },
-        {
-          "location_description": "Along all-weather roads of Mount Data, Monamon Sur, Monamon Norte, Banao, Otucan Sur, Otucan Norte, Bila, Guinzadan Sur, Guinzadan Central, Guinzadan Norte, Tapapan, Leseb, Lagawa, Bagnen Oriente, Bagnen Proper, Mayag & Balintaugan",
-          "unit_value_2027_per_sqm": 4030,
           "sub_classification": "C-3",
-          "barangays": [
-            "Mount Data",
-            "Monamon Sur",
-            "Monamon Norte",
-            "Banao",
-            "Otucan Sur",
-            "Otucan Norte",
-            "Bila",
-            "Guinzadan Sur",
-            "Guinzadan Central",
-            "Guinzadan Norte",
-            "Tapapan",
-            "Leseb",
-            "Lagawa",
-            "Bagnen Oriente",
-            "Bagnen Proper",
-            "Mayag",
-            "Balintaugan"
-          ]
-        },
-        {
-          "location_description": "Inner lots of all barangays except for Abatan.",
-          "unit_value_2027_per_sqm": null,
-          "sub_classification": null,
-          "barangays": [
-            "Mabaay",
-            "Sinto",
-            "Sadsadan",
-            "Poblacion",
-            "Mount Data",
-            "Monamon Sur",
-            "Monamon Norte",
-            "Banao",
-            "Otucan Sur",
-            "Otucan Norte",
-            "Bila",
-            "Guinzadan Sur",
-            "Guinzadan Central",
-            "Guinzadan Norte",
-            "Tapapan",
-            "Leseb",
-            "Lagawa",
-            "Bagnen Oriente",
-            "Bagnen Proper",
-            "Mayag",
-            "Balintaugan"
-          ]
+          "unit_value_2027_per_sqm": 3140,
+          "location_description": "Commercial lots along all-weather roads of Mount Data, Monamon Sur, Monamon Norte, Banao, Otucan Sur, Otucan Norte, Bila, Guinzadan Sur, Guinzadan Central, Guinzadan Norte, Tapapan, Leseb, Lagawa, Bagnen Oriente, Bagnen Proper, Mayag, and Balintaugan; and inner lots of all barangays except Abatan.",
+          "barangays": ["Mount Data", "Monamon Sur", "Monamon Norte", "Banao", "Otucan Sur", "Otucan Norte", "Bila", "Guinzadan Sur", "Guinzadan Central", "Guinzadan Norte", "Tapapan", "Leseb", "Lagawa", "Bagnen Oriente", "Bagnen Proper", "Mayag", "Balintaugan", "Mabaay", "Sinto", "Sadsadan", "Poblacion"]
         }
       ]
     },
@@ -86,101 +44,77 @@
       "category": "Residential Land",
       "items": [
         {
-          "location_description": "Along Provincial and National Roads of Abatan",
-          "unit_value_2027_per_sqm": 6240,
           "sub_classification": "R-1",
-          "barangays": ["Abatan"]
+          "unit_value_2027_per_sqm": 5170,
+          "unit_value_2012_per_sqm": 125.80,
+          "unit_value_2006_per_sqm": 84.30,
+          "location_description": "Abatan: Junction to Mr. Cue Building to Tadian; Junction to Mr. Palpal building beside Christ the King Church going to Bontoc; Junction to Mr. Golocan residential house going to Caguimongan. Mabaay: Junction to Caltex.",
+          "barangays": ["Abatan", "Mabaay"]
         },
         {
-          "location_description": "Along National Road of Mabaay, Sinto, Sadsadan, Poblacion, Guinzadan Central, Guinzadan Sur, Monamon Sur and Mount Data",
-          "unit_value_2027_per_sqm": 5140,
           "sub_classification": "R-2",
-          "barangays": [
-            "Mabaay",
-            "Sinto",
-            "Sadsadan",
-            "Poblacion",
-            "Guinzadan Central",
-            "Guinzadan Sur",
-            "Monamon Sur",
-            "Mount Data"
-          ]
+          "unit_value_2027_per_sqm": 4210,
+          "unit_value_2012_per_sqm": 99.25,
+          "unit_value_2006_per_sqm": 63.30,
+          "location_description": "Abatan: Mr. Cue to Jomar Hardware at Malupa; Mr. Golocan house going to Tabatab waitingshed (Baguio direction); Mr. Palpal building near Christ the King Church to Abatan/Poblacion boundary (Bontoc direction). Guinzadan Central: Pek-as to Tongtongbawi. Guinzadan Sur: Tontongbawi to Pesnadan. Mabaay: Junction to Odidiyan; Junction to Welcome Arc (Sabangan direction). Monamon Sur: Boga. Sadsadan: Karatula to Junction (Balicanao direction). Sinto: along National Road.",
+          "barangays": ["Abatan", "Guinzadan Central", "Guinzadan Sur", "Mabaay", "Monamon Sur", "Sadsadan", "Sinto"]
         },
         {
-          "location_description": "Inner lots of Abatan",
-          "unit_value_2027_per_sqm": null,
-          "sub_classification": null,
-          "barangays": ["Abatan"]
-        },
-        {
-          "location_description": "Inner lots of Mabaay, Sinto, Sadsadan, Guinzadan Central, Guinzadan Sur, Mount Data, Monamon Sur and Poblacion.",
-          "unit_value_2027_per_sqm": 4030,
           "sub_classification": "R-3",
-          "barangays": [
-            "Mabaay",
-            "Sinto",
-            "Sadsadan",
-            "Guinzadan Central",
-            "Guinzadan Sur",
-            "Mount Data",
-            "Monamon Sur",
-            "Poblacion"
-          ]
+          "unit_value_2027_per_sqm": 3140,
+          "unit_value_2012_per_sqm": 68.95,
+          "unit_value_2006_per_sqm": 51.80,
+          "location_description": "Abatan: Tabatab Waiting shed to Guinzadan Central/Abatan boundary; Mr. Daytaca Hardware at Malupa to Bauko/Tadian boundary; Junction to Kiwangen. Banao: Andanum to MPSPC. Bila: Pak-as to Napu. Guinzadan Central: Abatan/Guinzadan Central boundary to Pek-as. Guinzadan Sur: Pesnadan to Guinzadan Sur/Tapapan boundary. Mabaay: Caltex to Sadsadan/Mabaay boundary. Monamon Sur: Mt. Data cliff to Loreta Benos house; Natonglob to Monamon Proper; sitio Lukib. Mount Data: all lots along National Road. Otucan Sur: Kisop Bridge to Pak-as. Poblacion: all lots along National Road. Sadsadan: Sadsadan/Mabaay boundary to Karatula. Sinto: road going to Mankayan.",
+          "barangays": ["Abatan", "Banao", "Bila", "Guinzadan Central", "Guinzadan Sur", "Mabaay", "Monamon Sur", "Mount Data", "Otucan Sur", "Poblacion", "Sadsadan", "Sinto"]
         },
         {
-          "location_description": "Residential lots along all-weather roads within the barangays of Guinzadan Norte, Tapapan, Leseb, Lagawa & Bila",
-          "unit_value_2027_per_sqm": null,
-          "sub_classification": null,
-          "barangays": [
-            "Guinzadan Norte",
-            "Tapapan",
-            "Leseb",
-            "Lagawa",
-            "Bila"
-          ]
-        },
-        {
-          "location_description": "Along National Road and all-weather roads within Banao and Otucan Sur except from Kapayawan Bridge until Saint Paul Parish Church, Pak-as.",
-          "unit_value_2027_per_sqm": null,
-          "sub_classification": null,
-          "barangays": ["Banao", "Otucan Sur"]
-        },
-        {
-          "location_description": "Inner lots of Monamon Norte, Banao, Otucan Sur & Norte, Tapapan, Leseb and Lagawa",
-          "unit_value_2027_per_sqm": 3150,
           "sub_classification": "R-4",
-          "barangays": [
-            "Monamon Norte",
-            "Banao",
-            "Otucan Sur",
-            "Otucan Norte",
-            "Tapapan",
-            "Leseb",
-            "Lagawa"
-          ]
+          "unit_value_2027_per_sqm": 2330,
+          "unit_value_2012_per_sqm": 37.20,
+          "unit_value_2006_per_sqm": 36.00,
+          "location_description": "Abatan: all lots not described in higher tiers. Banao: MPSPC to Banao School; Junction (Mr. Isican) to Guinzadan Norte boundary. Bila: Napu to Otucan Norte boundary + all other lots. Guinzadan Central: sitio Lalasi to bridge + all other lots. Guinzadan Norte: bridge to sitio Lingayo. Guinzadan Sur: all other lots. Leseb: Tapapan boundary to Lawlawitan; Lawlawitan to Mabaay boundary. Mabaay: Welcome Arc to Sabangan boundary. Mayag: Kiwangen to Doling. Monamon Norte: sitio Bansa. Monamon Sur: Benos house to sitio Binaka; Little Hill to Guisguisaan; sitio Pactil. Mount Data: all other lots not described. Otucan Sur: Kapayawan Bridge to Dawaic bridge + Kapayawan lots. Poblacion: along Municipal Road from Municipal Hall + all other lots not described. Sadsadan: Junction (Balicanao direction) to Monamon Sur boundary (National Road). Sinto: all other lots not mentioned. Tapapan: Guinzadan Sur boundary to Junction (Lebao direction).",
+          "barangays": ["Abatan", "Banao", "Bila", "Guinzadan Central", "Guinzadan Norte", "Guinzadan Sur", "Leseb", "Mabaay", "Mayag", "Monamon Norte", "Monamon Sur", "Mount Data", "Otucan Sur", "Poblacion", "Sadsadan", "Sinto", "Tapapan"]
         },
         {
-          "location_description": "Along National Road within Otucan Sur starting from Kapayawan Bridge until Saint Paul Parish Church, Pak-as",
-          "unit_value_2027_per_sqm": null,
-          "sub_classification": null,
-          "barangays": ["Otucan Sur"]
-        },
-        {
-          "location_description": "Along all-weather roads and inner lots within Mayag",
-          "unit_value_2027_per_sqm": null,
-          "sub_classification": null,
-          "barangays": ["Mayag"]
-        },
-        {
-          "location_description": "Along all-weather roads and inner lots within Bagnen Proper and Oriente",
-          "unit_value_2027_per_sqm": null,
-          "sub_classification": null,
-          "barangays": ["Bagnen Proper", "Bagnen Oriente"]
-        },
-        {
-          "location_description": "Along all-weather roads and inner lots of Balintaugan",
-          "unit_value_2027_per_sqm": 2480,
           "sub_classification": "R-5",
+          "unit_value_2027_per_sqm": 1950,
+          "location_description": "Banao: Banao school to Lagawa boundary + all other lots. Guinzadan Norte: Lingayo to Banao boundary. Lagawa: all other lots not described. Mabaay: sitio Banata to sitio Deppas. Mayag: Doling to Mayag. Monamon Norte: sitio Tamog-o + sitio Suyo. Monamon Sur: sitio Binaka to sitio Suyo; sitio Pactil to sitio Sil-ac to Guisguisaan; sitio Taptapoc. Otucan Sur: all other lots not described. Sadsadan: sitio Mabilig + Longon. Tapapan: Junction (Lebao) to Leseb boundary + Tapapan Diversion Road.",
+          "barangays": ["Banao", "Guinzadan Norte", "Lagawa", "Mabaay", "Mayag", "Monamon Norte", "Monamon Sur", "Otucan Sur", "Sadsadan", "Tapapan"]
+        },
+        {
+          "sub_classification": "R-6",
+          "unit_value_2027_per_sqm": 1680,
+          "location_description": "Lagawa: Banao boundary to turning point near Mr. Banaken house. Mabaay: sitio Deppas to sitio Gao-gao. Mayag: all other lots not described. Monamon Norte: sitio Suyo to Tipunan. Monamon Sur: sitio Sengyew + Asbiagan. Sadsadan: sitio Cuba. Tapapan: Letang.",
+          "barangays": ["Lagawa", "Mabaay", "Mayag", "Monamon Norte", "Monamon Sur", "Sadsadan", "Tapapan"]
+        },
+        {
+          "sub_classification": "R-7",
+          "unit_value_2027_per_sqm": 1330,
+          "location_description": "Lagawa: turning point to Adadogan and Lao-ingan; turning point to 1 km toward Coputan. Leseb: Lawlawitan to Leseb Elementary School + all other lots not described. Mabaay: sitio Gao-gao to sitio Beas + all other lots. Monamon Norte: Tipunan to sitio Pitpitan; sitio Nabilngan to sitio Pangao + all other lots. Otucan Norte: all lots. Otucan Sur: Pak-as to Kapayawan Bridge (Bontoc direction). Sadsadan: sitio Bato + Sumey-ang.",
+          "barangays": ["Lagawa", "Leseb", "Mabaay", "Monamon Norte", "Otucan Norte", "Otucan Sur", "Sadsadan"]
+        },
+        {
+          "sub_classification": "R-8",
+          "unit_value_2027_per_sqm": 1080,
+          "location_description": "Bagnen Oriente: 200 m below the school to steps going up to Mt. Polis. Lagawa: 1 km to turning point to Coputan. Monamon Sur: sitio Dodoan. Sadsadan: sitio Balicanao.",
+          "barangays": ["Bagnen Oriente", "Lagawa", "Monamon Sur", "Sadsadan"]
+        },
+        {
+          "sub_classification": "R-9",
+          "unit_value_2027_per_sqm": 850,
+          "location_description": "Bagnen Oriente: Sabangan boundary to 200 m below the school; Mt. Polis steps to Bagnen Proper boundary. Bagnen Proper: 200 m below the school to Junction. Lagawa: all other lots not described. Monamon Sur: sitio Bebe + all other lots not described. Sadsadan: sitio Am-am + sitio Salin + all other lots not mentioned.",
+          "barangays": ["Bagnen Oriente", "Bagnen Proper", "Lagawa", "Monamon Sur", "Sadsadan"]
+        },
+        {
+          "sub_classification": "R-10",
+          "unit_value_2027_per_sqm": 650,
+          "location_description": "Bagnen Oriente: all lots not described in higher tiers. Bagnen Proper: Bagnen Oriente boundary to 200 m below the school; Junction to 300 m on Abatan-Bagnen Road; 300 m to Poblacion (Bauko) boundary; Junction to Balintaugan boundary; all other lots not described.",
+          "barangays": ["Bagnen Oriente", "Bagnen Proper"]
+        },
+        {
+          "sub_classification": "R-11",
+          "unit_value_2027_per_sqm": 530,
+          "location_description": "Balintaugan: all residential lots.",
           "barangays": ["Balintaugan"]
         }
       ]

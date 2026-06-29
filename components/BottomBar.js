@@ -1,5 +1,7 @@
 "use client";
 
+import { textColorForBackground } from "@/lib/classifications";
+
 const DISCLAIMER =
   "For public consultation only. This map is illustrative, not survey-accurate. Boundaries shown are indicative and must not be used for legal, survey, or assessment purposes.";
 
@@ -69,7 +71,10 @@ function ActiveSummary({ active, activeGroup, onClear }) {
     <div className="smv-summary">
       <span
         className="smv-summary__chip"
-        style={{ backgroundColor: active.color }}
+        style={{
+          backgroundColor: active.color,
+          color: textColorForBackground(active.color),
+        }}
       >
         {active.subClass}
       </span>

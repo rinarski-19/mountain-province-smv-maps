@@ -1,0 +1,70 @@
+{
+  "municipality": "Sadanga",
+  "document_title": "Schedule of Base Unit Market Values for Residential, Commercial and Industrial Lands — Sadanga",
+  "province": "Mountain Province",
+  "revision_year": 2027,
+  "standard_depth": null,
+  "_meta": {
+    "source": "Provincial Assessor's Office — Sadanga schedule (user-confirmed 2026-06-22)",
+    "act": "RA 12001 (Real Property Valuation and Assessment Reform Act), Section 15",
+    "transcribed_on": "2026-06-22",
+    "notes": [
+      "Official schedule: 1 commercial class + 6 residential classes (R-1..R-6). No R-7 — Sitio Sacco class dropped.",
+      "Mirrors SADANGA_CLASSIFICATIONS in lib/sadanga.js so the editor's class chips and the printed legend stay in sync."
+    ]
+  },
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "sub_classification": "C-1",
+          "unit_value_2027_per_sqm": 2130,
+          "location_description": "Commercial lots along the National Road from Gawa to Mamaga in Saclit, along the Provincial Road from Ampawilen junction to Lidem junction in Poblacion (Sadanga), along the Municipal Road from Lidem junction to the Municipal Hall, and along the Municipal Road from Opocan junction in Poblacion to the Sacasacan Barangay Hall.",
+          "barangays": ["Saclit", "Sadanga (Poblacion)", "Sacasacan"]
+        }
+      ]
+    },
+    {
+      "category": "Residential Land",
+      "items": [
+        {
+          "sub_classification": "R-1",
+          "unit_value_2027_per_sqm": 2130,
+          "location_description": "Residential lots along the National Road from Gawa to Mamaga in Saclit, along the Provincial Road from Ampawilen junction to Lidem junction in Poblacion (Sadanga), along the Municipal Road from Lidem junction to the Municipal Hall, along the Municipal Road from Lidem junction to Tap-ag Elementary School in Poblacion, and along the Municipal Road from Opocan junction to the Sacasacan Barangay Hall.",
+          "barangays": ["Saclit", "Sadanga (Poblacion)", "Sacasacan"]
+        },
+        {
+          "sub_classification": "R-2",
+          "unit_value_2027_per_sqm": 1890,
+          "location_description": "Residential lots along the Provincial Road from Mamaga junction to Saclit Road, along the Municipal Road from Tabrak junction to Betwagan Road, and along the Municipal Road from the Anabel Welcome Arc to Sitio Lilit in Anabel.",
+          "barangays": ["Saclit", "Betwagan", "Anabel"]
+        },
+        {
+          "sub_classification": "R-3",
+          "unit_value_2027_per_sqm": 1590,
+          "location_description": "Residential lots within the inner part of Poblacion (Sadanga) and Barangay Sacasacan, within the inner part of Sitio Fan-ayan in Betwagan, and within the inner part of Sitio Lilit in Anabel.",
+          "barangays": ["Sadanga (Poblacion)", "Sacasacan", "Betwagan", "Anabel"]
+        },
+        {
+          "sub_classification": "R-4",
+          "unit_value_2027_per_sqm": 1260,
+          "location_description": "Residential lots within Barangays Demang, Betwagan, and Anabel.",
+          "barangays": ["Demang", "Betwagan", "Anabel"]
+        },
+        {
+          "sub_classification": "R-5",
+          "unit_value_2027_per_sqm": 1000,
+          "location_description": "Residential lots within the inner part of Barangay Saclit.",
+          "barangays": ["Saclit"]
+        },
+        {
+          "sub_classification": "R-6",
+          "unit_value_2027_per_sqm": 750,
+          "location_description": "Residential lots within Barangays Belwang and Bekigan.",
+          "barangays": ["Belwang", "Bekigan"]
+        }
+      ]
+    }
+  ]
+}

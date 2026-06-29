@@ -1,195 +1,184 @@
 {
   "municipality": "SAGADA",
-  "document_title": "SCHEDULE OF BASE UNIT MARKET VALUES FOR RESIDENTIAL, COMMERCIAL, AND INDUSTRIAL LANDS",
-  "revision_year": 2026,
+  "document_title": "Schedule of Base Unit Market Values for Residential, Commercial, and Industrial Lands — Sagada",
+  "province": "Mountain Province",
+  "revision_year": 2027,
+  "standard_depth": null,
+  "_meta": {
+    "source": "User-provided table (revise for sagada — 2026-06-19)",
+    "act": "RA 12001 (Real Property Valuation and Assessment Reform Act), Section 15",
+    "transcribed_on": "2026-06-19",
+    "notes": [
+      "Sagada's commercial ladder mirrors the residential ladder — every C-N tier has the same ₱ value as the corresponding R-N tier.",
+      "R-5 'Ankileng extension' and R-7 'Ankileng main' are both filed under barangay Ankileng; the modifier is preserved in the description for road-corridor builders.",
+      "R-6 / C-6 mentions 'Maduto' as a road segment in Taccong; not a separate barangay.",
+      "R-11 (sitios unreached by road, ₱500) has no commercial counterpart — commercial classifications only apply to road-accessible parcels."
+    ]
+  },
   "land_classifications": [
     {
       "category": "Commercial Lands",
       "items": [
         {
-          "location_description": "Commercial lots along all-weather roads of Patay, Dagdag, Demang, and Ambasing.",
-          "unit_value_2026_per_sqm": 6200,
           "sub_classification": "C-1",
-          "barangays": [
-            "Patay",
-            "Dagdag",
-            "Demang",
-            "Ambasing"
-          ]
+          "unit_value_2027_per_sqm": 5000,
+          "unit_value_2012_per_sqm": 179.20,
+          "location_description": "Commercial lots along the National and Provincial roads of Patay, Dagdag, and Demang.",
+          "barangays": ["Patay", "Dagdag", "Demang"]
         },
         {
-          "location_description": "Commercial inner lots of Patay, Dagdag, Demang, and Ambasing.",
-          "unit_value_2026_per_sqm": 5100,
           "sub_classification": "C-2",
-          "barangays": [
-            "Patay",
-            "Dagdag",
-            "Demang",
-            "Ambasing"
-          ]
+          "unit_value_2027_per_sqm": 4200,
+          "location_description": "Commercial lots along the Municipal / Barangay / Farm-to-Market road of Patay.",
+          "barangays": ["Patay"]
         },
         {
-          "location_description": "Commercial lots along all-weather roads of Antadao, Kilong, Ankileng, Suyo, Taccong, and Balugan.",
-          "unit_value_2026_per_sqm": 5100,
-          "sub_classification": "C-2",
-          "barangays": [
-            "Antadao",
-            "Kilong",
-            "Ankileng",
-            "Suyo",
-            "Taccong",
-            "Balugan"
-          ]
-        },
-        {
-          "location_description": "Commercial inner lots of Antadao, Kilong, Ankileng, Suyo, and Balugan.",
-          "unit_value_2026_per_sqm": 4150,
           "sub_classification": "C-3",
-          "barangays": [
-            "Antadao",
-            "Kilong",
-            "Ankileng",
-            "Suyo",
-            "Balugan"
-          ]
+          "unit_value_2027_per_sqm": 3500,
+          "location_description": "Commercial lots along the Municipal / Barangay roads of Dagdag and Demang.",
+          "barangays": ["Dagdag", "Demang"]
         },
         {
-          "location_description": "Commercial lots along all-weather roads of Tetep-an Norte, Tetep-an Sur, Madongo, Banga-an, Aguid, Fedilisan, and Pide.",
-          "unit_value_2026_per_sqm": 4150,
-          "sub_classification": "C-3",
-          "barangays": [
-            "Tetep-an Norte",
-            "Tetep-an Sur",
-            "Madongo",
-            "Banga-an",
-            "Aguid",
-            "Fedilisan",
-            "Pide"
-          ]
-        },
-        {
-          "location_description": "Commercial inner lots of Tetep-an Norte, Tetep-an Sur, Madongo, Banga-an, Aguid, Fedilisan, and Pide.",
-          "unit_value_2026_per_sqm": 3550,
           "sub_classification": "C-4",
-          "barangays": [
-            "Tetep-an Norte",
-            "Tetep-an Sur",
-            "Madongo",
-            "Banga-an",
-            "Aguid",
-            "Fedilisan",
-            "Pide"
-          ]
+          "unit_value_2027_per_sqm": 2900,
+          "location_description": "Commercial lots along the National roads of Ambasing and Antadao.",
+          "barangays": ["Ambasing", "Antadao"]
         },
         {
-          "location_description": "Commercial lots of Nacagang, Pide, and Tanulong.",
-          "unit_value_2026_per_sqm": 3550,
-          "sub_classification": "C-4",
-          "barangays": [
-            "Nacagang",
-            "Pide",
-            "Tanulong"
-          ]
+          "sub_classification": "C-5",
+          "unit_value_2027_per_sqm": 2400,
+          "location_description": "Commercial lots along the Provincial roads of Ankileng (extension) and Suyo.",
+          "barangays": ["Ankileng", "Suyo"]
+        },
+        {
+          "sub_classification": "C-6",
+          "unit_value_2027_per_sqm": 1900,
+          "location_description": "Commercial lots along the Provincial road of Maduto-Taccong segment, Madongo, and Banga-an.",
+          "barangays": ["Taccong", "Madongo", "Banga-an"]
+        },
+        {
+          "sub_classification": "C-7",
+          "unit_value_2027_per_sqm": 1600,
+          "location_description": "Commercial lots along the Provincial road of Kilong, Tetep-an Sur, Tetep-an Norte, Ankileng (main), Balugan, and Taccong.",
+          "barangays": ["Kilong", "Tetep-an Sur", "Tetep-an Norte", "Ankileng", "Balugan", "Taccong"]
+        },
+        {
+          "sub_classification": "C-8",
+          "unit_value_2027_per_sqm": 1200,
+          "location_description": "Commercial lots along the Provincial road of Aguid and Nacagang.",
+          "barangays": ["Aguid", "Nacagang"]
+        },
+        {
+          "sub_classification": "C-9",
+          "unit_value_2027_per_sqm": 900,
+          "location_description": "Commercial lots along the Barangay road of Tanulong and Pide.",
+          "barangays": ["Tanulong", "Pide"]
+        },
+        {
+          "sub_classification": "C-10",
+          "unit_value_2027_per_sqm": 700,
+          "location_description": "Commercial lots within Barangay Fedilisan.",
+          "barangays": ["Fedilisan"]
         }
       ]
     },
     {
-      "category": "Residential Lands",
+      "category": "Residential Land",
       "items": [
         {
-          "location_description": "Residential lots along all-weather roads of Patay, Dagdag, Demang, and Ambasing.",
-          "unit_value_2026_per_sqm": 6150,
           "sub_classification": "R-1",
-          "barangays": [
-            "Patay",
-            "Dagdag",
-            "Demang",
-            "Ambasing"
-          ]
+          "unit_value_2027_per_sqm": 5000,
+          "unit_value_2012_per_sqm": 179.20,
+          "location_description": "Residential lots along the National and Provincial roads of Patay, Dagdag, and Demang.",
+          "barangays": ["Patay", "Dagdag", "Demang"]
         },
         {
-          "location_description": "Residential inner lots of Patay, Dagdag, Demang, and Ambasing.",
-          "unit_value_2026_per_sqm": 3000,
           "sub_classification": "R-2",
-          "barangays": [
-            "Patay",
-            "Dagdag",
-            "Demang",
-            "Ambasing"
-          ]
+          "unit_value_2027_per_sqm": 4200,
+          "unit_value_2012_per_sqm": 92.20,
+          "location_description": "Residential lots along the Municipal / Barangay / Farm-to-Market road of Patay.",
+          "barangays": ["Patay"]
         },
         {
-          "location_description": "Residential lots along all-weather roads of Antadao, Kilong, Ambasing, Ankileng, Balugan, Suyo, and Taccong.",
-          "unit_value_2026_per_sqm": 3000,
-          "sub_classification": "R-2",
-          "barangays": [
-            "Antadao",
-            "Kilong",
-            "Ambasing",
-            "Ankileng",
-            "Balugan",
-            "Suyo",
-            "Taccong"
-          ]
-        },
-        {
-          "location_description": "Residential inner lots of Antadao, Kilong, Ambasing, Ankileng, Balugan, Suyo, and Taccong.",
-          "unit_value_2026_per_sqm": 2500,
           "sub_classification": "R-3",
+          "unit_value_2027_per_sqm": 3500,
+          "unit_value_2012_per_sqm": 92.20,
+          "location_description": "Residential lots along the Municipal / Barangay roads of Dagdag and Demang.",
+          "barangays": ["Dagdag", "Demang"]
+        },
+        {
+          "sub_classification": "R-4",
+          "unit_value_2027_per_sqm": 2900,
+          "unit_value_2012_per_sqm": 66.90,
+          "location_description": "Residential lots along the National roads of Ambasing and Antadao.",
+          "barangays": ["Ambasing", "Antadao"]
+        },
+        {
+          "sub_classification": "R-5",
+          "unit_value_2027_per_sqm": 2400,
+          "unit_value_2012_per_sqm": 66.90,
+          "location_description": "Residential lots along the Provincial roads of Ankileng (extension) and Suyo.",
+          "barangays": ["Ankileng", "Suyo"]
+        },
+        {
+          "sub_classification": "R-6",
+          "unit_value_2027_per_sqm": 1900,
+          "unit_value_2012_per_sqm": 66.90,
+          "location_description": "Residential lots along the Provincial road of Maduto-Taccong segment, Madongo, and Banga-an.",
+          "barangays": ["Taccong", "Madongo", "Banga-an"]
+        },
+        {
+          "sub_classification": "R-7",
+          "unit_value_2027_per_sqm": 1600,
+          "unit_value_2012_per_sqm": 40.30,
+          "location_description": "Residential lots along the Provincial road of Kilong, Tetep-an Sur, Tetep-an Norte, Ankileng (main), Balugan, and Taccong.",
+          "barangays": ["Kilong", "Tetep-an Sur", "Tetep-an Norte", "Ankileng", "Balugan", "Taccong"]
+        },
+        {
+          "sub_classification": "R-8",
+          "unit_value_2027_per_sqm": 1200,
+          "unit_value_2012_per_sqm": 40.30,
+          "location_description": "Residential lots along the Provincial road of Aguid and Nacagang.",
+          "barangays": ["Aguid", "Nacagang"]
+        },
+        {
+          "sub_classification": "R-9",
+          "unit_value_2027_per_sqm": 900,
+          "unit_value_2012_per_sqm": 40.30,
+          "location_description": "Residential lots along the Barangay road of Tanulong and Pide.",
+          "barangays": ["Tanulong", "Pide"]
+        },
+        {
+          "sub_classification": "R-10",
+          "unit_value_2027_per_sqm": 700,
+          "unit_value_2012_per_sqm": 40.30,
+          "location_description": "Residential lots within Barangay Fedilisan.",
+          "barangays": ["Fedilisan"]
+        },
+        {
+          "sub_classification": "R-11",
+          "unit_value_2027_per_sqm": 500,
+          "location_description": "Residential lots in sitios of every barangay unreached by road.",
           "barangays": [
-            "Antadao",
-            "Kilong",
+            "Aguid",
             "Ambasing",
             "Ankileng",
+            "Antadao",
             "Balugan",
+            "Banga-an",
+            "Dagdag",
+            "Demang",
+            "Fedilisan",
+            "Kilong",
+            "Madongo",
+            "Nacagang",
+            "Patay",
+            "Pide",
             "Suyo",
-            "Taccong"
-          ]
-        },
-        {
-          "location_description": "Residential lots along all-weather roads of Tetep-an Sur, Tetep-an Norte, Madongo, Banga-an, Aguid, and Fedilisan.",
-          "unit_value_2026_per_sqm": 2000,
-          "sub_classification": "R-4",
-          "barangays": [
-            "Tetep-an Sur",
+            "Taccong",
+            "Tanulong",
             "Tetep-an Norte",
-            "Madongo",
-            "Banga-an",
-            "Aguid",
-            "Fedilisan"
-          ]
-        },
-        {
-          "location_description": "Residential inner lots of Tetep-an Sur, Tetep-an Norte, Madongo, Banga-an, Aguid, and Fedilisan.",
-          "unit_value_2026_per_sqm": 1650,
-          "sub_classification": "R-5",
-          "barangays": [
-            "Tetep-an Sur",
-            "Tetep-an Norte",
-            "Madongo",
-            "Banga-an",
-            "Aguid",
-            "Fedilisan"
-          ]
-        },
-        {
-          "location_description": "Residential lots along barangay roads of Nacagang, Pide, and Tanulong.",
-          "unit_value_2026_per_sqm": 1300,
-          "sub_classification": "R-6",
-          "barangays": [
-            "Nacagang",
-            "Pide",
-            "Tanulong"
-          ]
-        },
-        {
-          "location_description": "Residential inner lots of Nacagang, Pide, and Tanulong.",
-          "unit_value_2026_per_sqm": 1050,
-          "sub_classification": "R-7",
-          "barangays": [
-            "Nacagang",
-            "Pide",
-            "Tanulong"
+            "Tetep-an Sur"
           ]
         }
       ]

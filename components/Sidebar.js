@@ -1,5 +1,7 @@
 "use client";
 
+import { textColorForBackground } from "@/lib/classifications";
+
 export default function Sidebar({
   activeClassId,
   activeBarangaySlug,
@@ -105,7 +107,10 @@ function SidebarTable({
                 </span>
                 <span
                   className="smv-row__chip"
-                  style={{ backgroundColor: row.color }}
+                  style={{
+                    backgroundColor: row.color,
+                    color: textColorForBackground(row.color),
+                  }}
                 >
                   {row.subClass}
                 </span>

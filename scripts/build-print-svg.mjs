@@ -33,7 +33,7 @@ async function main() {
   }
   // Render-time widening for ribbon SMV zones, meters per side. Pass
   // 0 to print at exact ordinance widths with no schematic widening.
-  const smvBufferM = parseFloat(flag("smv-buffer", "30"));
+  const smvBufferM = parseFloat(flag("smv-buffer", "60"));
 
   console.log(`Loading data for ${slug}...`);
   console.log(
@@ -53,7 +53,20 @@ async function main() {
     if (zonesSummary.widened) {
       console.log(
         `  Render-widened: ${zonesSummary.widened} ribbon zones ` +
-          `(+${zonesSummary.smvBufferM} m per side at print only).`
+          `(+${zonesSummary.smvBufferM} m per side default at print only).`
+      );
+    }
+    if (zonesSummary.widenedByBarangayOverride) {
+      console.log(
+        `  Per-barangay override applied to ${zonesSummary.widenedByBarangayOverride} polygons ` +
+          `(see PER_BARANGAY_BUFFER_M in lib/print-svg-builder.js).`
+      );
+    }
+    if (zonesSummary.clippedToCorridor) {
+      const ms = zonesSummary.corridorBuildMs;
+      const built = ms != null ? ` (corridor built in ${(ms / 1000).toFixed(1)}s)` : "";
+      console.log(
+        `  Clipped ${zonesSummary.clippedToCorridor} buffered polygons to road corridor${built}.`
       );
     }
   }

@@ -1,0 +1,96 @@
+{
+  "municipality": "Paracelis",
+  "document_title": "Schedule of Base Unit Market Values for Residential, Commercial and Industrial Lands — Paracelis",
+  "province": "Mountain Province",
+  "revision_year": 2027,
+  "standard_depth": 30,
+  "corner_influence_percent": {
+    "residential": 10,
+    "commercial": 10
+  },
+  "_meta": {
+    "source": "Provincial Assessor's Office — Paracelis Form no. 1 Office Order.docx",
+    "act": "RA 12001 (Real Property Valuation and Assessment Reform Act), Section 15",
+    "transcribed_on": "2026-06-22",
+    "notes": [
+      "Standard depth (residential): 30 meters.",
+      "Corner influence: 10% for both residential and commercial lots.",
+      "C-1 description says 'along all-weather Road' without enumerating barangays — in practice this overlays the R-1 corridors (Poblacion, Bananao, Butigue).",
+      "Mirrors PARACELIS_CLASSIFICATIONS in lib/paracelis.js so the editor's class chips and the printed legend stay in sync."
+    ]
+  },
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "sub_classification": "C-1",
+          "unit_value_2027_per_sqm": 2100,
+          "unit_value_2012_per_sqm": 72.50,
+          "unit_value_2006_per_sqm": 27.40,
+          "location_description": "Commercial lots located along all-weather Road.",
+          "barangays": ["Poblacion", "Bananao", "Butigue"]
+        }
+      ]
+    },
+    {
+      "category": "Residential Land",
+      "items": [
+        {
+          "sub_classification": "R-1",
+          "unit_value_2027_per_sqm": 2100,
+          "unit_value_2012_per_sqm": 72.50,
+          "unit_value_2006_per_sqm": 27.40,
+          "location_description": "Residential lots along National Roads within Poblacion, Bananao, and Butigue; along Basilan, Marat-Babba, and Tapinit-Licoy Provincial Roads within Poblacion.",
+          "barangays": ["Poblacion", "Bananao", "Butigue"]
+        },
+        {
+          "sub_classification": "R-2",
+          "unit_value_2027_per_sqm": 1730,
+          "unit_value_2012_per_sqm": 81.20,
+          "unit_value_2006_per_sqm": 23.00,
+          "location_description": "Residential lots within the inner part of Poblacion; along the National Road within Bantay and Palitod; along the Provincial Road, Bacarri-Addang-Tawang Road, and Aba-Bacarri-Nansuso Road.",
+          "barangays": ["Poblacion", "Bantay", "Palitod", "Bacarni"]
+        },
+        {
+          "sub_classification": "R-3",
+          "unit_value_2027_per_sqm": 1420,
+          "unit_value_2012_per_sqm": 36.90,
+          "unit_value_2006_per_sqm": 19.70,
+          "location_description": "Residential lots along Municipal and Barangay Roads within Palitod, Butigue, and Bananao.",
+          "barangays": ["Palitod", "Butigue", "Bananao"]
+        },
+        {
+          "sub_classification": "R-4",
+          "unit_value_2027_per_sqm": 1170,
+          "location_description": "Residential lots along the Provincial Road from Poblacion to Bantay; along Municipal and Barangay Roads within Bantay and Bacarni.",
+          "barangays": ["Poblacion", "Bantay", "Bacarni"]
+        },
+        {
+          "sub_classification": "R-5",
+          "unit_value_2027_per_sqm": 960,
+          "location_description": "Residential lots within the inner part of Bananao, Palitod, and Butigue; along the National Road within Anonat; along the Catubangan-Nanalao-Kiling Road.",
+          "barangays": ["Bananao", "Palitod", "Butigue", "Anonat"]
+        },
+        {
+          "sub_classification": "R-6",
+          "unit_value_2027_per_sqm": 790,
+          "location_description": "Residential lots within Bantay and Bacarni; along the National Road within Anonat.",
+          "barangays": ["Bantay", "Bacarni", "Anonat"]
+        },
+        {
+          "sub_classification": "R-7",
+          "unit_value_2027_per_sqm": 620,
+          "location_description": "Residential lots along Barangay roads within Buringal.",
+          "barangays": ["Buringal"]
+        },
+        {
+          "sub_classification": "R-8",
+          "unit_value_2027_per_sqm": 460,
+          "location_description": "Residential lots within Bunot, and within the inner parts of Buringal and Anonat.",
+          "barangays": ["Bunot", "Buringal", "Anonat"]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "municipality": "Natonin",
+  "document_title": "Schedule of Base Unit Market Values for Residential, Commercial and Industrial Lands — Natonin",
+  "province": "Mountain Province",
+  "revision_year": 2027,
+  "standard_depth": null,
+  "_meta": {
+    "source": "Provincial Assessor's Office — Natonin schedule (transcribed from lib/natonin.js)",
+    "act": "RA 12001 (Real Property Valuation and Assessment Reform Act), Section 15",
+    "transcribed_on": "2026-06-19",
+    "notes": [
+      "Mirrors NATONIN_CLASSIFICATIONS in lib/natonin.js so the editor's class chips and the printed legend stay in sync.",
+      "Barangays Balangao and Banawal appear in R-6 and R-8 only; no commercial class touches them.",
+      "PSA spelling 'Banawal' is preserved; LGU schedule occasionally uses 'Banawel' (alias handled in lib/natonin.js)."
+    ]
+  },
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "sub_classification": "C-1",
+          "unit_value_2027_per_sqm": 1820,
+          "location_description": "Commercial lots along the all-weather road within Poblacion, and along the National Road within Saliok.",
+          "barangays": ["Poblacion", "Saliok"]
+        }
+      ]
+    },
+    {
+      "category": "Residential Land",
+      "items": [
+        {
+          "sub_classification": "R-1",
+          "unit_value_2027_per_sqm": 1820,
+          "location_description": "Residential lots along the all-weather road within Poblacion.",
+          "barangays": ["Poblacion"]
+        },
+        {
+          "sub_classification": "R-2",
+          "unit_value_2027_per_sqm": 1500,
+          "location_description": "Residential lots within the inner part of Poblacion.",
+          "barangays": ["Poblacion"]
+        },
+        {
+          "sub_classification": "R-3",
+          "unit_value_2027_per_sqm": 1290,
+          "location_description": "Residential lots along the National Road within Butac, Santa Isabel, Alunogan, and Pudo.",
+          "barangays": ["Butac", "Santa Isabel", "Alunogan", "Pudo"]
+        },
+        {
+          "sub_classification": "R-4",
+          "unit_value_2027_per_sqm": 1120,
+          "location_description": "Residential lots along the National Road within Tonglayan and Banao.",
+          "barangays": ["Tonglayan", "Banao"]
+        },
+        {
+          "sub_classification": "R-5",
+          "unit_value_2027_per_sqm": 960,
+          "location_description": "Residential lots along the Saliok-Maducayan Provincial Road.",
+          "barangays": ["Saliok", "Maducayan"]
+        },
+        {
+          "sub_classification": "R-6",
+          "unit_value_2027_per_sqm": 790,
+          "location_description": "Residential lots along the all-weather roads within Balangao and Banawal, and within the inner part of Butac, Santa Isabel, Alunogan, and Pudo.",
+          "barangays": ["Balangao", "Banawal", "Butac", "Santa Isabel", "Alunogan", "Pudo"]
+        },
+        {
+          "sub_classification": "R-7",
+          "unit_value_2027_per_sqm": 590,
+          "location_description": "Residential lots within the inner part of Tonglayan, Banao, and Saliok.",
+          "barangays": ["Tonglayan", "Banao", "Saliok"]
+        },
+        {
+          "sub_classification": "R-8",
+          "unit_value_2027_per_sqm": 440,
+          "location_description": "Residential lots within the inner part of Maducayan, Balangao, and Banawal.",
+          "barangays": ["Maducayan", "Balangao", "Banawal"]
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 "use client";
 
-import { CLASSIFICATION_INFO } from "../lib/classifications";
+import {
+  CLASSIFICATION_INFO,
+  textColorForBackground,
+} from "../lib/classifications";
 
 // Floating info card that follows the cursor as the user hovers over
 // SMV zone polygons — same UX as mapx.ph. The hovered feature + the
@@ -105,7 +108,10 @@ export default function ZoneHoverInfo({
       <div className="zone-hover-card__header">
         <span
           className="zone-hover-card__swatch"
-          style={{ background: primary.color }}
+          style={{
+            background: primary.color,
+            color: textColorForBackground(primary.color),
+          }}
         />
         <span className="zone-hover-card__title">
           {primary.label}
@@ -129,7 +135,10 @@ export default function ZoneHoverInfo({
               >
                 <span
                   className="zone-hover-card__chip-dot"
-                  style={{ background: secondary.color }}
+                  style={{
+                    background: secondary.color,
+                    color: textColorForBackground(secondary.color),
+                  }}
                 />
                 {secondary.label}
                 <span className="zone-hover-card__chip-badge">2°</span>
@@ -142,7 +151,10 @@ export default function ZoneHoverInfo({
               >
                 <span
                   className="zone-hover-card__chip-dot"
-                  style={{ background: tertiary.color }}
+                  style={{
+                    background: tertiary.color,
+                    color: textColorForBackground(tertiary.color),
+                  }}
                 />
                 {tertiary.label}
                 <span className="zone-hover-card__chip-badge">3°</span>

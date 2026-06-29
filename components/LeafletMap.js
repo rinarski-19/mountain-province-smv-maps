@@ -1223,6 +1223,7 @@ export default function LeafletMap({
             saveSlug={municipality?.zones?.saveSlug ?? municipality?.slug}
             savePathLabel={municipality?.zones?.savePathLabel}
             roadsUrl={municipality?.dataFiles?.osmRoads}
+            printRoadsUrl={`/data/${municipality?.zones?.saveSlug ?? municipality?.slug ?? "bauko"}_print_roads.geojson`}
             osmBuildingsUrl={municipality?.dataFiles?.osmBuildings}
             frontageBandsUrl={municipality?.dataFiles?.frontageBands}
             showFrontageBands={!!layers?.frontageBands}

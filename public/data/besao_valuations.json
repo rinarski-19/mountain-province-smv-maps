@@ -1,4 +1,100 @@
 {
-  "_comment": "Per-barangay valuation overrides for Besao. Empty until LGU-specific overrides are needed. Class-level prices come from lib/besao.js.",
-  "barangays": {}
+  "municipality": "Besao",
+  "document_title": "Schedule of Base Unit Market Values for Residential, Commercial and Industrial Lands — Besao",
+  "province": "Mountain Province",
+  "revision_year": 2027,
+  "standard_depth": 30,
+  "_meta": {
+    "source": "Office of the Provincial Assessor — Besao GR FORM No. 1 (Office Order No. 01)",
+    "act": "RA 12001 (Real Property Valuation and Assessment Reform Act), Section 15",
+    "transcribed_on": "2026-06-22",
+    "notes": [
+      "Official schedule: C-1..C-3 commercial + R-1..R-7 residential. No R-8 — previous R-8 (Tamboan corridor + inner Laylaya/Ambagiw) folded into R-6 and R-7.",
+      "Standard depth: 30 m for both residential and commercial lands.",
+      "Existing R-7 / R-8 polygons in besao_zones.geojson may need manual re-tagging in the editor.",
+      "Mirrors BESAO_CLASSIFICATIONS in lib/besao.js so the editor's class chips and the printed legend stay in sync."
+    ]
+  },
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "sub_classification": "C-1",
+          "unit_value_2027_per_sqm": 2560,
+          "unit_value_2014_per_sqm": 105.00,
+          "unit_value_2006_per_sqm": 58.80,
+          "location_description": "Commercial lots along the all-weather road within Barangay Kin-iway.",
+          "barangays": ["Kin-iway"]
+        },
+        {
+          "sub_classification": "C-2",
+          "unit_value_2027_per_sqm": 1910,
+          "location_description": "Commercial lots along the all-weather roads and inner lots within Besao East, Besao West, Payeo, Padangaan, Suquib, Lacmaan, Catengan, and Laylaya; and inner lots within Kin-iway.",
+          "barangays": ["Besao East", "Besao West", "Payeo", "Padangaan", "Suquib", "Lacmaan", "Catengan", "Laylaya", "Kin-iway"]
+        },
+        {
+          "sub_classification": "C-3",
+          "unit_value_2027_per_sqm": 1490,
+          "location_description": "Commercial lots along the all-weather roads and inner lots of Agawa, Gueday, Banguitan, Ambagiw, and Tamboan.",
+          "barangays": ["Agawa", "Gueday", "Banguitan", "Ambagiw", "Tamboan"]
+        }
+      ]
+    },
+    {
+      "category": "Residential Land",
+      "items": [
+        {
+          "sub_classification": "R-1",
+          "unit_value_2027_per_sqm": 2560,
+          "unit_value_2014_per_sqm": 105.00,
+          "unit_value_2006_per_sqm": 58.80,
+          "location_description": "Residential lots along the all-weather road within Barangay Kin-iway.",
+          "barangays": ["Kin-iway"]
+        },
+        {
+          "sub_classification": "R-2",
+          "unit_value_2027_per_sqm": 1910,
+          "unit_value_2014_per_sqm": 86.30,
+          "unit_value_2006_per_sqm": 45.90,
+          "location_description": "Residential lots along the all-weather roads within Payeo and Padangaan, and inner lots of Kin-iway.",
+          "barangays": ["Payeo", "Padangaan", "Kin-iway"]
+        },
+        {
+          "sub_classification": "R-3",
+          "unit_value_2027_per_sqm": 1490,
+          "unit_value_2014_per_sqm": 64.30,
+          "unit_value_2006_per_sqm": 32.30,
+          "location_description": "Residential lots along the all-weather roads of Besao West and Besao East, and inner lots within Payeo and Padangaan.",
+          "barangays": ["Besao West", "Besao East", "Payeo", "Padangaan"]
+        },
+        {
+          "sub_classification": "R-4",
+          "unit_value_2027_per_sqm": 1230,
+          "unit_value_2014_per_sqm": 28.70,
+          "unit_value_2006_per_sqm": 15.00,
+          "location_description": "Residential lots along the all-weather roads within Suquib and Lacmaan, and inner lots within Besao East and Besao West.",
+          "barangays": ["Suquib", "Lacmaan", "Besao East", "Besao West"]
+        },
+        {
+          "sub_classification": "R-5",
+          "unit_value_2027_per_sqm": 1060,
+          "location_description": "Residential lots along the all-weather roads within Banguitan and Agawa, and inner lots of Suquib and Lacmaan.",
+          "barangays": ["Banguitan", "Agawa", "Suquib", "Lacmaan"]
+        },
+        {
+          "sub_classification": "R-6",
+          "unit_value_2027_per_sqm": 960,
+          "location_description": "Residential lots along the all-weather roads within Laylaya, Tamboan, Gueday, and Catengan, and inner lots within Banguitan and Agawa.",
+          "barangays": ["Laylaya", "Tamboan", "Gueday", "Catengan", "Banguitan", "Agawa"]
+        },
+        {
+          "sub_classification": "R-7",
+          "unit_value_2027_per_sqm": 830,
+          "location_description": "Residential lots within Barangay Ambagiw, and inner lots within Gueday, Laylaya, Tamboan, and Catengan.",
+          "barangays": ["Ambagiw", "Gueday", "Laylaya", "Tamboan", "Catengan"]
+        }
+      ]
+    }
+  ]
 }

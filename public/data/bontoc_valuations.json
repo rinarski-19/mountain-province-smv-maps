@@ -1,199 +1,106 @@
 {
   "municipality": "BONTOC",
-  "document_title": "SCHEDULE OF BASE UNIT MARKET VALUES (placeholder pending LGU input)",
+  "document_title": "Schedule of Base Unit Market Values for Residential, Commercial and Industrial Lands — Bontoc",
+  "province": "Mountain Province",
   "revision_year": 2027,
+  "standard_depth": null,
+  "_meta": {
+    "source": "Office of the Provincial Assessor — Bontoc GR Form 1 (edited)",
+    "act": "RA 12001 (Real Property Valuation and Assessment Reform Act), Section 15",
+    "transcribed_on": "2026-06-23",
+    "notes": [
+      "Source doc shows 2012 + 2024 columns; the 2024 figures are treated as the operative 2027 values per the LGU's General Revision.",
+      "Official schedule: 2 commercial (C-1, C-2) + 10 residential (R-1..R-10). R-11..R-15 dropped from earlier draft.",
+      "Existing zones tagged R-11..R-15 need retagging; the rest of the ladder (C-1/C-2/R-1..R-10) shares values with the prior draft except C-1/R-1 (was ₱8,910, now ₱9,860).",
+      "Mirrors BONTOC_CLASSIFICATIONS in lib/bontoc.js."
+    ]
+  },
   "land_classifications": [
     {
       "category": "Commercial Lands",
       "items": [
         {
-          "location_description": "Along Provincial and National Roads of Bontoc (TODO)",
-          "unit_value_2027_per_sqm": 6240,
           "sub_classification": "C-1",
-          "barangays": [
-            "Alab Oriente",
-            "Alab Proper",
-            "Balili",
-            "Bayyo",
-            "Bontoc Ili",
-            "Calutit",
-            "Caneo",
-            "Dalican",
-            "Gonogon",
-            "Guinaang",
-            "Mainit",
-            "Maligcong",
-            "Poblacion",
-            "Samoki",
-            "Talubin",
-            "Tocucan"
-          ]
+          "unit_value_2027_per_sqm": 9860,
+          "unit_value_2012_per_sqm": 594.50,
+          "location_description": "Commercial lots along National Road within Poblacion — both sides from Circle to Kalangeg building; Circle to start of National Bridge fronting MPGCHS; Circle to Municipal Capitol; EDNP building to Barracks; Pearl Café to Barracks; Gomez residence to National Road Junction at Municipal Capitol. Also along Municipal Road from Wanchakan building to Pines Kitchenette down to Circle, and from JBA building to Pooten building.",
+          "barangays": ["Poblacion"]
         },
         {
-          "location_description": "Along National Road of Bontoc (TODO)",
-          "unit_value_2027_per_sqm": 5140,
           "sub_classification": "C-2",
-          "barangays": [
-            "Alab Oriente",
-            "Alab Proper",
-            "Balili",
-            "Bayyo",
-            "Bontoc Ili",
-            "Calutit",
-            "Caneo",
-            "Dalican",
-            "Gonogon",
-            "Guinaang",
-            "Mainit",
-            "Maligcong",
-            "Poblacion",
-            "Samoki",
-            "Talubin",
-            "Tocucan"
-          ]
-        },
-        {
-          "location_description": "Along all-weather roads of Bontoc (TODO)",
-          "unit_value_2027_per_sqm": 4030,
-          "sub_classification": "C-3",
-          "barangays": [
-            "Alab Oriente",
-            "Alab Proper",
-            "Balili",
-            "Bayyo",
-            "Bontoc Ili",
-            "Calutit",
-            "Caneo",
-            "Dalican",
-            "Gonogon",
-            "Guinaang",
-            "Mainit",
-            "Maligcong",
-            "Poblacion",
-            "Samoki",
-            "Talubin",
-            "Tocucan"
-          ]
+          "unit_value_2027_per_sqm": 7710,
+          "location_description": "Commercial lots along National Road of Bontoc Ili to Gonogon (Joel Tad-awan building to Palinga-aw, Gonogon, both sides) and along Lanao Road; National Road of Caluttit (Centrum building in front of DPWH to Pingew Restaurant, both sides); National Road of Samoki (end of National Bridge to Sukit / Anayas's Restaurant, both sides); National Road from Barracks to Cadre Road. Also along Municipal Roads: Akfab, Fakeg, Kayyab, Sengang, Layad, Ayyoweng, and Tugwi Streets.",
+          "barangays": ["Bontoc Ili", "Calutit", "Gonogon", "Poblacion", "Samoki"]
         }
       ]
     },
     {
-      "category": "Residential Lands",
+      "category": "Residential Land",
       "items": [
         {
-          "location_description": "Along Provincial and National Roads of Bontoc (TODO)",
-          "unit_value_2027_per_sqm": 6240,
           "sub_classification": "R-1",
-          "barangays": [
-            "Alab Oriente",
-            "Alab Proper",
-            "Balili",
-            "Bayyo",
-            "Bontoc Ili",
-            "Calutit",
-            "Caneo",
-            "Dalican",
-            "Gonogon",
-            "Guinaang",
-            "Mainit",
-            "Maligcong",
-            "Poblacion",
-            "Samoki",
-            "Talubin",
-            "Tocucan"
-          ]
+          "unit_value_2027_per_sqm": 9860,
+          "unit_value_2012_per_sqm": 490.50,
+          "location_description": "Residential lots along National Roads from Circle to Malichom Samoki (Romel Lengwa Residence); Circle to Pakkil Caluttit (Morareng Residence); Circle to Balikian Bridge (Bontoc–Baguio Road); EDNP building to Barracks; Pearl Café to Barracks. Also along Caluttit–Plaza Road, Eyeb–Lanao Road, and Municipal Road from Wanchakan building to Pines Kitchenette down to Circle, and from JBA building to Pooten building.",
+          "barangays": ["Bontoc Ili", "Calutit", "Poblacion", "Samoki"]
         },
         {
-          "location_description": "Along National Road of Bontoc (TODO)",
-          "unit_value_2027_per_sqm": 5140,
           "sub_classification": "R-2",
-          "barangays": [
-            "Alab Oriente",
-            "Alab Proper",
-            "Balili",
-            "Bayyo",
-            "Bontoc Ili",
-            "Calutit",
-            "Caneo",
-            "Dalican",
-            "Gonogon",
-            "Guinaang",
-            "Mainit",
-            "Maligcong",
-            "Poblacion",
-            "Samoki",
-            "Talubin",
-            "Tocucan"
-          ]
+          "unit_value_2027_per_sqm": 7710,
+          "unit_value_2012_per_sqm": 385.10,
+          "location_description": "Residential lots along National Road from end of Balikian Bridge to Amlosong; along National Road of Caluttit (Fagyan Residence to Pingew Restaurant); along National Road of Samoki starting from Malichom. Also along Municipal Roads: Akfab, Fakeg, Kayyab, Sengang, Layad, Ayyoweng, Tugwi — including inner lots of Poblacion.",
+          "barangays": ["Calutit", "Poblacion", "Samoki"]
         },
         {
-          "location_description": "Inner lots of Bontoc (TODO)",
-          "unit_value_2027_per_sqm": 4030,
           "sub_classification": "R-3",
-          "barangays": [
-            "Alab Oriente",
-            "Alab Proper",
-            "Balili",
-            "Bayyo",
-            "Bontoc Ili",
-            "Calutit",
-            "Caneo",
-            "Dalican",
-            "Gonogon",
-            "Guinaang",
-            "Mainit",
-            "Maligcong",
-            "Poblacion",
-            "Samoki",
-            "Talubin",
-            "Tocucan"
-          ]
+          "unit_value_2027_per_sqm": 6340,
+          "unit_value_2012_per_sqm": 294.50,
+          "location_description": "Residential lots along Provincial Road (Bontoc–Maligcong Road) and along Bontoc–Mainit Road.",
+          "barangays": ["Mainit", "Maligcong"]
         },
         {
-          "location_description": "Inner lots of Bontoc (TODO)",
-          "unit_value_2027_per_sqm": 3150,
           "sub_classification": "R-4",
-          "barangays": [
-            "Alab Oriente",
-            "Alab Proper",
-            "Balili",
-            "Bayyo",
-            "Bontoc Ili",
-            "Calutit",
-            "Caneo",
-            "Dalican",
-            "Gonogon",
-            "Guinaang",
-            "Mainit",
-            "Maligcong",
-            "Poblacion",
-            "Samoki",
-            "Talubin",
-            "Tocucan"
-          ]
+          "unit_value_2027_per_sqm": 5220,
+          "unit_value_2012_per_sqm": 145.50,
+          "location_description": "Inner lots of Poblacion.",
+          "barangays": ["Poblacion"]
         },
         {
-          "location_description": "All-weather roads and inner lots of Bontoc (TODO)",
-          "unit_value_2027_per_sqm": 2480,
           "sub_classification": "R-5",
-          "barangays": [
-            "Alab Oriente",
-            "Alab Proper",
-            "Balili",
-            "Bayyo",
-            "Bontoc Ili",
-            "Calutit",
-            "Caneo",
-            "Dalican",
-            "Gonogon",
-            "Guinaang",
-            "Mainit",
-            "Maligcong",
-            "Poblacion",
-            "Samoki",
-            "Talubin",
-            "Tocucan"
-          ]
+          "unit_value_2027_per_sqm": 4290,
+          "unit_value_2012_per_sqm": 96.70,
+          "location_description": "Inner lots of Caluttit, Bontoc Ili, and Samoki; residential lots along Provincial Roads of Maligcong, Guina-ang, Mainit, Talubin, Can-eo, Balili, and along Balikian–Dalican Road.",
+          "barangays": ["Bontoc Ili", "Calutit", "Samoki", "Maligcong", "Guinaang", "Mainit", "Talubin", "Caneo", "Balili", "Dalican"]
+        },
+        {
+          "sub_classification": "R-6",
+          "unit_value_2027_per_sqm": 3530,
+          "location_description": "Along National Roads of Tocucan, Talubin, Bayyo, Alab Proper, Alab Oriente, and Gonogon.",
+          "barangays": ["Tocucan", "Talubin", "Bayyo", "Alab Proper", "Alab Oriente", "Gonogon"]
+        },
+        {
+          "sub_classification": "R-7",
+          "unit_value_2027_per_sqm": 2910,
+          "location_description": "Inner lots along Provincial Roads of Tocucan, Talubin, Bayyo, Alab Proper, Alab Oriente, Gonogon, Maligcong, Guina-ang, Mainit, Can-eo, and Balili.",
+          "barangays": ["Tocucan", "Talubin", "Bayyo", "Alab Proper", "Alab Oriente", "Gonogon", "Maligcong", "Guinaang", "Mainit", "Caneo", "Balili"]
+        },
+        {
+          "sub_classification": "R-8",
+          "unit_value_2027_per_sqm": 2390,
+          "location_description": "Residential lots along Barangay Roads of Balili, Maligcong, Guina-ang, Mainit, and Talubin.",
+          "barangays": ["Balili", "Maligcong", "Guinaang", "Mainit", "Talubin"]
+        },
+        {
+          "sub_classification": "R-9",
+          "unit_value_2027_per_sqm": 1970,
+          "location_description": "Inner lots along Barangay Roads of Balili, Maligcong, Guina-ang, and Talubin.",
+          "barangays": ["Balili", "Maligcong", "Guinaang", "Talubin"]
+        },
+        {
+          "sub_classification": "R-10",
+          "unit_value_2027_per_sqm": 1620,
+          "location_description": "Inner lots of Dalican and Can-eo; mountainous and far-flung sitios of Maligcong, Guina-ang, and Can-eo (Chapyosen).",
+          "barangays": ["Dalican", "Caneo", "Maligcong", "Guinaang"]
         }
       ]
     }

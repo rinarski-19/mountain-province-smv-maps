@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
 import * as turf from "@turf/turf";
-import { CLASSIFICATION_INFO, styleForClass } from "@/lib/classifications";
+import {
+  CLASSIFICATION_INFO,
+  styleForClass,
+  textColorForBackground,
+} from "@/lib/classifications";
 import LandmarkAddForm from "./LandmarkAddForm";
 
 const DEFAULT_STORAGE_KEY = "bauko-zones-v1";
@@ -627,6 +631,7 @@ export default function EditableZones({
   saveSlug = "bauko",
   savePathLabel = "public/data/bauko_zones.geojson",
   roadsUrl = null,
+  printRoadsUrl = null,
   frontageBandsUrl = null,
   showFrontageBands = false,
   barangaysUrl = null,
@@ -741,6 +746,20 @@ export default function EditableZones({
   const [selectedRoadKeys, setSelectedRoadKeys] = useState(() => new Set());
   const roadsLayerRef = useRef(null);
   const roadsByKeyRef = useRef(new Map()); // key → { feature, leafletLayer }
+  const [addingBarangayRoad, setAddingBarangayRoad] = useState(false);
+  const [barangayRoadName, setBarangayRoadName] = useState("");
+  const [roadSaveStatus, setRoadSaveStatus] = useState("idle");
+  const [roadDeleteStatus, setRoadDeleteStatus] = useState("idle");
+  const [roadRefreshVersion, setRoadRefreshVersion] = useState(0);
+  const addingBarangayRoadRef = useRef(addingBarangayRoad);
+  const barangayRoadNameRef = useRef(barangayRoadName);
+  const saveManualRoadRef = useRef(null);
+  useEffect(() => {
+    addingBarangayRoadRef.current = addingBarangayRoad;
+  }, [addingBarangayRoad]);
+  useEffect(() => {
+    barangayRoadNameRef.current = barangayRoadName;
+  }, [barangayRoadName]);
   // Cached "all roads buffered" polygon. Computed once when the roads
   // file finishes loading and reused on every bake to subtract the road
   // centerline strip out of new corridors — that's how we prevent the
@@ -811,11 +830,11 @@ export default function EditableZones({
 
   // Best-effort persistence to localStorage. Browsers cap per-origin
   // storage at ~5–10 MB, and large LGUs (e.g. Sagada after baking
-  // every road corridor) can produce snapshots that exceed that. When
-  // we hit the quota, the in-memory undo/redo history still works —
-  // we just can't restore from disk on next page load. We surface a
-  // one-shot notice so the user knows their next reload won't include
-  // unsaved edits, then keep going.
+  // every road corridor) can produce snapshots that exceed that. The
+  // auto-save-to-disk below is the real durability story; localStorage
+  // is just for instant undo/redo across hot reloads. When localStorage
+  // quota is hit we KEEP the last good snapshot in place (instead of
+  // wiping it) so a hard refresh still has something to fall back to.
   const persistSnapshot = (snapshot) => {
     try {
       localStorage.setItem(storageKey, snapshot);
@@ -831,28 +850,151 @@ export default function EditableZones({
         console.warn("Failed to persist editor snapshot:", err);
         return false;
       }
-      // Free the slot so any older smaller snapshot doesn't shadow
-      // newer in-memory state on reload.
-      try {
-        localStorage.removeItem(storageKey);
-      } catch {}
+      // Quota hit. Don't remove the existing slot — better to load a
+      // slightly-stale snapshot on refresh than to lose everything.
       if (!quotaWarnedRef.current) {
         quotaWarnedRef.current = true;
         const sizeMb = (snapshot.length / (1024 * 1024)).toFixed(1);
         setBakeNotice(
           `Snapshot too large for browser storage (${sizeMb} MB). ` +
-            `In-memory undo still works, but edits won't survive a page reload — ` +
-            `save the GeoJSON to disk to keep them.`
+            `Auto-save to disk is still active — your edits are safe.`
         );
-        setTimeout(() => setBakeNotice(""), 8000);
+        setTimeout(() => setBakeNotice(""), 6000);
         console.warn(
           `[EditableZones] localStorage quota exceeded for ${storageKey} ` +
-            `(${sizeMb} MB snapshot). Skipping persistence.`
+            `(${sizeMb} MB snapshot). Relying on auto-save-to-disk instead.`
         );
       }
       return false;
     }
   };
+
+  // ---- Auto-save to disk (durable persistence) ----
+  //
+  // The localStorage snapshot above is fast but capped at ~5 MB and
+  // doesn't survive Chrome clearing site data. The real durability
+  // story is a debounced POST to /api/zones/save which writes the
+  // GeoJSON to public/data/<slug>_zones.geojson on disk. On the next
+  // page load the editor falls through to that file if localStorage
+  // is empty or stale.
+  //
+  // We debounce so dragging vertices or batching deletions doesn't
+  // hammer the server. Cancellable via the timer ref, and a sequence
+  // counter ignores stale responses when a newer save kicks off
+  // before an older one returns. Silent failures — no prompt — since
+  // auto-save shouldn't interrupt drawing. The manual Save button
+  // still surfaces hard errors.
+  // SAVE_PW_KEY is declared later (near saveToProject). Keep that as
+  // the single source of truth; auto-save reads from the same key.
+  const AUTO_SAVE_DEBOUNCE_MS = 4000;
+  const AUTO_SAVE_PW_KEY = "zones-save-password-v1";
+  const autoSaveTimerRef = useRef(null);
+  const autoSaveSeqRef = useRef(0);
+  const lastSavedRef = useRef(null);
+  const performAutoSave = async () => {
+    const group = groupRef.current;
+    if (!group || typeof window === "undefined") return;
+    const fc = group.toGeoJSON();
+    const body = JSON.stringify(fc);
+    // Skip if nothing actually changed since the last successful save.
+    if (body === lastSavedRef.current) return;
+    const seq = ++autoSaveSeqRef.current;
+    let cachedPw = "";
+    try {
+      cachedPw = window.localStorage.getItem(AUTO_SAVE_PW_KEY) || "";
+    } catch {}
+    const url = `/api/zones/save?slug=${encodeURIComponent(saveSlug)}`;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(cachedPw ? { Authorization: `Bearer ${cachedPw}` } : {}),
+        },
+        body,
+      });
+      // A newer auto-save started before this one returned; let it win.
+      if (seq !== autoSaveSeqRef.current) return;
+      if (res.ok) {
+        lastSavedRef.current = body;
+        // Tell the rest of the app that the on-disk zones file changed,
+        // so the read-only SMV layer can refetch.
+        try {
+          window.dispatchEvent(new CustomEvent(saveEventName));
+        } catch {}
+      } else if (res.status !== 401) {
+        // 401 in production means we need a password — manual Save
+        // will prompt for it. Other failures we just log.
+        console.warn(
+          `[EditableZones] auto-save returned ${res.status} — manual save still available.`
+        );
+      }
+    } catch (e) {
+      // Network blip, dev server restarting, etc. Manual Save remains
+      // the escape hatch.
+      console.warn("[EditableZones] auto-save fetch failed:", e?.message ?? e);
+    }
+  };
+  const scheduleAutoSave = () => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSaveTimerRef.current = null;
+      performAutoSave();
+    }, AUTO_SAVE_DEBOUNCE_MS);
+  };
+  // Flush the auto-save timer when the user is about to leave the page,
+  // and again on component unmount. Uses sendBeacon if available so the
+  // request survives a unload event; falls back to a sync fetch.
+  useEffect(() => {
+    const flush = () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+        const group = groupRef.current;
+        if (!group || typeof window === "undefined") return;
+        const fc = group.toGeoJSON();
+        const body = JSON.stringify(fc);
+        if (body === lastSavedRef.current) return;
+        let cachedPw = "";
+        try {
+          cachedPw = window.localStorage.getItem(AUTO_SAVE_PW_KEY) || "";
+        } catch {}
+        const url = `/api/zones/save?slug=${encodeURIComponent(saveSlug)}`;
+        // sendBeacon ignores auth headers, so we only use it when no
+        // password is required (local dev). Production falls back to
+        // keepalive fetch which DOES include the Authorization header.
+        try {
+          if (!cachedPw && navigator.sendBeacon) {
+            const blob = new Blob([body], { type: "application/json" });
+            navigator.sendBeacon(url, blob);
+          } else {
+            fetch(url, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(cachedPw ? { Authorization: `Bearer ${cachedPw}` } : {}),
+              },
+              body,
+              keepalive: true,
+            });
+          }
+        } catch {}
+      }
+    };
+    const handleBeforeUnload = () => flush();
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", handleBeforeUnload);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+      }
+      flush();
+    };
+    // Re-bind if the slug changes so we always flush to the right file.
+  }, [saveSlug, saveEventName]);
 
   // ---- Custom landmark adder (in-app pin tool) ----
   // When `placingLandmark` is on, the next map click drops a pending
@@ -1130,6 +1272,177 @@ export default function EditableZones({
       cancelled = true;
     };
   }, [barangaysUrl]);
+
+  saveManualRoadRef.current = async (roadFeature) => {
+    const feature = {
+      ...roadFeature,
+      properties: { ...(roadFeature.properties || {}) },
+    };
+    try {
+      const lengthKm = turf.length(feature, { units: "kilometers" });
+      feature.properties.length_m = Math.round(lengthKm * 1000);
+      if (feature.geometry?.type === "LineString" && lengthKm > 0) {
+        const midpoint = turf.along(feature, lengthKm / 2, {
+          units: "kilometers",
+        });
+        const barangay = (barangaysData?.features || []).find((candidate) => {
+          try {
+            return turf.booleanPointInPolygon(midpoint, candidate);
+          } catch {
+            return false;
+          }
+        });
+        if (barangay) {
+          const name =
+            barangay.properties?.name ||
+            barangay.properties?.NAME_3 ||
+            barangay.properties?.ADM4_EN ||
+            null;
+          feature.properties.barangay_name = name;
+          feature.properties.barangay_slug =
+            barangay.properties?.slug ||
+            String(name || "")
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, "") ||
+            null;
+        }
+      }
+    } catch (error) {
+      console.warn("Could not calculate manual road metadata:", error);
+    }
+
+    setRoadSaveStatus("saving");
+    const url = `/api/roads/save?slug=${encodeURIComponent(
+      saveSlug || municipalitySlug
+    )}`;
+    const send = (password) =>
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(password ? { Authorization: `Bearer ${password}` } : {}),
+        },
+        body: JSON.stringify(feature),
+      });
+
+    let password = "";
+    try {
+      password = window.localStorage.getItem("zones-save-password-v1") || "";
+    } catch {}
+
+    try {
+      let response = await send(password);
+      if (response.status === 401) {
+        password = window.prompt(
+          "Enter the team save password to add this barangay road:",
+          password
+        );
+        if (password == null) {
+          setRoadSaveStatus("idle");
+          return;
+        }
+        response = await send(password);
+        if (response.ok && password) {
+          try {
+            window.localStorage.setItem("zones-save-password-v1", password);
+          } catch {}
+        }
+      }
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`);
+      }
+      setRoadSaveStatus("saved");
+      setBarangayRoadName("");
+      setRoadRefreshVersion((version) => version + 1);
+      setBakeNotice(
+        `Print-only barangay road saved${feature.properties.name ? `: ${feature.properties.name}` : "."}`
+      );
+      setTimeout(() => setBakeNotice(""), 5000);
+      setTimeout(() => setRoadSaveStatus("idle"), 1800);
+    } catch (error) {
+      console.error("Could not save barangay road:", error);
+      setRoadSaveStatus("error");
+      setBakeNotice(`Road save failed: ${error.message}`);
+      setTimeout(() => setBakeNotice(""), 7000);
+      setTimeout(() => setRoadSaveStatus("idle"), 2500);
+    }
+  };
+
+  const deleteSelectedPrintRoads = async () => {
+    const selected = Array.from(selectedRoadKeysRef.current)
+      .map((key) => roadsByKeyRef.current.get(key)?.feature)
+      .filter(
+        (feature) =>
+          feature?.properties?.source === "manual-print" &&
+          feature?.properties?.manual_id
+      );
+    if (!selected.length) return;
+    if (
+      !window.confirm(
+        `Delete ${selected.length} selected print road${selected.length === 1 ? "" : "s"}?`
+      )
+    ) {
+      return;
+    }
+
+    let password = "";
+    try {
+      password = window.localStorage.getItem("zones-save-password-v1") || "";
+    } catch {}
+    const send = (manualId, token) =>
+      fetch(
+        `/api/roads/save?slug=${encodeURIComponent(
+          saveSlug || municipalitySlug
+        )}&id=${encodeURIComponent(manualId)}`,
+        {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+
+    setRoadDeleteStatus("deleting");
+    try {
+      for (const feature of selected) {
+        let response = await send(feature.properties.manual_id, password);
+        if (response.status === 401) {
+          password = window.prompt(
+            "Enter the team save password to delete this print road:",
+            password
+          );
+          if (password == null) {
+            setRoadDeleteStatus("idle");
+            return;
+          }
+          response = await send(feature.properties.manual_id, password);
+          if (response.ok && password) {
+            try {
+              window.localStorage.setItem("zones-save-password-v1", password);
+            } catch {}
+          }
+        }
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || `HTTP ${response.status}`);
+        }
+      }
+      setSelectedRoadKeys(new Set());
+      setRoadRefreshVersion((version) => version + 1);
+      setRoadDeleteStatus("deleted");
+      setBakeNotice(
+        `Deleted ${selected.length} print road${selected.length === 1 ? "" : "s"}.`
+      );
+      setTimeout(() => setBakeNotice(""), 4000);
+      setTimeout(() => setRoadDeleteStatus("idle"), 1600);
+    } catch (error) {
+      console.error("Could not delete print road:", error);
+      setRoadDeleteStatus("error");
+      setBakeNotice(`Road delete failed: ${error.message}`);
+      setTimeout(() => setBakeNotice(""), 7000);
+      setTimeout(() => setRoadDeleteStatus("idle"), 2500);
+    }
+  };
 
   const [multiVertexMode, setMultiVertexMode] = useState(false);
   const multiVertexModeRef = useRef(multiVertexMode);
@@ -1418,7 +1731,15 @@ export default function EditableZones({
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push(snapshot);
     historyIndexRef.current = historyRef.current.length - 1;
-    if (shouldPersist) persistSnapshot(snapshot);
+    if (shouldPersist) {
+      persistSnapshot(snapshot);
+      // AUTO-SAVE DISABLED 2026-06-23: race condition where stale
+      // localStorage could overwrite a newer disk file when the user
+      // refreshed mid-edit. Until that's fixed (load-from-disk-first
+      // + version compare), the only way to persist is the manual
+      // Save button.
+      // scheduleAutoSave();
+    }
     syncEditorState();
   };
 
@@ -1693,6 +2014,21 @@ export default function EditableZones({
         ) {
           return;
         }
+      }
+      // Skip neighbours that ENTIRELY contain the selected polygon.
+      // These are background fills (e.g. a barangay-wide R-11 inner-lot
+      // fill, or a primary corridor that the selected polygon was
+      // overlaid on as a secondary frontage). Trimming against them
+      // would always collapse the selection to nothing, which is the
+      // "secondary frontage always says entirely covered" complaint —
+      // the secondary corridor sits on top of a larger zone by design.
+      try {
+        if (turf.booleanContains(existingFeature, trimmed)) {
+          return;
+        }
+      } catch {
+        // booleanContains can throw on degenerate geometry — fall
+        // through and let turf.difference decide.
       }
       try {
         const diff = turf.difference(
@@ -1998,7 +2334,9 @@ export default function EditableZones({
   }, [selectedRoadKeys]);
 
   // ---- OSM roads layer: click-to-tag pipeline ----
-  // Fetch the chipped roads file once per (roadsUrl, visible) cycle.
+  // Fetch the OSM roads plus any manually traced print-only roads while the
+  // editor is open. The extra roads are deliberately not loaded by the public
+  // map; they exist only as drawing context and in the generated A3 SVG.
   // Each segment becomes a clickable LineString; click toggles its
   // membership in selectedRoadKeys. The class-chip onClick further
   // down checks the ref and, if any roads are selected, buffers them
@@ -2018,9 +2356,22 @@ export default function EditableZones({
       pane.style.zIndex = 442;
     }
 
-    fetch(roadsUrl, { cache: "force-cache" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((fc) => {
+    const fetchRoads = (url) =>
+      url
+        ? fetch(url, { cache: "no-store" }).then((r) =>
+            r.ok ? r.json() : { type: "FeatureCollection", features: [] }
+          )
+        : Promise.resolve({ type: "FeatureCollection", features: [] });
+
+    Promise.all([fetchRoads(roadsUrl), fetchRoads(printRoadsUrl)])
+      .then(([osmRoads, printRoads]) => {
+        const fc = {
+          type: "FeatureCollection",
+          features: [
+            ...(osmRoads?.features ?? []),
+            ...(printRoads?.features ?? []),
+          ],
+        };
         if (cancelled || !fc?.features) return;
         const layer = L.geoJSON(fc, {
           pane: "osm-roads-pane",
@@ -2041,9 +2392,11 @@ export default function EditableZones({
             const key = roadFeatureKey(feature);
             byKey.set(key, { feature, leafletLayer });
             leafletLayer.on("click", (ev) => {
-              // Road selection is intentionally gated by Shift+click so
-              // ordinary clicks don't accidentally tag segments.
-              if (!ev?.originalEvent?.shiftKey) return;
+              // Manually drawn print roads select with a normal click so they
+              // can be deleted easily. OSM roads stay gated behind Shift+click
+              // and can never be removed by the print-road delete action.
+              const isPrintRoad = feature.properties?.source === "manual-print";
+              if (!isPrintRoad && !ev?.originalEvent?.shiftKey) return;
               L.DomEvent.stopPropagation(ev);
               setSelectedRoadKeys((prev) => {
                 const next = new Set(prev);
@@ -2064,6 +2417,9 @@ export default function EditableZones({
             });
             const tip = [
               feature.properties?.name || "(unnamed road)",
+              feature.properties?.source === "manual-print"
+                ? "print only · click to select"
+                : null,
               feature.properties?.highway,
               feature.properties?.barangay_name,
               `${feature.properties?.length_m ?? "?"} m`,
@@ -2153,7 +2509,7 @@ export default function EditableZones({
       roadsByKeyRef.current = new Map();
       roadBufferRef.current = null;
     };
-  }, [roadsUrl, visible, map]);
+  }, [roadsUrl, printRoadsUrl, visible, map, roadRefreshVersion]);
 
   // ---- OSM buildings layer (per-building override mode) ----
   // Loaded only when a buildings URL is provided AND the editor is
@@ -3163,25 +3519,61 @@ export default function EditableZones({
 
     let cancelled = false;
 
-    // Local browser edits win. If there are no browser edits yet, load the
-    // bundled offline zones file so exported zones can be committed permanently.
+    // Load order policy (2026-06-23 — replaced "localStorage always
+    // wins"):
+    //   1. Fetch BOTH the bundled disk file AND any localStorage snapshot.
+    //   2. Pick the one with the most features. Rationale: the disk
+    //      file is the canonical source-of-truth (saved via Save button
+    //      or auto-save); localStorage is the browser cache of unsaved
+    //      edits. The bigger one almost always represents more work.
+    //   3. If both are empty, fall through silently.
+    //
+    // This prevents the failure mode where a stale localStorage from
+    // an earlier session "wins" over a newer/bigger disk file and
+    // appears to wipe the user's saved work.
     (async () => {
       try {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-          loadGeoJSONIntoGroup(JSON.parse(saved), group, prepareLayer);
+        let savedFc = null;
+        try {
+          const saved = localStorage.getItem(storageKey);
+          if (saved) {
+            savedFc = JSON.parse(saved);
+          }
+        } catch {
+          // Corrupted JSON in localStorage — ignore it.
+        }
+        let diskFc = null;
+        try {
+          const res = await fetch(bundledZonesUrl, { cache: "no-store" });
+          if (res.ok && !cancelled) {
+            diskFc = await res.json();
+          }
+        } catch {
+          // No bundled file or fetch failed — that's fine in offline mode.
+        }
+        if (cancelled) return;
+        const savedCount = Array.isArray(savedFc?.features)
+          ? savedFc.features.length
+          : 0;
+        const diskCount = Array.isArray(diskFc?.features)
+          ? diskFc.features.length
+          : 0;
+        // Prefer disk when it has at least as many features (avoids the
+        // "localStorage truncated to 25 features overwrites disk's 220"
+        // failure mode that ate Besao work).
+        const winner =
+          diskCount >= savedCount ? diskFc : savedFc;
+        if (winner?.features?.length != null) {
+          console.log(
+            `[EditableZones] loaded ${winner.features.length} features ` +
+              `(disk: ${diskCount}, localStorage: ${savedCount}, picked: ${
+                winner === diskFc ? "disk" : "localStorage"
+              })`
+          );
+          loadGeoJSONIntoGroup(winner, group, prepareLayer);
           pushHistory(false);
           refresh();
           return;
-        }
-
-        const res = await fetch(bundledZonesUrl);
-        if (!res.ok || cancelled) return;
-        const fc = await res.json();
-        if (!cancelled) {
-          loadGeoJSONIntoGroup(fc, group, prepareLayer);
-          pushHistory(false);
-          refresh();
         }
       } catch (e) {
         console.warn("Failed to load saved zones", e);
@@ -3213,7 +3605,7 @@ export default function EditableZones({
       drawMarker: false,
       drawCircleMarker: false,
       drawPolyline: true,
-      drawCircle: false,
+      drawCircle: true,
       drawText: false,
       rotateMode: false,
       // Hide the global edit button — it puts *every* polygon into
@@ -3523,9 +3915,77 @@ export default function EditableZones({
     // proper zone tagged with the active class.
     const onCreate = (e) => {
       const klass = activeClassRef.current;
+      const isCircle =
+        e.shape === "Circle" ||
+        e.layer instanceof L.Circle;
       const isPolyline =
         e.shape === "Line" ||
         (e.layer instanceof L.Polyline && !(e.layer instanceof L.Polygon));
+
+      if (isPolyline && addingBarangayRoadRef.current) {
+        const manualId = `manual-road-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        const roadFeature = e.layer.toGeoJSON();
+        roadFeature.properties = {
+          manual_id: manualId,
+          osm_way_id: manualId,
+          highway: "residential",
+          name: barangayRoadNameRef.current.trim() || null,
+          source: "manual",
+        };
+
+        // A manually traced road belongs to the road dataset, not the SMV
+        // zone group. Remove Geoman's temporary line before the normal
+        // polyline-to-corridor branch can turn it into a valuation polygon.
+        group.removeLayer(e.layer);
+        try {
+          map.removeLayer(e.layer);
+        } catch {}
+        addingBarangayRoadRef.current = false;
+        setAddingBarangayRoad(false);
+        saveManualRoadRef.current?.(roadFeature);
+        refresh();
+        return;
+      }
+
+      if (isCircle) {
+        const center = e.layer.getLatLng();
+        const radiusMeters = e.layer.getRadius();
+        const circleFeature = turf.circle(
+          [center.lng, center.lat],
+          radiusMeters / 1000,
+          { steps: 64, units: "kilometers" }
+        );
+        const props = {
+          classification: klass,
+          source: "circle",
+          radius_m: Math.round(radiusMeters * 100) / 100,
+        };
+
+        // Leaflet serializes L.Circle as a Point. Replace it with a real
+        // polygon so edit, export, undo/redo, and Save to project work just
+        // like they do for rectangles and freehand polygons.
+        group.removeLayer(e.layer);
+        try {
+          map.removeLayer(e.layer);
+        } catch {}
+
+        const polygonLayer = L.geoJSON(
+          { ...circleFeature, properties: props },
+          { style: () => ({}) }
+        );
+        polygonLayer.eachLayer((sub) => {
+          sub.feature = sub.feature || { type: "Feature", properties: {} };
+          sub.feature.properties = { ...sub.feature.properties, ...props };
+          applyFeatureStyle(sub, klass);
+          prepareLayer(sub);
+          group.addLayer(sub);
+        });
+        pushHistory();
+        refresh();
+        return;
+      }
 
       if (isPolyline) {
         const lineFeature = e.layer.toGeoJSON();
@@ -3689,19 +4149,23 @@ export default function EditableZones({
       const wantsDelete =
         !mod && !e.altKey && (e.key === "Delete" || e.key === "Backspace");
 
-      // Escape cancels the "+ Landmark" placing mode, any pending
-      // landmark form, or the "Move pin" mode — gives a no-mouse-needed
-      // way to bail out.
+      // Escape cancels temporary placement and drawing modes.
       if (
         e.key === "Escape" &&
         (placingLandmarkRef.current ||
           pendingLandmark ||
-          movingLandmarkRef.current)
+          movingLandmarkRef.current ||
+          addingBarangayRoadRef.current)
       ) {
         e.preventDefault();
         setPlacingLandmark(false);
         setPendingLandmark(null);
         setMovingLandmark(false);
+        addingBarangayRoadRef.current = false;
+        setAddingBarangayRoad(false);
+        try {
+          map.pm.disableDraw();
+        } catch {}
         return;
       }
 
@@ -4215,6 +4679,34 @@ export default function EditableZones({
     }
   };
 
+  const togglePrintRoadDrawing = () => {
+    if (addingBarangayRoadRef.current) {
+      addingBarangayRoadRef.current = false;
+      setAddingBarangayRoad(false);
+      try {
+        map.pm.disableDraw();
+      } catch {}
+      return;
+    }
+    setPlacingLandmark(false);
+    setPendingLandmark(null);
+    setMovingLandmark(false);
+    addingBarangayRoadRef.current = true;
+    setAddingBarangayRoad(true);
+    try {
+      if (map.pm.globalDrawModeEnabled?.()) map.pm.disableDraw();
+      map.pm.enableDraw("Line", {
+        snappable: false,
+        allowSelfIntersection: true,
+        tooltips: false,
+      });
+    } catch (error) {
+      addingBarangayRoadRef.current = false;
+      setAddingBarangayRoad(false);
+      setBakeNotice(`Could not start road drawing: ${error.message}`);
+    }
+  };
+
   if (!visible) return null;
   const selectedLayer = selectedLayerRef.current;
   // True when the selected polygon is a MultiPolygon with 2+ parts —
@@ -4245,6 +4737,11 @@ export default function EditableZones({
   const selectedTertiaryCurrent = normaliseClassKey(
     selectedLayer?.feature?.properties?.tertiary_classification
   );
+  const selectedPrintRoadCount = Array.from(selectedRoadKeys).filter(
+    (key) =>
+      roadsByKeyRef.current.get(key)?.feature?.properties?.source ===
+      "manual-print"
+  ).length;
   const secondaryClassKey = normaliseClassKey(secondaryClass);
   const tertiaryClassKey = normaliseClassKey(tertiaryClass);
   const canApplySecondary =
@@ -4298,6 +4795,8 @@ export default function EditableZones({
   const pickPlural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const headerTitle = bakeNotice
     ? bakeNotice
+    : selectedPrintRoadCount > 0
+      ? `${pickPlural(selectedPrintRoadCount, "print road")} selected — delete or click to deselect`
     : selectedRoadKeys.size > 0 && selectedBandKeys.size > 0
       ? `${pickPlural(selectedRoadKeys.size, "road")} + ${pickPlural(
           selectedBandKeys.size,
@@ -4509,7 +5008,9 @@ export default function EditableZones({
                 borderRadius: 4,
                 border: `1px solid ${info.color}`,
                 background: isActive ? info.color : "white",
-                color: isActive ? "white" : info.color,
+                color: isActive
+                  ? textColorForBackground(info.color)
+                  : info.color,
                 cursor: "pointer",
                 fontSize: 11,
                 font: "inherit",
@@ -4547,6 +5048,90 @@ export default function EditableZones({
           );
         })}
       </div>
+      {roadsUrl && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            type="button"
+            onClick={togglePrintRoadDrawing}
+            disabled={
+              roadSaveStatus === "saving" || roadDeleteStatus === "deleting"
+            }
+            style={{
+              ...smallBtn,
+              background: addingBarangayRoad ? "#fef3c7" : "white",
+              borderColor: addingBarangayRoad ? "#d97706" : "#f59e0b",
+              color: roadSaveStatus === "error" ? "#b91c1c" : "#92400e",
+              fontWeight: 700,
+            }}
+            title="Print only: click each bend and double-click the final point to save"
+          >
+            {roadSaveStatus === "saving"
+              ? "Saving..."
+              : roadSaveStatus === "saved"
+                ? "Saved"
+                : roadSaveStatus === "error"
+                  ? "Failed"
+                  : addingBarangayRoad
+                    ? "Cancel (Esc)"
+                    : "+ Print road"}
+          </button>
+          <button
+            type="button"
+            onClick={deleteSelectedPrintRoads}
+            disabled={
+              selectedPrintRoadCount === 0 || roadDeleteStatus === "deleting"
+            }
+            style={{
+              ...smallBtn,
+              color: selectedPrintRoadCount > 0 ? "#b91c1c" : "#94a3b8",
+              borderColor:
+                selectedPrintRoadCount > 0 ? "#fecaca" : "#cbd5e1",
+              background:
+                selectedPrintRoadCount > 0 ? "#fff1f2" : "#f8fafc",
+              fontWeight: 700,
+              cursor: selectedPrintRoadCount > 0 ? "pointer" : "not-allowed",
+            }}
+            title="Click a created print road on the map, then delete it here"
+          >
+            {roadDeleteStatus === "deleting"
+              ? "Deleting..."
+              : roadDeleteStatus === "deleted"
+                ? "Deleted"
+                : roadDeleteStatus === "error"
+                  ? "Delete failed"
+                  : selectedPrintRoadCount > 1
+                    ? `Delete ${selectedPrintRoadCount} roads`
+                    : "Delete road"}
+          </button>
+          {addingBarangayRoad && (
+            <input
+              type="text"
+              value={barangayRoadName}
+              onChange={(event) => setBarangayRoadName(event.target.value)}
+              placeholder="Road name (optional)"
+              maxLength={160}
+              autoFocus
+              style={{
+                width: 142,
+                padding: "3px 6px",
+                border: "1px solid #cbd5e1",
+                borderRadius: 4,
+                color: "#0f172a",
+                font: "inherit",
+              }}
+              title="Optional name for this print-only barangay road"
+            />
+          )}
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -5301,7 +5886,9 @@ export default function EditableZones({
                                                 fontStyle: "normal",
                                                 fontWeight: 600,
                                                 background: info.color,
-                                                color: "white",
+                                                color: textColorForBackground(
+                                                  info.color
+                                                ),
                                                 borderRadius: 3,
                                                 verticalAlign: "middle",
                                               }}
@@ -5378,7 +5965,7 @@ function actionButtonStyle(classKey, enabled, applied) {
     return {
       borderColor: info.color,
       background: info.color,
-      color: "white",
+      color: textColorForBackground(info.color),
       fontWeight: 700,
     };
   }

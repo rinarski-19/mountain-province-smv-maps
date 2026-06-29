@@ -1,8 +1,81 @@
 {
+  "municipality": "Sabangan",
+  "document_title": "Schedule of Base Unit Market Values for Residential, Commercial and Industrial Lands — Sabangan",
+  "province": "Mountain Province",
+  "revision_year": 2027,
+  "standard_depth": 30,
   "_meta": {
-    "municipality": "Sabangan",
-    "province": "Mountain Province",
-    "note": "Placeholder. Add per-class / per-barangay 2027 valuations once the LGU SMV schedule is transcribed."
+    "source": "Office of the Provincial Assessor, Mountain Province — Sabangan Form No. 1.docx (Office Order, 2025-04-24)",
+    "act": "RA 12001 (Real Property Valuation and Assessment Reform Act), Section 15",
+    "transcribed_on": "2026-06-22",
+    "notes": [
+      "Official schedule: 2 commercial classes (C-1, C-2) + 5 residential classes (R-1..R-5). Replaces the earlier R-1..R-12 draft.",
+      "Standard depth: 30 m for both residential and commercial lands.",
+      "Existing R-6..R-12 polygons in sabangan_zones.geojson are orphans under this schedule and need manual re-tagging in the editor."
+    ]
   },
-  "values": {}
+  "land_classifications": [
+    {
+      "category": "Commercial Lands",
+      "items": [
+        {
+          "sub_classification": "C-1",
+          "unit_value_2027_per_sqm": 3880,
+          "unit_value_2012_per_sqm": 115.80,
+          "unit_value_2006_per_sqm": 59.50,
+          "location_description": "Commercial lots along the National Road: Nacagang Junction to Palinga-ao (Lagan); Nacagang Junction to Lintoco (Supang); Nacagang Junction to Poblacion to Panorama (Losad).",
+          "barangays": ["Lagan", "Supang", "Poblacion", "Losad"]
+        },
+        {
+          "sub_classification": "C-2",
+          "unit_value_2027_per_sqm": 2770,
+          "location_description": "Commercial lots along the National Road from Bisibisan (Supang) to Dawaic (Supang); along the Provincial Road from Dawdawan to Madepdeppas to Pinumdeng (Data); along the National Road from Panorama (Losad) through Bun-ayan, Bao-angan, Pingad, Camatagan, Capinitan, Busa, Namatec to Aw-awigan (Napua boundary).",
+          "barangays": ["Supang", "Data", "Losad", "Bun-ayan", "Bao-angan", "Pingad", "Camatagan", "Capinitan", "Busa", "Namatec", "Napua"]
+        }
+      ]
+    },
+    {
+      "category": "Residential Land",
+      "items": [
+        {
+          "sub_classification": "R-1",
+          "unit_value_2027_per_sqm": 3880,
+          "unit_value_2012_per_sqm": 115.80,
+          "unit_value_2006_per_sqm": 59.50,
+          "location_description": "Residential lots along the National Road: Nacagang/Tambingan Junction to Palinga-ao (Lagan); Nacagang Junction to Lintoco (Supang); Nacagang Junction from Poblacion to Panorama (Losad).",
+          "barangays": ["Lagan", "Supang", "Poblacion", "Losad", "Tambingan"]
+        },
+        {
+          "sub_classification": "R-2",
+          "unit_value_2027_per_sqm": 2770,
+          "unit_value_2012_per_sqm": 94.70,
+          "unit_value_2006_per_sqm": 48.80,
+          "location_description": "Residential lots along the National Road from Bisibisan (Supang) to Dawaic (Supang); along the Provincial Road from Dawdawan (Data) to Madepdeppas to Pinumdeng (Data); along the National Road from Panorama (Losad) through Bun-ayan, Bao-angan, Pingad, Camatagan, Capinitan, Busa, Namatec to Aw-awigan (Napua); inner from Nacagang to Palinga-ao (Lagan) to Bisibisan (Supang) to Dawaic (Supang); and within Poblacion, Lagan, Losad (except Sitio Sao and Osong, Losad).",
+          "barangays": ["Supang", "Data", "Losad", "Bun-ayan", "Bao-angan", "Pingad", "Camatagan", "Capinitan", "Busa", "Namatec", "Napua", "Lagan", "Poblacion"]
+        },
+        {
+          "sub_classification": "R-3",
+          "unit_value_2027_per_sqm": 1960,
+          "unit_value_2012_per_sqm": 65.70,
+          "unit_value_2006_per_sqm": 33.70,
+          "location_description": "Residential lots along all Provincial, Municipal, and Barangay roads in Supang, Madepdeppas and Proper Data (Sitio Abatan Junction to Proper Data), Bun-ayan, Gayang, Camatagan, Capinitan, Namatec, Upper Tambingan, and Napua.",
+          "barangays": ["Supang", "Data", "Bun-ayan", "Gayang", "Camatagan", "Capinitan", "Namatec", "Tambingan", "Napua"]
+        },
+        {
+          "sub_classification": "R-4",
+          "unit_value_2027_per_sqm": 1550,
+          "unit_value_2012_per_sqm": 35.20,
+          "unit_value_2006_per_sqm": 17.60,
+          "location_description": "Residential lots in the inner part of Data, Upper Tambingan, Maggon (sitio of Supang), Supang, Sao and Osong (sitios of Losad), Bun-ayan, Bao-angan, Camatagan, Gayang, Capinitan, Busa, Namatec, and Napua.",
+          "barangays": ["Data", "Tambingan", "Supang", "Losad", "Bun-ayan", "Bao-angan", "Camatagan", "Gayang", "Capinitan", "Busa", "Namatec", "Napua"]
+        },
+        {
+          "sub_classification": "R-5",
+          "unit_value_2027_per_sqm": 1150,
+          "location_description": "Residential lots in the inner part of Sitio Duskit, Napua.",
+          "barangays": ["Napua"]
+        }
+      ]
+    }
+  ]
 }
