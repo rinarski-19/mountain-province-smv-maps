@@ -3,7 +3,10 @@ node_modules/
 out/
 .DS_Store
 *.log
+.env
+.env.*
 .env*.local
+!.env.example
 
 # Offline OSM tile pack — hundreds of MB, generated per-machine via
 # `npm run tiles:bauko` / `npm run tiles:barlig` etc. Cloned repo
