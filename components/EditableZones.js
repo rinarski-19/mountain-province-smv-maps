@@ -76,6 +76,18 @@ const BAND_STYLE_30_60_SELECTED = {
   fillOpacity: 0.32,
   dashArray: null,
 };
+const MANUAL_ROAD_GUIDE_STYLE_0_30 = {
+  color: "#ef4444",
+  weight: 1.4,
+  opacity: 0.9,
+  dashArray: null,
+};
+const MANUAL_ROAD_GUIDE_STYLE_30_60 = {
+  color: "#f59e0b",
+  weight: 1.2,
+  opacity: 0.85,
+  dashArray: "6 4",
+};
 
 function bandStyleFor(feature, selected) {
   const band = feature?.properties?.band;
@@ -572,6 +584,41 @@ function bufferAlongsideRoad(geom, outerHalfWidthM) {
   return outer;
 }
 
+function buildManualRoadGuideLines(roads) {
+  const features = [];
+  for (const road of roads || []) {
+    if (!road?.geometry) continue;
+    const id =
+      road.properties?.manual_id ||
+      road.properties?.osm_way_id ||
+      Math.random().toString(36).slice(2);
+    for (const [band, widthM] of [
+      ["0-30", 30],
+      ["30-60", 60],
+    ]) {
+      try {
+        const outline = flatCapBuffer(road, widthM);
+        const line = outline?.geometry ? turf.polygonToLine(outline) : null;
+        if (!line?.geometry) continue;
+        features.push({
+          type: "Feature",
+          properties: {
+            ...(road.properties || {}),
+            source: "manual-print-guide",
+            parent_manual_id: id,
+            band,
+            guide_width_m: widthM,
+          },
+          geometry: line.geometry,
+        });
+      } catch (error) {
+        console.warn("Could not build manual road frontage guide:", error);
+      }
+    }
+  }
+  return { type: "FeatureCollection", features };
+}
+
 // ---- Multi-vertex helpers ----
 // A polygon's coords from layer.getLatLngs() are nested arrays of L.LatLng:
 //   - Polygon:        [[ring]]
@@ -647,6 +694,18 @@ export default function EditableZones({
   const map = useMap();
   const groupRef = useRef(null);
   const selectedLayerRef = useRef(null);
+  // Shift+click zone multi-select, purely for the Join tool — separate
+  // from selectedLayerRef (the single "active edit target" with vertex
+  // handles). A layer can be in this set without being the active
+  // selection, and vice versa.
+  const multiSelectedLayersRef = useRef(new Set());
+  // Roads and frontage bands sit above SMV polygons and also use
+  // Shift+click, so Join needs an explicit mode to decide which target wins.
+  const [joinSelectionMode, setJoinSelectionMode] = useState(false);
+  const joinSelectionModeRef = useRef(false);
+  useEffect(() => {
+    joinSelectionModeRef.current = joinSelectionMode;
+  }, [joinSelectionMode]);
   const historyRef = useRef([]);
   const historyIndexRef = useRef(-1);
   const isRestoringRef = useRef(false);
@@ -774,6 +833,7 @@ export default function EditableZones({
   // zones run from the curb outward to 30m, so the curb is the
   // boundary the cursor should latch onto when tracing.
   const roadEdgesLayerRef = useRef(null);
+  const manualRoadGuidesLayerRef = useRef(null);
   // Frontage-band selection — parallel to roads but each chip is already
   // a polygon, so bake-to-zone uses the geometry directly (no buffer
   // step). Set members are the chip_id from the bands file.
@@ -1683,6 +1743,70 @@ export default function EditableZones({
     syncEditorState();
   };
 
+  // Restyles every currently multi-selected layer back to normal and
+  // empties the set. Called on a fresh (non-shift) click, on empty-map
+  // click, and after a successful join consumes the batch.
+  const clearMultiSelection = () => {
+    if (multiSelectedLayersRef.current.size === 0) return;
+    for (const lyr of multiSelectedLayersRef.current) {
+      applyFeatureStyle(
+        lyr,
+        lyr.feature?.properties?.classification,
+        lyr === selectedLayerRef.current
+      );
+    }
+    multiSelectedLayersRef.current = new Set();
+  };
+
+  // Shift+click toggle: add/remove `layer` from the Join multi-select set
+  // and restyle it (dashed ring) accordingly. Independent of
+  // selectLayer/selectedLayerRef — a layer can be in this set without
+  // being the single "active edit target", and vice versa.
+  const toggleMultiSelectLayer = (layer) => {
+    const set = multiSelectedLayersRef.current;
+    const isActiveSelection = layer === selectedLayerRef.current;
+    if (set.has(layer)) {
+      set.delete(layer);
+      applyFeatureStyle(
+        layer,
+        layer.feature?.properties?.classification,
+        isActiveSelection
+      );
+    } else {
+      set.add(layer);
+      applyFeatureStyle(
+        layer,
+        layer.feature?.properties?.classification,
+        isActiveSelection,
+        true
+      );
+    }
+    refresh();
+  };
+
+  // Route a guide-layer click to the uppermost editable SMV polygon below it.
+  const toggleJoinZoneAtLatLng = (latlng) => {
+    const group = groupRef.current;
+    if (!group || !latlng) return false;
+    const point = turf.point([latlng.lng, latlng.lat]);
+    const layers = group.getLayers().slice().reverse();
+    for (const layer of layers) {
+      try {
+        const feature = layer.toGeoJSON?.();
+        if (
+          feature?.geometry &&
+          (feature.geometry.type === "Polygon" ||
+            feature.geometry.type === "MultiPolygon") &&
+          turf.booleanPointInPolygon(point, feature)
+        ) {
+          toggleMultiSelectLayer(layer);
+          return true;
+        }
+      } catch {}
+    }
+    return false;
+  };
+
   const prepareLayer = (layer) => {
     // Prevent layer clicks from bubbling to the map-level "clear selection"
     // handler. Without this, filled zones can appear
@@ -1716,6 +1840,11 @@ export default function EditableZones({
       if (e.originalEvent) {
         L.DomEvent.stop(e.originalEvent);
       }
+      if (e.originalEvent?.shiftKey) {
+        toggleMultiSelectLayer(layer);
+        return;
+      }
+      clearMultiSelection();
       selectLayer(layer);
     });
   };
@@ -1938,6 +2067,130 @@ export default function EditableZones({
       setBakeNotice("Geometry cleaned — no slivers were below threshold.");
       setTimeout(() => setBakeNotice(""), 3000);
     }
+  };
+
+  // Merge the shift+click-selected zone polygons (multiSelectedLayersRef)
+  // into a single shape. Shift+click each zone you want to merge (see
+  // toggleMultiSelectLayer / the click handler in prepareLayer), then
+  // click Join — more practical than joining every zone of a class
+  // across the whole map, since you often only want to merge a specific
+  // handful (e.g. one corridor's segments), not every same-class zone in
+  // the LGU. All selected zones must share one class; mixed selections
+  // are rejected rather than guessing which class wins.
+  //
+  // Same union strategy as bakeRoadsIntoCorridor further down: a
+  // tree-reduce turf.union so one bad pairwise union doesn't drop the
+  // rest, then cleanCoords + a 0 m buffer to repair ring topology
+  // before wrapping the result in a Leaflet layer. Properties (incl.
+  // secondary/tertiary class) are taken from the first selected layer.
+  const joinSameClassZones = () => {
+    const group = groupRef.current;
+    if (!group) return;
+    const matches = Array.from(multiSelectedLayersRef.current);
+    if (matches.length < 2) {
+      setBakeNotice("Shift+click 2 or more zones to join them.");
+      setTimeout(() => setBakeNotice(""), 3000);
+      return;
+    }
+
+    const classesPresent = new Set(
+      matches.map((lyr) =>
+        normaliseClassKey(lyr.feature?.properties?.classification)
+      )
+    );
+    if (classesPresent.size > 1) {
+      setBakeNotice(
+        `Selected zones have different classes (${Array.from(classesPresent)
+          .filter(Boolean)
+          .join(", ")}) — join only works within one class.`
+      );
+      setTimeout(() => setBakeNotice(""), 4000);
+      return;
+    }
+    const targetClass = matches[0]
+      ? normaliseClassKey(matches[0].feature?.properties?.classification)
+      : null;
+    if (!targetClass) {
+      setBakeNotice("Selected zones aren't classified — nothing to join.");
+      setTimeout(() => setBakeNotice(""), 3000);
+      return;
+    }
+
+    const sourceProps = { ...(matches[0].feature?.properties ?? {}) };
+    let combined = null;
+    for (const lyr of matches) {
+      let gj;
+      try {
+        gj = lyr.toGeoJSON();
+      } catch {
+        continue;
+      }
+      if (!gj?.geometry) continue;
+      if (!combined) {
+        combined = gj;
+        continue;
+      }
+      try {
+        const merged = turf.union(turf.featureCollection([combined, gj]));
+        if (merged?.geometry) combined = merged;
+      } catch (e) {
+        console.warn(
+          "joinSameClassZones: union step failed, keeping previous combined geometry",
+          e
+        );
+      }
+    }
+    if (!combined?.geometry) return;
+
+    try {
+      combined = turf.cleanCoords(combined);
+    } catch {
+      // leave as-is if cleanCoords errors on a tricky MultiPolygon
+    }
+    try {
+      const repaired = turf.buffer(combined, 0, { units: "meters" });
+      if (repaired?.geometry) combined = repaired;
+    } catch {}
+    if (!combined?.geometry) return;
+
+    const newFeature = {
+      type: "Feature",
+      properties: { ...sourceProps, classification: targetClass },
+      geometry: combined.geometry,
+    };
+    const wrap = L.geoJSON(newFeature, { style: () => ({}) });
+    let newLayer = null;
+    wrap.eachLayer((sub) => {
+      sub.feature = newFeature;
+      applyFeatureStyle(sub, targetClass);
+      prepareLayer(sub);
+      group.addLayer(sub);
+      newLayer = sub;
+    });
+
+    for (const lyr of matches) {
+      if (selectedLayerRef.current === lyr) selectedLayerRef.current = null;
+      try {
+        if (lyr.pm?.enabled?.()) lyr.pm.disable();
+      } catch {}
+      try {
+        group.removeLayer(lyr);
+      } catch {}
+      try {
+        map.removeLayer(lyr);
+      } catch {}
+    }
+    // The joined-away layers no longer exist; the merged result becomes
+    // the active selection instead (via selectLayer below), not a
+    // multi-selection member.
+    multiSelectedLayersRef.current = new Set();
+    setJoinSelectionMode(false);
+
+    pushHistory();
+    refresh();
+    if (newLayer) selectLayer(newLayer);
+    setBakeNotice(`Joined ${matches.length} ${targetClass} zones into one shape.`);
+    setTimeout(() => setBakeNotice(""), 3000);
   };
 
   // Subtract every OTHER layer's geometry and the buffered road
@@ -2392,6 +2645,14 @@ export default function EditableZones({
             const key = roadFeatureKey(feature);
             byKey.set(key, { feature, leafletLayer });
             leafletLayer.on("click", (ev) => {
+              if (
+                ev?.originalEvent?.shiftKey &&
+                joinSelectionModeRef.current
+              ) {
+                L.DomEvent.stopPropagation(ev);
+                toggleJoinZoneAtLatLng(ev.latlng);
+                return;
+              }
               // Manually drawn print roads select with a normal click so they
               // can be deleted easily. OSM roads stay gated behind Shift+click
               // and can never be removed by the print-road delete action.
@@ -2510,6 +2771,60 @@ export default function EditableZones({
       roadBufferRef.current = null;
     };
   }, [roadsUrl, printRoadsUrl, visible, map, roadRefreshVersion]);
+
+  // Visual-only frontage guide outlines for manually-created print roads.
+  // These match the already-generated road guides, but deliberately do not
+  // create or save an SMV zone. The user still decides when to classify.
+  useEffect(() => {
+    if (!printRoadsUrl || !visible || !map || !showFrontageBands) return;
+    let cancelled = false;
+
+    if (!map.getPane("manual-road-guides-pane")) {
+      const pane = map.createPane("manual-road-guides-pane");
+      pane.style.zIndex = 441;
+    }
+
+    fetch(printRoadsUrl, { cache: "no-store" })
+      .then((r) =>
+        r.ok ? r.json() : { type: "FeatureCollection", features: [] }
+      )
+      .then((fc) => {
+        if (cancelled) return;
+        const manualRoads = (fc?.features || []).filter((feature) =>
+          ["manual-print", "manual"].includes(feature?.properties?.source)
+        );
+        const guides = buildManualRoadGuideLines(manualRoads);
+        if (!guides.features.length) return;
+
+        const layer = L.geoJSON(guides, {
+          pane: "manual-road-guides-pane",
+          interactive: false,
+          pmIgnore: true,
+          style: (feature) =>
+            feature?.properties?.band === "30-60"
+              ? MANUAL_ROAD_GUIDE_STYLE_30_60
+              : MANUAL_ROAD_GUIDE_STYLE_0_30,
+          onEachFeature: (_feature, leafletLayer) => {
+            leafletLayer.options = leafletLayer.options || {};
+            leafletLayer.options.pmIgnore = true;
+            leafletLayer.options.snapIgnore = true;
+          },
+        });
+        layer.addTo(map);
+        manualRoadGuidesLayerRef.current = layer;
+      })
+      .catch(() => {
+        // No manual print roads yet; nothing to draw.
+      });
+
+    return () => {
+      cancelled = true;
+      if (manualRoadGuidesLayerRef.current) {
+        map.removeLayer(manualRoadGuidesLayerRef.current);
+        manualRoadGuidesLayerRef.current = null;
+      }
+    };
+  }, [printRoadsUrl, visible, map, showFrontageBands, roadRefreshVersion]);
 
   // ---- OSM buildings layer (per-building override mode) ----
   // Loaded only when a buildings URL is provided AND the editor is
@@ -2815,6 +3130,10 @@ export default function EditableZones({
               // the user just wants to pan or click through to a zone.
               if (!ev?.originalEvent?.shiftKey) return;
               L.DomEvent.stopPropagation(ev);
+              if (joinSelectionModeRef.current) {
+                toggleJoinZoneAtLatLng(ev.latlng);
+                return;
+              }
               setSelectedBandKeys((prev) => {
                 const next = new Set(prev);
                 if (next.has(key)) next.delete(key);
@@ -3932,7 +4251,7 @@ export default function EditableZones({
           osm_way_id: manualId,
           highway: "residential",
           name: barangayRoadNameRef.current.trim() || null,
-          source: "manual",
+          source: "manual-print",
         };
 
         // A manually traced road belongs to the road dataset, not the SMV
@@ -4124,6 +4443,7 @@ export default function EditableZones({
         setPlacingLandmark(false);
         return;
       }
+      clearMultiSelection();
       selectLayer(null);
     };
     const setDrawingActive = (active) => {
@@ -4731,6 +5051,25 @@ export default function EditableZones({
   const selectedPrimaryClass = normaliseClassKey(
     selectedLayer?.feature?.properties?.classification
   );
+  // Join operates on the shift+click multi-selection (see
+  // toggleMultiSelectLayer), not "every zone of a class" — recomputed
+  // every render (like selectedIsExplodable above) so the button updates
+  // as the selection changes.
+  const joinSelectedLayers = Array.from(multiSelectedLayersRef.current);
+  const joinMatchCount = joinSelectedLayers.length;
+  const joinClassesPresent = new Set(
+    joinSelectedLayers.map((lyr) =>
+      normaliseClassKey(lyr.feature?.properties?.classification)
+    )
+  );
+  const joinHasMixedClasses = joinClassesPresent.size > 1;
+  const joinTargetClass = joinHasMixedClasses
+    ? null
+    : joinSelectedLayers[0]
+    ? normaliseClassKey(
+        joinSelectedLayers[0].feature?.properties?.classification
+      )
+    : null;
   const selectedSecondaryCurrent = normaliseClassKey(
     selectedLayer?.feature?.properties?.secondary_classification
   );
@@ -5367,6 +5706,52 @@ export default function EditableZones({
             Trim overlaps + roads
           </button>
         )}
+        <button
+          onClick={() => {
+            if (!joinSelectionMode) {
+              clearMultiSelection();
+              setJoinSelectionMode(true);
+              setBakeNotice(
+                "Join mode: Shift+click 2 or more SMV zones, then click Join."
+              );
+              setTimeout(() => setBakeNotice(""), 4000);
+              refresh();
+              return;
+            }
+            joinSameClassZones();
+          }}
+          disabled={joinHasMixedClasses}
+          style={{
+            ...smallBtn,
+            background: joinSelectionMode ? "#fef3c7" : "white",
+            borderColor: joinSelectionMode ? "#d97706" : "#cbd5e1",
+            color:
+              joinHasMixedClasses ? "#9ca3af" : "#b45309",
+            fontWeight: 600,
+            cursor: joinHasMixedClasses ? "not-allowed" : "pointer",
+          }}
+          title={
+            !joinSelectionMode
+              ? "Start selecting SMV zones to join. Shift+click will target zones beneath road and frontage guides."
+              : joinMatchCount < 2
+              ? "Shift+click 2 or more SMV zones on the map, then click this button again."
+              : joinHasMixedClasses
+              ? `Selected zones have different classes (${Array.from(
+                  joinClassesPresent
+                )
+                  .filter(Boolean)
+                  .join(", ")}) — join only works within one class.`
+              : `Merge the ${joinMatchCount} shift-selected ${joinTargetClass} zones into one shape. Class properties are taken from the first selected zone.`
+          }
+        >
+          {!joinSelectionMode
+            ? "Select zones to join"
+            : joinMatchCount < 2
+            ? `Join mode (${joinMatchCount}/2 selected)`
+            : joinHasMixedClasses
+            ? "Join (mixed classes)"
+            : `Join ${joinTargetClass} (${joinMatchCount})`}
+        </button>
         <button
           onClick={() => {
             setPlacingLandmark((on) => !on);
@@ -6024,22 +6409,30 @@ function loadGeoJSONIntoGroup(fc, group, prepareLayer) {
   });
 }
 
-function applyFeatureStyle(layer, classification, selected = false) {
+function applyFeatureStyle(
+  layer,
+  classification,
+  selected = false,
+  multiSelected = false
+) {
   const s = styleForClass(classification);
   if (!layer.setStyle) return;
-  // Default: no border. When selected, a thick ring in the *class color*
-  // appears — that way reassigning a shape from one class to another
-  // visibly updates both stroke and fill, not just fill underneath a
-  // generic blue ring.
+  // Default: no border. When selected (the single active edit target), a
+  // thick solid ring in the *class color* appears. When multi-selected
+  // (shift+click, for the Join tool) but not the active selection, a
+  // thinner dashed ring in the same color distinguishes "in the join
+  // batch" from "the thing with vertex handles" — a layer can be both at
+  // once, in which case the solid active-selection ring wins.
+  const highlighted = selected || multiSelected;
   layer.setStyle({
     ...s,
-    stroke: selected,
-    weight: selected ? 4 : 0,
+    stroke: highlighted,
+    weight: selected ? 4 : multiSelected ? 3 : 0,
     color: s.color,
-    opacity: selected ? 1 : 0,
-    dashArray: undefined,
+    opacity: highlighted ? 1 : 0,
+    dashArray: selected ? undefined : multiSelected ? "4 3" : undefined,
     fillColor: s.fillColor,
-    fillOpacity: selected ? 0.75 : 0.55,
+    fillOpacity: highlighted ? 0.75 : 0.55,
   });
 }
 

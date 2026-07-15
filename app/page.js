@@ -39,7 +39,13 @@ function featureCollectionBbox(featureCollection) {
 }
 
 const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
-const SELECTABLE_TILE_MODES = new Set(["online", "google_hybrid"]);
+const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
+const HAS_GOOGLE_MAPS_API_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
+const SELECTABLE_TILE_MODES = new Set([
+  "online",
+  ...(HAS_GOOGLE_MAPS_API_KEY ? ["google_street", "google_hybrid"] : []),
+  ...(HAS_MAPBOX_TOKEN ? ["mapbox_hybrid"] : []),
+]);
 
 function normalizeTileMode(mode) {
   return SELECTABLE_TILE_MODES.has(mode) ? mode : "online";
@@ -50,8 +56,8 @@ export default function Home() {
   const [drawMode, setDrawMode] = useState(false);
   const [autoPrintRequested, setAutoPrintRequested] = useState(false);
   const [printMode, setPrintMode] = useState(false);
-  // Project-wide default basemap. Only Online OSM and Google Hybrid
-  // are exposed in the shared dev/client tile picker.
+  // Project-wide default basemap. Online OSM is always available; legal
+  // hybrid options appear when their provider keys exist.
   const PROJECT_DEFAULT_TILE_MODE = "online";
   const [tileMode, setTileMode] = useState(PROJECT_DEFAULT_TILE_MODE);
   // Always start from "bauko" so the first server render and the first
@@ -252,7 +258,7 @@ export default function Home() {
   // a stale (classIdx, groupIdx, barangayIdx) from a longer schedule
   // doesn't index past the end of the new municipality's classes.
   // It should also reset the basemap to the LGU's default (or the
-  // project-wide google_street default if the LGU doesn't override).
+  // project-wide Online OSM default if the LGU doesn't override).
   // Users can override per-session via the gear-icon tile picker.
   useEffect(() => {
     setClassIdx(null);
@@ -502,11 +508,12 @@ export default function Home() {
   // pure vector SVG so Cmd+P on the new tab yields a fully vector PDF.
   const handlePrint = useCallback(() => {
     if (!municipalitySlug) return;
-    const url = `/api/print/svg/${encodeURIComponent(municipalitySlug)}`;
+    const printSlug = municipality?.zones?.saveSlug ?? municipalitySlug;
+    const url = `/api/print/svg/${encodeURIComponent(printSlug)}`;
     // Open in a new tab so the user keeps the editor open behind it.
     // They Cmd+P (or Ctrl+P) on the SVG tab to get the vector PDF.
     window.open(url, "_blank", "noopener,noreferrer");
-  }, [municipalitySlug]);
+  }, [municipality, municipalitySlug]);
 
   useEffect(() => {
     if (!autoPrintRequested || municipalitySlug !== "bauko" || !mapApiRef.current) {

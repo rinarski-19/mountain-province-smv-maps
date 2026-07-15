@@ -145,16 +145,13 @@ const HYBRID_MUNICIPALITY_STROKE = {
 };
 const OFFLINE_MAPBOX_TILE_REV = "2026-05-16-hidpi";
 const OFFLINE_MAPBOX_TILE_ROOT = "/tiles-mapbox-hidpi";
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 // Basemap providers. The "settings" menu in TopNav lets the user
-// switch between these. Online OSM is the default; satellite and
-// Google variants are available too.
-//
-// Note: the Google providers (lyrs=m / lyrs=s) use Google's public
-// tile servers without an API key. This is technically against
-// Google's ToS for production use — fine for an LGU pilot, but if
-// the project goes to wider deployment, swap in a proper provider
-// (Mapbox, MapTiler, or the official Google Maps JS API).
+// switch between the public-safe options. Online OSM is the default;
+// Google Streets and Hybrid use the official Google Maps Platform Map Tiles API;
+// Mapbox Satellite Streets remains the legal non-Google fallback.
 const TILE_SOURCES = {
   online: {
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -168,21 +165,35 @@ const TILE_SOURCES = {
       'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
     maxZoom: 19,
   },
-  google_street: {
-    url: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    attribution: "&copy; Google",
-    maxZoom: 20,
-  },
-  google_satellite: {
-    url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-    attribution: "&copy; Google",
-    maxZoom: 20,
-  },
-  google_hybrid: {
-    url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-    attribution: "&copy; Google",
-    maxZoom: 20,
-  },
+  ...(MAPBOX_TOKEN
+    ? {
+        mapbox_hybrid: {
+          url:
+            "https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=" +
+            encodeURIComponent(MAPBOX_TOKEN),
+          attribution:
+            '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxNativeZoom: 20,
+          maxZoom: 20,
+        },
+      }
+    : {}),
+  ...(GOOGLE_MAPS_API_KEY
+      ? {
+        google_street: {
+          provider: "google",
+          attribution: "&copy; Google",
+          maxNativeZoom: 22,
+          maxZoom: 22,
+        },
+        google_hybrid: {
+          provider: "google",
+          attribution: "&copy; Google",
+          maxNativeZoom: 22,
+          maxZoom: 22,
+        },
+      }
+    : {}),
   offline: {
     url: "/tiles/{z}/{x}/{y}.png",
     attribution:
@@ -250,6 +261,8 @@ export default function LeafletMap({
 }) {
   const [tilesAvailable, setTilesAvailable] = useState(true);
   const [mapZoom, setMapZoom] = useState(null);
+  const [googleTileSession, setGoogleTileSession] = useState(null);
+  const [googleTileError, setGoogleTileError] = useState(null);
   // MapX-style hover card: the zone Feature under the cursor + the
   // client coords to anchor the card at. Set on mouseover/mousemove,
   // cleared on mouseout. Outside of drawMode only — in the editor the
@@ -270,8 +283,7 @@ export default function LeafletMap({
     landmarks: null,
     customLandmarks: null,
     // Public-viewer OSM road overlay, rendered as solid white lines
-    // on top of SMV zones when an imagery basemap (Google Hybrid /
-    // Satellite / Esri Satellite) is active. Keeps the road network
+    // on top of SMV zones when an imagery basemap is active. Keeps the road network
     // visible without leaving the SMV zone fills looking opaque over
     // roads. Loaded from the same osmRoads file the editor uses.
     osmRoads: null,
@@ -286,6 +298,56 @@ export default function LeafletMap({
     osmPlaces: null,
     osmBuildings: null,
   });
+
+  useEffect(() => {
+    const isGoogleMode =
+      tileMode === "google_street" || tileMode === "google_hybrid";
+    if (!isGoogleMode || !GOOGLE_MAPS_API_KEY) {
+      setGoogleTileError(null);
+      return;
+    }
+    let active = true;
+    setGoogleTileError(null);
+    (async () => {
+      try {
+        const response = await fetch(
+          `https://tile.googleapis.com/v1/createSession?key=${encodeURIComponent(
+            GOOGLE_MAPS_API_KEY
+          )}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mapType: tileMode === "google_street" ? "roadmap" : "satellite",
+              language: "en-US",
+              region: "PH",
+              ...(tileMode === "google_hybrid"
+                ? { layerTypes: ["layerRoadmap"] }
+                : {}),
+              overlay: false,
+              scale: "scaleFactor2x",
+            }),
+          }
+        );
+        if (!response.ok) {
+          throw new Error(`Google tile session failed: HTTP ${response.status}`);
+        }
+        const session = await response.json();
+        if (active) setGoogleTileSession(session.session);
+      } catch (error) {
+        console.error(error);
+        if (active) {
+          setGoogleTileSession(null);
+          setGoogleTileError(
+            "Google Maps could not start. Check the API key and Map Tiles API."
+          );
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [tileMode]);
 
   useEffect(() => {
     let active = true;
@@ -548,7 +610,17 @@ export default function LeafletMap({
     };
   }, [data.bauko, tileMode]);
 
-  const tile = TILE_SOURCES[tileMode] ?? TILE_SOURCES.offline;
+  const tile = TILE_SOURCES[tileMode] ?? TILE_SOURCES.online;
+  const isGoogleTileMode =
+    tileMode === "google_street" || tileMode === "google_hybrid";
+  const tileUrl =
+    isGoogleTileMode && googleTileSession && GOOGLE_MAPS_API_KEY
+      ? `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(
+          googleTileSession
+        )}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`
+      : tile.url;
+  const hasRasterTileUrl =
+    !isGoogleTileMode || Boolean(googleTileSession && tileUrl);
   // Vector-basemap mode: no raster tiles at all, OSM data renders as
   // SVG (water / buildings / roads / place labels) styled to match
   // the print SVG. Used so the editor view is WYSIWYG with the
@@ -558,7 +630,9 @@ export default function LeafletMap({
   const showLabelsOverlay =
     !municipality?.ui?.hideMapLabels &&
     tileMode !== "offline" &&
-    tileMode !== "offline_mapbox";
+    tileMode !== "offline_mapbox" &&
+    tileMode !== "mapbox_hybrid" &&
+    tileMode !== "google_hybrid";
   const baukoFeature = data.bauko?.features?.[0] ?? null;
   const printMaskFeature = useMemo(
     () => (printMode && baukoFeature ? buildOutsideMaskFeature(baukoFeature) : null),
@@ -643,12 +717,17 @@ export default function LeafletMap({
     activeClass?.subClass === "C-3" &&
     activeBarangaySlug === "monamon-norte" &&
     (data.monamonNorteRoads?.features?.length ?? 0) > 0;
+  const showPublicOsmRoadOverlay =
+    !drawMode &&
+    isImageryTileMode(tileMode) &&
+    data.osmRoads?.features?.length > 0;
 
   return (
     <div className="leaflet-shell">
       <MapContainer
         center={center}
         zoom={defaultZoom}
+        maxZoom={tile.maxZoom ?? 20}
         scrollWheelZoom
         zoomControl={false}
         className="consultation-map"
@@ -664,10 +743,10 @@ export default function LeafletMap({
             "vector_basemap" editor mode — both replace tiles with the
             OSM-derived SVG layers so what you see on screen matches
             what you'll print. */}
-        {!useVectorBasemap && (
+        {!useVectorBasemap && hasRasterTileUrl && (
           <TileLayer
-            key={tileMode}
-            url={tile.url}
+            key={`${tileMode}-${googleTileSession ?? "default"}`}
+            url={tileUrl}
             attribution={tile.attribution}
             maxZoom={tile.maxZoom}
             maxNativeZoom={tile.maxNativeZoom}
@@ -809,34 +888,23 @@ export default function LeafletMap({
           />
         )}
 
-        {/* White road overlay for satellite imagery basemaps. The SMV zone fills
-            run at ~28% opacity over Satellite / Esri Satellite, which
-            tints the road carriageway underneath and makes roads
-            appear off-white. Drawing the OSM road network on top in
-            solid white restores the road network as a clean reference
-            layer. Google Hybrid is deliberately excluded because its
-            road imagery is already readable and the extra white center
-            lines compete with the road-aligned SMV bands. Skipped in drawMode
-            because the editor draws its own chipped road layer for
-            click-to-tag selection. */}
-        {!drawMode &&
-          isImageryTileMode(tileMode) &&
-          tileMode !== "google_hybrid" &&
-          data.osmRoads?.features?.length > 0 && (
-            <GeoJSON
-              key={`public-osm-roads-${municipality?.slug ?? "bauko"}-${data.osmRoads.features.length}`}
-              data={data.osmRoads}
-              pane="label-tiles-pane"
-              interactive={false}
-              style={() => ({
-                color: "#ffffff",
-                weight: 2.5,
-                opacity: 0.9,
-                fillOpacity: 0,
-                dashArray: null,
-              })}
-            />
-          )}
+        {/* Public road overlay for imagery basemaps. The geometry comes from
+            OSM and is drawn above legal imagery/offline basemaps when used. */}
+        {showPublicOsmRoadOverlay && (
+          <GeoJSON
+            key={`public-osm-roads-${municipality?.slug ?? "bauko"}-${data.osmRoads.features.length}`}
+            data={data.osmRoads}
+            pane="label-tiles-pane"
+            interactive={false}
+            style={() => ({
+              color: "#ffffff",
+              weight: 2.5,
+              opacity: 0.9,
+              fillOpacity: 0,
+              dashArray: null,
+            })}
+          />
+        )}
 
         {/* OSM POI labels fetched into public/data/<slug>_landmarks.geojson.
             Basemap tile labels are baked into PNG/JPEG imagery, so we
@@ -890,7 +958,7 @@ export default function LeafletMap({
             pane="pois-pane"
             pointToLayer={(feature, latlng) => {
               const props = feature?.properties || {};
-              const kind = props.kind || "business";
+              const kind = normalizeLandmarkKind(props.kind);
               const name = String(props.name || "");
               const isInApp = props.source === "in-app";
               // Accept both `stretch_keys` (array) and legacy
@@ -913,7 +981,7 @@ export default function LeafletMap({
               const marker = L.marker(latlng, {
                 icon: L.divIcon({
                   html:
-                    `<span class="custom-pin custom-pin--${kind}"></span>` +
+                    `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkSymbol(kind)}</span></span>` +
                     `<span class="custom-pin-name">${safeName}</span>`,
                   className:
                     "custom-landmark" +
@@ -1036,7 +1104,7 @@ export default function LeafletMap({
           visible={!drawMode}
         />
 
-        {layers.outline && baukoFeature && tileMode === "google_hybrid" && (
+        {layers.outline && baukoFeature && isHybridTileMode(tileMode) && (
           <GeoJSON
             key="municipality-outline-halo"
             data={baukoFeature}
@@ -1053,7 +1121,7 @@ export default function LeafletMap({
             pane="muni-pane"
             interactive={false}
             style={() =>
-              tileMode === "google_hybrid"
+              isHybridTileMode(tileMode)
                 ? HYBRID_MUNICIPALITY_STROKE
                 : MUNICIPALITY_STROKE
             }
@@ -1090,6 +1158,21 @@ export default function LeafletMap({
               )
             }
             onEachFeature={(feature, layer) => {
+              const props = feature?.properties ?? {};
+              const isParcel =
+                props.source === "dxf" ||
+                props.parcel_id != null ||
+                props.lot_number != null ||
+                props.lot_no != null;
+              const parcelClass = normaliseClassKey(props.classification);
+              if (isParcel && parcelClass) {
+                layer.bindTooltip(parcelClass, {
+                  permanent: true,
+                  direction: "center",
+                  className: "smv-parcel-class-label",
+                  opacity: 1,
+                });
+              }
               layer.on({
                 mouseover: (e) => {
                   setHoveredZone({
@@ -1148,7 +1231,7 @@ export default function LeafletMap({
           />
         )}
 
-        {layers.barangays && data.barangays && tileMode === "google_hybrid" && (
+        {layers.barangays && data.barangays && isHybridTileMode(tileMode) && (
           <GeoJSON
             key={`barangay-outline-halos-${drawMode ? "edit" : "view"}`}
             data={data.barangays}
@@ -1166,14 +1249,14 @@ export default function LeafletMap({
             interactive={!drawMode}
             bubblingMouseEvents={false}
             style={() =>
-              tileMode === "google_hybrid"
+              isHybridTileMode(tileMode)
                 ? HYBRID_BARANGAY_STROKE
                 : BARANGAY_STROKE
             }
             onEachFeature={(feature, layer) => {
               if (drawMode) return;
               const name = getBarangayName(feature);
-              // Hover-only label. Most basemaps (OSM, Google, Esri)
+              // Hover-only label. Most basemaps (OSM, Mapbox, Esri)
               // already bake place names into the tile imagery, so a
               // permanent overlay duplicates them — we only show on
               // hover now to confirm boundaries without competing
@@ -1191,7 +1274,7 @@ export default function LeafletMap({
                 },
                 mouseout: (e) =>
                   e.target.setStyle(
-                    tileMode === "google_hybrid"
+                    isHybridTileMode(tileMode)
                       ? HYBRID_BARANGAY_STROKE
                       : BARANGAY_STROKE
                   ),
@@ -1265,6 +1348,10 @@ export default function LeafletMap({
               : municipality?.tiles?.offlineHintCommand
           }
         />
+      )}
+
+      {isGoogleTileMode && googleTileError && (
+        <MapProviderErrorOverlay message={googleTileError} />
       )}
     </div>
   );
@@ -1547,7 +1634,7 @@ function zoneStyle(feature, activeClass, tileMode, municipalitySlug = null) {
   const base = styleForClass(displayClass, municipalitySlug);
   const isC1 = displayClass === "C-1";
   const imageryBase = isImageryTileMode(tileMode);
-  const hybridBase = tileMode === "google_hybrid";
+  const hybridBase = isHybridTileMode(tileMode);
   const activeOpacity = hybridBase
     ? 0.58
     : imageryBase
@@ -1650,7 +1737,7 @@ function auxZoneStyle(feature, activeClass, slot = "secondary", tileMode, munici
   const isTertiary = slot === "tertiary";
   const imageryBase = isImageryTileMode(tileMode);
   const activeStrokeOpacity =
-    tileMode === "google_hybrid"
+    isHybridTileMode(tileMode)
       ? 0.65
       : imageryBase
         ? 0.5
@@ -1900,10 +1987,14 @@ function auxClassForFeature(feature, slot = "secondary") {
 function isImageryTileMode(tileMode) {
   return (
     tileMode === "satellite" ||
-    tileMode === "google_satellite" ||
+    tileMode === "mapbox_hybrid" ||
     tileMode === "google_hybrid" ||
     tileMode === "offline_mapbox"
   );
+}
+
+function isHybridTileMode(tileMode) {
+  return tileMode === "mapbox_hybrid" || tileMode === "google_hybrid";
 }
 
 function humanizeSlug(slug) {
@@ -1925,15 +2016,12 @@ function escapeHtml(value) {
 
 function landmarkLabelMarker(feature, latlng, options = {}) {
   const props = feature?.properties || {};
-  const kind = String(props.kind || "business")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, "-");
+  const kind = normalizeLandmarkKind(props.kind);
   const name = escapeHtml(props.name || "");
   return L.marker(latlng, {
     icon: L.divIcon({
       html:
-        `<span class="custom-pin custom-pin--${kind}"></span>` +
+        `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkSymbol(kind)}</span></span>` +
         `<span class="custom-pin-name">${name}</span>`,
       className: options.className || "custom-landmark",
       iconSize: [0, 0],
@@ -1943,6 +2031,35 @@ function landmarkLabelMarker(feature, latlng, options = {}) {
     keyboard: Boolean(options.interactive),
     pane: options.pane || "pois-pane",
   });
+}
+
+function normalizeLandmarkKind(kind) {
+  return String(kind || "business")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-");
+}
+
+function landmarkSymbol(kind) {
+  const symbols = {
+    worship: "✝",
+    church: "✝",
+    hospital: "✚",
+    clinic: "✚",
+    school: "●",
+    govt: "■",
+    government: "■",
+    market: "◆",
+    transport: "▲",
+    fuel: "◆",
+    finance: "₱",
+    food: "•",
+    lodging: "•",
+    tourism: "•",
+    shop: "•",
+    business: "•",
+  };
+  return symbols[kind] || "•";
 }
 
 // Pan + zoom to the single active barangay. Uses a fixed target zoom
@@ -2069,6 +2186,17 @@ function OfflineTilesMissingOverlay({ offlineHintCommand = "npm run tiles:bauko"
           Run <code>{offlineHintCommand}</code> while online, then reload this
           page. You can also switch to Online in the top-right nav.
         </p>
+      </div>
+    </div>
+  );
+}
+
+function MapProviderErrorOverlay({ message }) {
+  return (
+    <div className="offline-missing">
+      <div className="offline-missing__card">
+        <h2>Map provider could not load</h2>
+        <p>{message}</p>
       </div>
     </div>
   );

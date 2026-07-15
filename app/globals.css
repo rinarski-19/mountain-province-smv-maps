@@ -553,8 +553,8 @@ code {
 }
 
 /* Custom landmarks: LGU-curated POIs (e.g. Kalangeg Bldg in Bontoc)
-   the locals expect to see but that OSM / Google tile renderers don't
-   surface as default labels. Rendered as a kind-coloured teardrop pin
+   the locals expect to see but that OSM / selected tile renderers don't
+   surface as default labels. Rendered as a Google-like grey teardrop pin
    plus a white name pill that sits cleanly above any basemap. Always
    on (no UI toggle). Pin scales up when the linked stretch is the
    active sidebar selection. */
@@ -570,32 +570,51 @@ code {
   gap: 6px;
 }
 .custom-pin {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
-  background: #1d4ed8;
-  border: 2px solid white;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35),
-    0 2px 4px rgba(15, 23, 42, 0.35);
+  background: #7d8a8d;
+  border: 3px solid white;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.38),
+    0 2px 5px rgba(15, 23, 42, 0.38);
   transition: transform 140ms ease, width 140ms ease, height 140ms ease;
 }
-.custom-pin--business { background: #ea580c; }
-.custom-pin--govt { background: #1d4ed8; }
-.custom-pin--hospital { background: #dc2626; }
-.custom-pin--clinic { background: #f87171; }
-.custom-pin--school { background: #2563eb; }
-.custom-pin--worship { background: #7c3aed; }
-.custom-pin--market { background: #059669; }
-.custom-pin--tourism { background: #0891b2; }
-.custom-pin--transport { background: #f59e0b; }
-.custom-pin--food { background: #ea580c; }
-.custom-pin--fuel { background: #ca8a04; }
-.custom-pin--finance { background: #0f766e; }
-.custom-pin--shop { background: #db2777; }
-.custom-pin--lodging { background: #7c2d12; }
+.custom-pin-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  transform: rotate(45deg);
+  color: #ffffff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 1px rgba(15, 23, 42, 0.35);
+}
+.custom-pin--govt .custom-pin-symbol,
+.custom-pin--government .custom-pin-symbol {
+  font-size: 12px;
+}
+.custom-pin--school .custom-pin-symbol,
+.custom-pin--business .custom-pin-symbol,
+.custom-pin--food .custom-pin-symbol,
+.custom-pin--lodging .custom-pin-symbol,
+.custom-pin--shop .custom-pin-symbol,
+.custom-pin--tourism .custom-pin-symbol {
+  font-size: 13px;
+}
+.custom-pin--finance .custom-pin-symbol {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
 .custom-pin-name {
   font-size: 12px;
   font-weight: 600;
@@ -614,9 +633,13 @@ code {
 }
 
 .custom-landmark--osm .custom-pin {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   border-width: 1.5px;
+}
+
+.custom-landmark--osm .custom-pin-symbol {
+  font-size: 12px;
 }
 
 .custom-landmark--osm .custom-pin-name {
@@ -1358,6 +1381,22 @@ body.draw-mode-off .leaflet-pm-toolbar {
 .leaflet-container.zone-editing-active .leaflet-tooltip,
 .leaflet-container.zone-editing-active .leaflet-pm-touch-hint {
   display: none !important;
+}
+
+/* Parcel-level SMV code printed inside DXF/imported cadastral lots. */
+.leaflet-tooltip.smv-parcel-class-label {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #171717;
+  font: 700 10px/1 Arial, Helvetica, sans-serif;
+  padding: 0;
+  pointer-events: none;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.95);
+}
+
+.leaflet-tooltip.smv-parcel-class-label::before {
+  display: none;
 }
 
 /* Label pinned to the saved barangay viewport center (custom view preset).

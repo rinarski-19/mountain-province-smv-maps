@@ -4,9 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import SearchBar from "./SearchBar";
 
 const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
+const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
+const HAS_GOOGLE_MAPS_API_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
 const TILE_MODE_OPTIONS = [
   ["online", "Online OSM"],
-  ["google_hybrid", "Google Hybrid"],
+  ...(HAS_GOOGLE_MAPS_API_KEY
+    ? [
+        ["google_street", "Google Streets"],
+        ["google_hybrid", "Google Hybrid"],
+      ]
+    : []),
+  ...(HAS_MAPBOX_TOKEN ? [["mapbox_hybrid", "Mapbox Hybrid"]] : []),
 ];
 
 export default function TopNav({
