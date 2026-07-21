@@ -1209,6 +1209,9 @@ export default function EditableZones({
         id: props.id,
         lat: coords[1],
         lng: coords[0],
+        originalName: props.name || "",
+        originalLat: coords[1],
+        originalLng: coords[0],
         name: props.name || "",
         kind: props.kind || "business",
         stretchKeys: Array.isArray(props.stretch_keys)
@@ -1265,37 +1268,55 @@ export default function EditableZones({
     // If we're editing an existing in-app landmark, keep its stable
     // id so localStorage updates replace the entry in place instead
     // of appending a duplicate.
-    const editingId = data.id || null;
-    const id =
-      editingId ||
-      `lm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const feature = {
-      type: "Feature",
-      properties: {
-        id,
-        name: data.name.trim(),
-        kind: data.kind || "business",
-        source: "in-app",
-        ...(editingId
-          ? { updated_at: new Date().toISOString() }
-          : { added_at: new Date().toISOString() }),
-        // Array form is the primary going forward — one pin can be
-        // referenced by multiple schedule stretches. Omit the property
-        // entirely if no links so old singletons don't bloat the file.
-        ...(keys.length > 0 ? { stretch_keys: keys } : {}),
-      },
-      geometry: {
-        type: "Point",
-        coordinates: [data.lng, data.lat],
-      },
-    };
     try {
       const raw = window.localStorage.getItem(customLandmarksKey);
       const arr = raw ? JSON.parse(raw) : [];
       const list = Array.isArray(arr) ? arr : [];
+      const editingId = data.id || null;
+      const EPS = 1e-9;
       const idx = editingId
         ? list.findIndex((f) => f?.properties?.id === editingId)
-        : -1;
+        : data.originalName
+          ? list.findIndex((f) => {
+              const p = f?.properties || {};
+              const c = f?.geometry?.coordinates || [];
+              return (
+                p.name === data.originalName &&
+                Math.abs((c[0] ?? 0) - (data.originalLng ?? 0)) < EPS &&
+                Math.abs((c[1] ?? 0) - (data.originalLat ?? 0)) < EPS
+              );
+            })
+          : -1;
+      const existing = idx >= 0 ? list[idx] : null;
+      const existingProps = existing?.properties || {};
+      const isEditing = Boolean(editingId || existing);
+      const id =
+        editingId ||
+        existingProps.id ||
+        `lm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const feature = {
+        type: "Feature",
+        properties: {
+          ...existingProps,
+          id,
+          name: data.name.trim(),
+          kind: data.kind || "business",
+          source: "in-app",
+          ...(isEditing
+            ? { updated_at: new Date().toISOString() }
+            : { added_at: new Date().toISOString() }),
+          // Array form is the primary going forward — one pin can be
+          // referenced by multiple schedule stretches. Omit the property
+          // entirely if no links so old singletons don't bloat the file.
+          ...(keys.length > 0
+            ? { stretch_keys: keys, stretch_key: undefined }
+            : { stretch_keys: undefined, stretch_key: undefined }),
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [data.lng, data.lat],
+        },
+      };
       const next =
         idx >= 0
           ? [...list.slice(0, idx), feature, ...list.slice(idx + 1)]
@@ -1306,6 +1327,8 @@ export default function EditableZones({
       );
     } catch (e) {
       console.warn("Could not save landmark to localStorage:", e);
+      window.alert("Could not save this landmark. Please try again.");
+      return;
     }
     setPendingLandmark(null);
   };
@@ -5760,9 +5783,9 @@ export default function EditableZones({
           }}
           style={{
             ...smallBtn,
-            background: placingLandmark ? "#fef3c7" : "white",
-            borderColor: placingLandmark ? "#d97706" : "#cbd5e1",
-            color: placingLandmark ? "#92400e" : "#7c3aed",
+            background: placingLandmark ? "#fff8e1" : "white",
+            borderColor: placingLandmark ? "#fbbc04" : "#cbd5e1",
+            color: placingLandmark ? "#8a6116" : "#1a73e8",
             fontWeight: placingLandmark ? 700 : 600,
           }}
           title={
@@ -5786,9 +5809,9 @@ export default function EditableZones({
           }}
           style={{
             ...smallBtn,
-            background: movingLandmark ? "#fef3c7" : "white",
-            borderColor: movingLandmark ? "#d97706" : "#cbd5e1",
-            color: movingLandmark ? "#92400e" : "#7c3aed",
+            background: movingLandmark ? "#fff8e1" : "white",
+            borderColor: movingLandmark ? "#fbbc04" : "#cbd5e1",
+            color: movingLandmark ? "#8a6116" : "#1a73e8",
             fontWeight: movingLandmark ? 700 : 600,
           }}
           title={

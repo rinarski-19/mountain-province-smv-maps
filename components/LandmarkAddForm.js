@@ -1,21 +1,26 @@
 "use client";
 
 import { useMemo } from "react";
+import {
+  LANDMARK_KIND_OPTIONS,
+  landmarkIconPath,
+  normalizeLandmarkKind,
+} from "@/lib/landmark-icons";
 
-// Available landmark kinds — keep in sync with the CSS color rules in
-// app/globals.css (.custom-pin--<kind>) and with the GeoJSON file's
-// _meta.kinds array. Adding a new kind requires touching both.
-const KIND_OPTIONS = [
-  { value: "business", label: "Business (orange)" },
-  { value: "govt", label: "Government (blue)" },
-  { value: "hospital", label: "Hospital (red)" },
-  { value: "clinic", label: "Clinic (light red)" },
-  { value: "school", label: "School (blue)" },
-  { value: "worship", label: "Worship (violet)" },
-  { value: "market", label: "Market (green)" },
-  { value: "tourism", label: "Tourism (cyan)" },
-  { value: "transport", label: "Transport (yellow)" },
-];
+function LandmarkIcon({ kind, size = 22 }) {
+  return (
+    <svg
+      className="landmark-picker__icon"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={landmarkIconPath(kind)} />
+    </svg>
+  );
+}
 
 // Group flat stretchCatalog by classLabel so the dropdown renders one
 // <optgroup> per class — way more scannable when a municipality has
@@ -87,7 +92,7 @@ export default function LandmarkAddForm({
       onClick={(e) => e.stopPropagation()}
     >
       <header className="landmark-form__head">
-        New landmark @ {pending.lat.toFixed(6)}, {pending.lng.toFixed(6)}
+        {pending.id || pending.originalName ? "Edit landmark" : "New landmark"} @ {pending.lat.toFixed(6)}, {pending.lng.toFixed(6)}
       </header>
 
       <form
@@ -112,22 +117,36 @@ export default function LandmarkAddForm({
           />
         </label>
 
-        <label className="landmark-form__field">
+        <div className="landmark-form__field">
           <span className="landmark-form__label">Kind</span>
-          <select
-            value={pending.kind}
-            onChange={(e) =>
-              setPending((p) => ({ ...p, kind: e.target.value }))
-            }
-            className="landmark-form__input"
+          <div
+            className="landmark-picker"
+            role="radiogroup"
+            aria-label="Landmark kind"
           >
-            {KIND_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            {LANDMARK_KIND_OPTIONS.map((o) => {
+              const selected = normalizeLandmarkKind(pending.kind) === o.value;
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="radio"
+                  className={`landmark-picker__option${selected ? " is-selected" : ""}`}
+                  style={{ "--landmark-picker-color": o.color }}
+                  onClick={() => setPending((p) => ({ ...p, kind: o.value }))}
+                  aria-pressed={selected}
+                  aria-checked={selected}
+                  title={o.label}
+                >
+                  <span className="landmark-picker__pin">
+                    <LandmarkIcon kind={o.value} />
+                  </span>
+                  <span className="landmark-picker__text">{o.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="landmark-form__field">
           <span className="landmark-form__label">
@@ -206,7 +225,7 @@ export default function LandmarkAddForm({
           disabled={!canSubmit}
           className="landmark-form__btn landmark-form__btn--primary"
         >
-          Add landmark
+          {pending.id || pending.originalName ? "Save changes" : "Add landmark"}
         </button>
       </footer>
     </div>

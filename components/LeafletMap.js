@@ -24,6 +24,10 @@ import {
   smvFillStyle,
   styleForClass,
 } from "@/lib/classifications";
+import {
+  landmarkIconMarkup,
+  normalizeLandmarkKind,
+} from "@/lib/landmark-icons";
 import EditableZones from "./EditableZones";
 import ZoneHoverInfo from "./ZoneHoverInfo";
 
@@ -721,6 +725,14 @@ export default function LeafletMap({
     !drawMode &&
     isImageryTileMode(tileMode) &&
     data.osmRoads?.features?.length > 0;
+  // React-Leaflet's GeoJSON layer is created from its initial `data` object.
+  // Include the feature contents in the key so editing a pin (same count,
+  // different name/kind/coordinates) rebuilds the layer and shows the save
+  // immediately instead of leaving the old label on screen.
+  const localLandmarkRenderKey = useMemo(
+    () => localCustomLandmarks.map((feature) => JSON.stringify(feature)).join("|"),
+    [localCustomLandmarks]
+  );
 
   return (
     <div className="leaflet-shell">
@@ -953,7 +965,7 @@ export default function LeafletMap({
           if (merged.length === 0) return null;
           return (
             <GeoJSON
-              key={`custom-landmarks-${municipality?.slug ?? "bauko"}-${activeStretchKey ?? ""}-${localCustomLandmarks.length}-${isMovingLandmarks ? "drag" : "static"}`}
+              key={`custom-landmarks-${municipality?.slug ?? "bauko"}-${activeStretchKey ?? ""}-${localLandmarkRenderKey}-${isMovingLandmarks ? "drag" : "static"}`}
               data={{ type: "FeatureCollection", features: merged }}
             pane="pois-pane"
             pointToLayer={(feature, latlng) => {
@@ -981,10 +993,11 @@ export default function LeafletMap({
               const marker = L.marker(latlng, {
                 icon: L.divIcon({
                   html:
-                    `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkSymbol(kind)}</span></span>` +
+                    `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkIconMarkup(kind)}</span></span>` +
                     `<span class="custom-pin-name">${safeName}</span>`,
                   className:
                     "custom-landmark" +
+                    (isInApp ? " is-interactive" : "") +
                     (isActive ? " is-active-stretch" : "") +
                     (draggable ? " is-draggable" : ""),
                   iconSize: [0, 0],
@@ -2021,7 +2034,7 @@ function landmarkLabelMarker(feature, latlng, options = {}) {
   return L.marker(latlng, {
     icon: L.divIcon({
       html:
-        `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkSymbol(kind)}</span></span>` +
+        `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkIconMarkup(kind)}</span></span>` +
         `<span class="custom-pin-name">${name}</span>`,
       className: options.className || "custom-landmark",
       iconSize: [0, 0],
@@ -2031,35 +2044,6 @@ function landmarkLabelMarker(feature, latlng, options = {}) {
     keyboard: Boolean(options.interactive),
     pane: options.pane || "pois-pane",
   });
-}
-
-function normalizeLandmarkKind(kind) {
-  return String(kind || "business")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, "-");
-}
-
-function landmarkSymbol(kind) {
-  const symbols = {
-    worship: "✝",
-    church: "✝",
-    hospital: "✚",
-    clinic: "✚",
-    school: "●",
-    govt: "■",
-    government: "■",
-    market: "◆",
-    transport: "▲",
-    fuel: "◆",
-    finance: "₱",
-    food: "•",
-    lodging: "•",
-    tourism: "•",
-    shop: "•",
-    business: "•",
-  };
-  return symbols[kind] || "•";
 }
 
 // Pan + zoom to the single active barangay. Uses a fixed target zoom

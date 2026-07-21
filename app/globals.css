@@ -367,7 +367,7 @@ code {
 .landmark-form__head {
   flex: 0 0 auto;
   padding: 8px 12px;
-  background: #7c3aed;
+  background: #1a73e8;
   color: white;
   font-weight: 600;
   font-size: 12px;
@@ -406,6 +406,65 @@ code {
   font-family: inherit;
   background: white;
 }
+.landmark-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.landmark-picker__option {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 5px;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  background: #fff;
+  color: #475569;
+  font: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.landmark-picker__option:hover {
+  border-color: var(--landmark-picker-color);
+  background: #f8fafc;
+}
+.landmark-picker__option.is-selected {
+  border-color: var(--landmark-picker-color);
+  background: color-mix(in srgb, var(--landmark-picker-color) 9%, white);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--landmark-picker-color) 22%, transparent);
+  color: #0f172a;
+  font-weight: 700;
+}
+.landmark-picker__pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--landmark-picker-color);
+  color: white;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.28);
+}
+.landmark-picker__icon {
+  transform: rotate(45deg);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.landmark-picker__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .landmark-form__hint {
   color: #94a3b8;
   font-size: 11px;
@@ -422,11 +481,11 @@ code {
   align-items: center;
   gap: 4px;
   padding: 2px 4px 2px 8px;
-  background: #ede9fe;
-  border: 1px solid #c4b5fd;
+  background: #e8f0fe;
+  border: 1px solid #aecbfa;
   border-radius: 12px;
   font-size: 11px;
-  color: #5b21b6;
+  color: #174ea6;
   max-width: 100%;
 }
 .landmark-form__chip-label {
@@ -441,7 +500,7 @@ code {
   padding: 0;
   border: none;
   background: transparent;
-  color: #5b21b6;
+  color: #174ea6;
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
@@ -467,13 +526,13 @@ code {
   color: #475569;
 }
 .landmark-form__btn--primary {
-  background: #7c3aed;
-  border-color: #6d28d9;
+  background: #1a73e8;
+  border-color: #1769d1;
   color: white;
   font-weight: 600;
 }
 .landmark-form__btn--primary:hover:not(:disabled) {
-  background: #6d28d9;
+  background: #1769d1;
 }
 
 /* Popup shown when an in-app landmark pin is clicked. Gives the user
@@ -528,13 +587,13 @@ code {
   color: #475569;
 }
 .landmark-popup__actions button[data-action="edit"] {
-  background: #ede9fe;
-  border-color: #c4b5fd;
-  color: #5b21b6;
+  background: #e8f0fe;
+  border-color: #aecbfa;
+  color: #174ea6;
   font-weight: 600;
 }
 .landmark-popup__actions button[data-action="edit"]:hover {
-  background: #ddd6fe;
+  background: #d2e3fc;
 }
 .landmark-popup__actions button[data-action="delete"] {
   color: #b91c1c;
@@ -554,10 +613,10 @@ code {
 
 /* Custom landmarks: LGU-curated POIs (e.g. Kalangeg Bldg in Bontoc)
    the locals expect to see but that OSM / selected tile renderers don't
-   surface as default labels. Rendered as a Google-like grey teardrop pin
-   plus a white name pill that sits cleanly above any basemap. Always
-   on (no UI toggle). Pin scales up when the linked stretch is the
-   active sidebar selection. */
+   surface as default labels. Rendered as a Google-like colored teardrop
+   pin with a category pictogram plus a white name pill that sits cleanly
+   above any basemap. Always on (no UI toggle). Pin scales up when the
+   linked stretch is the active sidebar selection. */
 .custom-landmark {
   background: none;
   border: none;
@@ -569,17 +628,20 @@ code {
   align-items: center;
   gap: 6px;
 }
+.custom-landmark.is-interactive {
+  pointer-events: auto;
+}
 .custom-pin {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
+  width: 27px;
+  height: 27px;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
-  background: #7d8a8d;
-  border: 3px solid white;
+  background: var(--landmark-color, #7e57c2);
+  border: 2px solid white;
   box-shadow:
     0 0 0 1px rgba(15, 23, 42, 0.38),
     0 2px 5px rgba(15, 23, 42, 0.38);
@@ -589,32 +651,37 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
+  width: 17px;
+  height: 17px;
   transform: rotate(45deg);
   color: #ffffff;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 15px;
-  font-weight: 900;
-  line-height: 1;
-  text-shadow: 0 1px 1px rgba(15, 23, 42, 0.35);
 }
-.custom-pin--govt .custom-pin-symbol,
-.custom-pin--government .custom-pin-symbol {
-  font-size: 12px;
+.landmark-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.custom-pin--school .custom-pin-symbol,
-.custom-pin--business .custom-pin-symbol,
-.custom-pin--food .custom-pin-symbol,
-.custom-pin--lodging .custom-pin-symbol,
-.custom-pin--shop .custom-pin-symbol,
-.custom-pin--tourism .custom-pin-symbol {
-  font-size: 13px;
-}
-.custom-pin--finance .custom-pin-symbol {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 13px;
-}
+.custom-pin--business { --landmark-color: #7e57c2; }
+.custom-pin--govt,
+.custom-pin--government { --landmark-color: #607d8b; }
+.custom-pin--hospital { --landmark-color: #e53935; }
+.custom-pin--clinic { --landmark-color: #e53935; }
+.custom-pin--school { --landmark-color: #1a73e8; }
+.custom-pin--worship,
+.custom-pin--church { --landmark-color: #607d8b; }
+.custom-pin--market,
+.custom-pin--fuel { --landmark-color: #1a73e8; }
+.custom-pin--tourism,
+.custom-pin--lodging { --landmark-color: #00acc1; }
+.custom-pin--transport { --landmark-color: #03a9f4; }
+.custom-pin--finance,
+.custom-pin--food,
+.custom-pin--shop { --landmark-color: #f57c00; }
 .custom-pin-name {
   font-size: 12px;
   font-weight: 600;
@@ -633,13 +700,14 @@ code {
 }
 
 .custom-landmark--osm .custom-pin {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-width: 1.5px;
 }
 
 .custom-landmark--osm .custom-pin-symbol {
-  font-size: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 .custom-landmark--osm .custom-pin-name {
@@ -653,8 +721,8 @@ code {
    the Kalangeg Bldg pin) the pin gets a saturated yellow halo + scales
    to ~24px so it reads clearly across the map. */
 .custom-landmark.is-active-stretch .custom-pin {
-  width: 24px;
-  height: 24px;
+  width: 29px;
+  height: 29px;
   border-color: #fde047;
   box-shadow: 0 0 0 3px rgba(253, 224, 71, 0.85),
     0 0 0 4px rgba(15, 23, 42, 0.45),
