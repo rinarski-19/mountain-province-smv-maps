@@ -441,11 +441,9 @@ export default function LeafletMap({
           scale: "scaleFactor2x",
         };
         if (tileMode === "google_hybrid") {
-          // Split hybrid into two layers:
-          //   1. satellite imagery below SMV
-          //   2. transparent Google roadmap/POI overlay above SMV
-          // A single baked hybrid tile keeps POIs under the red/yellow SMV
-          // fills, which is why Google place icons looked muted.
+          // Split Google Hybrid into base satellite + transparent
+          // layerRoadmap overlay. This gives Google POIs their own pane
+          // above SMV while keeping the satellite imagery underneath.
           const [baseSession, overlaySession] = await Promise.all([
             createSession({
               ...common,
@@ -462,6 +460,21 @@ export default function LeafletMap({
           if (active) {
             setGoogleTileSession(baseSession.session);
             setGoogleOverlayTileSession(overlaySession.session);
+          }
+          return;
+        }
+        if (tileMode === "google_street") {
+          // Google Streets needs the default roadmap typography/POI style.
+          // A satellite layerRoadmap overlay uses hybrid-style labels, so
+          // use a second roadmap tile pass above SMV and blend it lightly.
+          const session = await createSession({
+            ...common,
+            mapType: "roadmap",
+            overlay: false,
+          });
+          if (active) {
+            setGoogleTileSession(session.session);
+            setGoogleOverlayTileSession(session.session);
           }
           return;
         }
@@ -808,7 +821,7 @@ export default function LeafletMap({
         )}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`
       : tile.url;
   const googleOverlayTileUrl =
-    tileMode === "google_hybrid" && googleOverlayTileSession && GOOGLE_MAPS_API_KEY
+    isGoogleTileMode && googleOverlayTileSession && GOOGLE_MAPS_API_KEY
       ? `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(
           googleOverlayTileSession
         )}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`
@@ -825,7 +838,7 @@ export default function LeafletMap({
     tileMode !== "offline" &&
     tileMode !== "offline_mapbox" &&
     tileMode !== "mapbox_hybrid" &&
-    tileMode !== "google_hybrid";
+    !isGoogleTileMode;
   const showBuildingFootprintsOverlay =
     shouldLoadBuildingFootprints &&
     data.osmBuildingsSlug === (municipality?.slug ?? "bauko") &&
@@ -959,7 +972,8 @@ export default function LeafletMap({
     (data.monamonNorteRoads?.features?.length ?? 0) > 0;
   const showPublicOsmRoadOverlay =
     !drawMode &&
-    isImageryTileMode(tileMode) &&
+    !useVectorBasemap &&
+    (isImageryTileMode(tileMode) || isGoogleTileMode) &&
     data.osmRoads?.features?.length > 0;
   // React-Leaflet's GeoJSON layer is created from its initial `data` object.
   // Include the feature contents in the key so editing a pin (same count,
@@ -1061,29 +1075,37 @@ export default function LeafletMap({
         <Pane name="boundary-halo-pane" style={{ zIndex: 440 }} />
         <Pane name="brgy-pane" style={{ zIndex: 450 }} />
         <Pane name="muni-halo-pane" style={{ zIndex: 455 }} />
-        {/* Label tiles sit above SMV zones, but below the POI pane.
-            This follows Leaflet's native stack idea: vectors around
-            overlayPane (400), labels around tooltipPane (650). */}
+        {/* Google-mode label/POI context should read above roads and SMV.
+            Non-Google raster modes keep the labels underneath the SMV
+            plate to avoid cluttering editor/reference views. */}
         <Pane
           name="label-tiles-pane"
-          style={{ zIndex: 650, pointerEvents: "none" }}
+          style={{ zIndex: isGoogleTileMode ? 650 : 390, pointerEvents: "none" }}
         />
-        {/* Google Hybrid uses a transparent Google roadmap/POI overlay here
-            so Google labels and place icons can sit above SMV fills. */}
+        {/* Google label/POI overlay. Hybrid uses Google's transparent
+            layerRoadmap overlay; Streets uses a blended roadmap pass so
+            the default Google Streets font/POI styling is preserved. */}
         <Pane
           name="google-labels-pane"
-          style={{ zIndex: 655, pointerEvents: "none" }}
+          style={{
+            zIndex: 650,
+            pointerEvents: "none",
+            mixBlendMode: tileMode === "google_street" ? "multiply" : "normal",
+          }}
+        />
+        <Pane
+          name="basemap-pois-pane"
+          style={{ zIndex: 650, pointerEvents: "none" }}
         />
         <Pane
           name="zone-class-labels-pane"
-          style={{ zIndex: 658, pointerEvents: "none" }}
+          style={{ zIndex: 670, pointerEvents: "none" }}
         />
-        {/* POIs are the top annotation layer. They intentionally sit
-            above SMV fills, frontage bands, labels, and boundaries,
-            while staying below Leaflet popups (700). */}
+        {/* POIs are the annotation layer: above roads and SMV fills,
+            below the SMV class labels and Leaflet popups (700). */}
         <Pane name="pois-pane" style={{ zIndex: 660, pointerEvents: "none" }} />
 
-        {tileMode === "google_hybrid" && googleOverlayTileUrl && !useVectorBasemap && (
+        {isGoogleTileMode && googleOverlayTileUrl && !useVectorBasemap && (
           <TileLayer
             key={`google-overlay-${googleOverlayTileSession}`}
             url={googleOverlayTileUrl}
@@ -1091,7 +1113,7 @@ export default function LeafletMap({
             maxZoom={tile.maxZoom}
             maxNativeZoom={tile.maxNativeZoom}
             pane="google-labels-pane"
-            opacity={1}
+            opacity={tileMode === "google_street" ? 0.86 : 1}
           />
         )}
 
@@ -1199,21 +1221,25 @@ export default function LeafletMap({
           />
         )}
 
-        {/* Public road overlay for imagery basemaps. The geometry comes from
-            OSM and is drawn above legal imagery/offline basemaps when used. */}
+        {/* Public road overlay for raster basemaps. Base-map roads are
+            baked into the tile imagery, so draw OSM road vectors above
+            SMV fills; POI/context labels render above these roads. */}
         {showPublicOsmRoadOverlay && (
           <GeoJSON
-            key={`public-osm-roads-${municipality?.slug ?? "bauko"}-${data.osmRoads.features.length}`}
+            key={`public-osm-roads-casing-${municipality?.slug ?? "bauko"}-${data.osmRoads.features.length}`}
             data={data.osmRoads}
-            pane="label-tiles-pane"
+            pane="roads-pane"
             interactive={false}
-            style={() => ({
-              color: "#ffffff",
-              weight: 2.5,
-              opacity: 0.9,
-              fillOpacity: 0,
-              dashArray: null,
-            })}
+            style={(feature) => publicOsmRoadCasingStyle(feature, mapZoom)}
+          />
+        )}
+        {showPublicOsmRoadOverlay && (
+          <GeoJSON
+            key={`public-osm-roads-fill-${municipality?.slug ?? "bauko"}-${data.osmRoads.features.length}`}
+            data={data.osmRoads}
+            pane="roads-pane"
+            interactive={false}
+            style={(feature) => publicOsmRoadFillStyle(feature, mapZoom)}
           />
         )}
 
@@ -1252,18 +1278,19 @@ export default function LeafletMap({
         {/* OSM POI labels fetched into public/data/<slug>_landmarks.geojson.
             Basemap tile labels are baked into PNG/JPEG imagery, so we
             cannot force missing business names to appear there. This
-            overlay renders named OSM POIs above SMV fills at close zooms
-            where people are inspecting buildings and roads. */}
+            optional overlay is treated as POI context, so keep it above
+            roads but below SMV class labels. User custom landmarks render
+            later on the annotation pane. */}
         {layers?.landmarks && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
           <GeoJSON
             key={`osm-landmarks-${municipality?.slug ?? "bauko"}-${data.landmarks.features.length}`}
             data={data.landmarks}
-            pane="pois-pane"
+            pane="basemap-pois-pane"
             pointToLayer={(feature, latlng) =>
               landmarkLabelMarker(feature, latlng, {
                 className: "custom-landmark custom-landmark--osm",
                 interactive: false,
-                pane: "pois-pane",
+                pane: "basemap-pois-pane",
               })
             }
           />
@@ -1338,6 +1365,7 @@ export default function LeafletMap({
               );
               const insideLabel = isInsideLandmarkLabel(labelPlacement);
               const isInApp = props.source === "in-app";
+              const draggable = isMovingLandmarks;
               // Accept both `stretch_keys` (array) and legacy
               // `stretch_key` (string). Highlight when any linked key
               // matches the active sidebar stretch.
@@ -1358,8 +1386,7 @@ export default function LeafletMap({
                 .replace(/"/g, "&quot;");
               // Move mode applies to every custom landmark rendered by this
               // layer, including curated project-file pins. OSM-only labels
-              // use a separate non-interactive layer above.
-              const draggable = isMovingLandmarks;
+              // use a separate non-interactive layer below the SMV plate.
               const marker = L.marker(latlng, {
                 icon: L.divIcon({
                   html:
@@ -1900,6 +1927,39 @@ function printRoadFillStyle(feature) {
     lineJoin: "round",
   };
 }
+
+function publicOsmRoadWidth(feature, zoom) {
+  const z = Number.isFinite(zoom) ? zoom : DEFAULT_ZOOM;
+  const scale = z >= 18 ? 4.6 : z >= 17 ? 3.8 : z >= 16 ? 3.1 : z >= 15 ? 2.4 : 1.8;
+  return Math.max(1.4, highwayWeight(feature?.properties?.highway) * scale);
+}
+
+function publicOsmRoadCasingStyle(feature, zoom) {
+  const tier = tierForHighway(feature?.properties?.highway);
+  const width = publicOsmRoadWidth(feature, zoom);
+  return {
+    color: ROAD_TIER_CASING[tier] ?? "#bababa",
+    weight: width + 1.6,
+    opacity: 0.95,
+    fillOpacity: 0,
+    lineCap: "round",
+    lineJoin: "round",
+  };
+}
+
+function publicOsmRoadFillStyle(feature, zoom) {
+  const tier = tierForHighway(feature?.properties?.highway);
+  const width = publicOsmRoadWidth(feature, zoom);
+  return {
+    color: ROAD_TIER_FILL[tier] ?? "#ffffff",
+    weight: width,
+    opacity: 0.98,
+    fillOpacity: 0,
+    lineCap: "round",
+    lineJoin: "round",
+  };
+}
+
 // Render place labels as halo-stroked divIcons so the text reads
 // over any underlying color (rivers, buildings, road tint).
 function printPlaceLabelMarker(feature, latlng) {

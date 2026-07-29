@@ -352,6 +352,7 @@ code {
 
 .smv-row__head--legend .smv-row__chip {
   /* Slightly larger swatch since the row's now compact. */
+  width: auto;
   min-width: 44px;
   max-width: 100%;
   box-sizing: border-box;
@@ -390,10 +391,9 @@ code {
 }
 
 .smv-section--others .smv-row__head--legend {
-  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
-}
-
-.smv-section--others .smv-row__head--legend {
+  grid-template-columns: minmax(150px, max-content) minmax(0, 1fr);
+  min-height: 44px;
+  padding: 8px 14px;
   cursor: default;
 }
 
@@ -401,13 +401,21 @@ code {
   background: transparent;
 }
 
+.smv-section--others .smv-row__head--legend .smv-row__chip {
+  justify-self: start;
+  min-width: 132px;
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
 .smv-landmark-legend {
-  padding: 8px 10px 10px;
+  padding: 12px 18px 16px;
   border-top: 1px solid var(--divider);
 }
 
 .smv-landmark-legend__title {
-  margin-bottom: 6px;
+  margin-bottom: 10px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -417,32 +425,32 @@ code {
 
 .smv-landmark-legend__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
 }
 
 .smv-landmark-legend__item {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 5px;
+  gap: 8px;
   color: var(--text);
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .smv-landmark-legend__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
 }
 
 .smv-landmark-legend__icon .landmark-icon {
-  width: 17px;
-  height: 17px;
+  width: 20px;
+  height: 20px;
 }
 
 .smv-row__head--road {

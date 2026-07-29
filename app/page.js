@@ -7,6 +7,7 @@ import PrintLegend from "@/components/PrintLegend";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
 import { getMunicipalityConfig, MUNICIPALITY_OPTIONS } from "@/lib/municipalities";
+import { IS_CLIENT_FACING } from "@/lib/runtime-mode";
 
 const BARANGAY_VIEW_PRESETS_KEY_PREFIX = "smv-barangay-view-v1:";
 // Per-stretch saved viewports. Keyed by `${classId}|${barangaySlug}|${stretchIdx}`
@@ -37,19 +38,20 @@ function featureCollectionBbox(featureCollection) {
   return Number.isFinite(west) ? [west, south, east, north] : null;
 }
 
-const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
 const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 const HAS_GOOGLE_MAPS_API_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
-const SELECTABLE_TILE_MODES = new Set([
-  "online",
-  "vector_basemap",
-  ...(HAS_GOOGLE_MAPS_API_KEY ? ["google_street", "google_hybrid"] : []),
-  ...(HAS_MAPBOX_TOKEN ? ["mapbox_hybrid"] : []),
-]);
-
-function normalizeTileMode(mode) {
-  return SELECTABLE_TILE_MODES.has(mode) ? mode : "online";
-}
+const SELECTABLE_TILE_MODES = new Set(
+  IS_CLIENT_FACING
+    ? HAS_GOOGLE_MAPS_API_KEY
+      ? ["google_street", "google_hybrid"]
+      : ["online"]
+    : [
+        "online",
+        "vector_basemap",
+        ...(HAS_GOOGLE_MAPS_API_KEY ? ["google_street", "google_hybrid"] : []),
+        ...(HAS_MAPBOX_TOKEN ? ["mapbox_hybrid"] : []),
+      ]
+);
 
 const CLIENT_FACING_DEFAULT_TILE_MODE = HAS_GOOGLE_MAPS_API_KEY
   ? "google_street"
@@ -57,7 +59,11 @@ const CLIENT_FACING_DEFAULT_TILE_MODE = HAS_GOOGLE_MAPS_API_KEY
 const WORKSPACE_DEFAULT_TILE_MODE = "online";
 
 function getProjectDefaultTileMode() {
-  return READ_ONLY ? CLIENT_FACING_DEFAULT_TILE_MODE : WORKSPACE_DEFAULT_TILE_MODE;
+  return IS_CLIENT_FACING ? CLIENT_FACING_DEFAULT_TILE_MODE : WORKSPACE_DEFAULT_TILE_MODE;
+}
+
+function normalizeTileMode(mode) {
+  return SELECTABLE_TILE_MODES.has(mode) ? mode : getProjectDefaultTileMode();
 }
 
 function getDefaultTileModeForMunicipality(municipality) {
@@ -97,16 +103,15 @@ export default function Home() {
     zones: true,
     smv: false,
     parcels: true,
-    // Heavy detail layer. Building footprints can be tens of thousands
-    // of SVG polygons, so keep them off until explicitly needed.
-    buildings: false,
+    // Client-facing maps should show the building context automatically.
+    // Workspace/editor maps keep it off until explicitly needed because
+    // footprints can be tens of thousands of SVG polygons.
+    buildings: IS_CLIENT_FACING,
     // Off by default — it's a guide for editors, not a consultation
     // overlay. Editors flip it on from the Layers panel while drawing.
     frontageBands: false,
-    // Off by default — landmark pinpoints (OSM POIs + LGU-curated
-    // custom landmarks) used to render unconditionally and cluttered
-    // the map. PAO staff can flip them on from the Layers panel while
-    // drawing or verifying; visitors don't see them by default.
+    // Off by default — landmark pinpoints are a manual/OSM overlay.
+    // Google basemaps use Google's own POI/label tile overlay instead.
     landmarks: false,
   });
   const [savedBarangayViews, setSavedBarangayViews] = useState({});
@@ -548,7 +553,7 @@ export default function Home() {
     setPrintPreparing(true);
     try {
       const saveEditableZones = mapApiRef.current?.saveEditableZones;
-      if (!READ_ONLY && typeof saveEditableZones === "function") {
+      if (!IS_CLIENT_FACING && typeof saveEditableZones === "function") {
         const result = await saveEditableZones({ alertOnError: false });
         if (result?.cancelled) {
           printWindow.close();
@@ -711,8 +716,8 @@ export default function Home() {
   return (
     <main className="consultation-page">
       <TopNav
-        drawMode={READ_ONLY ? false : drawMode}
-        setDrawMode={READ_ONLY ? () => {} : setDrawMode}
+        drawMode={IS_CLIENT_FACING ? false : drawMode}
+        setDrawMode={IS_CLIENT_FACING ? () => {} : setDrawMode}
         tileMode={tileMode}
         setTileMode={setTileMode}
         municipalitySlug={municipalitySlug}
@@ -742,7 +747,7 @@ export default function Home() {
         <div className="map-wrapper">
           <Map
             key={`map-${municipality.slug}`}
-            drawMode={READ_ONLY ? false : drawMode}
+            drawMode={IS_CLIENT_FACING ? false : drawMode}
             printMode={printMode}
             tileMode={tileMode}
             activeClass={active}
@@ -760,7 +765,7 @@ export default function Home() {
           <MapPanel
             layers={layers}
             setLayers={setLayers}
-            drawMode={drawMode}
+            drawMode={IS_CLIENT_FACING ? false : drawMode}
             outlineLabel={municipality.ui?.outlineLabel ?? "Municipality outline"}
           />
           {/* Print-only legend. display:none on screen via inline

@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import SearchBar from "./SearchBar";
+import { IS_CLIENT_FACING } from "@/lib/runtime-mode";
 
-const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
 const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 const HAS_GOOGLE_MAPS_API_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
 const GOOGLE_TILE_MODE_OPTIONS = HAS_GOOGLE_MAPS_API_KEY
@@ -16,7 +16,7 @@ const WORKSPACE_TILE_MODE_OPTIONS = [
   ["online", "Online OSM"],
   ["vector_basemap", "Vector Map"],
 ];
-const TILE_MODE_OPTIONS = READ_ONLY
+const TILE_MODE_OPTIONS = IS_CLIENT_FACING
   ? GOOGLE_TILE_MODE_OPTIONS.length
     ? GOOGLE_TILE_MODE_OPTIONS
     : [["online", "Online OSM"]]
@@ -182,7 +182,7 @@ export default function TopNav({
       </div>
 
       <div className="top-nav__controls">
-        {!READ_ONLY && (
+        {!IS_CLIENT_FACING && (
           <div className="top-nav__edit-wrap" ref={editRef}>
             <button
               type="button"
@@ -260,7 +260,7 @@ export default function TopNav({
             )}
           </div>
         )}
-        {!READ_ONLY && (
+        {!IS_CLIENT_FACING && (
           <button
             type="button"
             className={`icon-button icon-button--compact ${
