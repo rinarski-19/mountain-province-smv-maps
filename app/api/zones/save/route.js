@@ -32,7 +32,6 @@ const TARGETS_BY_SLUG = {
   sabangan: "sabangan_zones.geojson",
   "sabangan-dxf": "sabangan_zones_dxf.geojson",
   besao: "besao_zones.geojson",
-  "besao-dxf": "besao_zones_dxf.geojson",
   sadanga: "sadanga_zones.geojson",
   "sadanga-dxf": "sadanga_zones_dxf.geojson",
   natonin: "natonin_zones.geojson",

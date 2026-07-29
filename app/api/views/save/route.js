@@ -37,7 +37,6 @@ const TARGETS_BY_SLUG = {
   sabangan: "sabangan_saved_views.json",
   "sabangan-dxf": "sabangan-dxf_saved_views.json",
   besao: "besao_saved_views.json",
-  "besao-dxf": "besao-dxf_saved_views.json",
   sadanga: "sadanga_saved_views.json",
   "sadanga-dxf": "sadanga-dxf_saved_views.json",
   natonin: "natonin_saved_views.json",
