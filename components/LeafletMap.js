@@ -333,6 +333,8 @@ const LABELS_OVERLAY_ATTRIBUTION =
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 const ACTIVE_SMV_OPACITY = 0.7;
+const GOOGLE_CONTEXT_OPACITY = 1;
+const GOOGLE_CONTEXT_PASSES = 3;
 const CUSTOM_LANDMARK_LABEL_MIN_ZOOM = 15;
 const SMV_CLASS_LABEL_MIN_ZOOM = 16;
 const freshJson = (url) =>
@@ -464,9 +466,10 @@ export default function LeafletMap({
           return;
         }
         if (tileMode === "google_street") {
-          // Google Streets needs the default roadmap typography/POI style.
-          // A satellite layerRoadmap overlay uses hybrid-style labels, so
-          // use a second roadmap tile pass above SMV and blend it lightly.
+          // Google Streets has POIs/labels baked into the base roadmap
+          // tile. We intentionally do not duplicate that tile above SMV:
+          // it washes out the class colors and still cannot separate
+          // POIs from the rest of the Google street map.
           const session = await createSession({
             ...common,
             mapType: "roadmap",
@@ -474,7 +477,7 @@ export default function LeafletMap({
           });
           if (active) {
             setGoogleTileSession(session.session);
-            setGoogleOverlayTileSession(session.session);
+            setGoogleOverlayTileSession(null);
           }
           return;
         }
@@ -814,6 +817,12 @@ export default function LeafletMap({
   const tile = TILE_SOURCES[tileMode] ?? TILE_SOURCES.online;
   const isGoogleTileMode =
     tileMode === "google_street" || tileMode === "google_hybrid";
+  // Only Hybrid's overlay tile is genuinely transparent (satellite +
+  // layerRoadmap). Streets stays as a base tile because Google's own
+  // POIs/labels are baked into the roadmap raster and cannot be
+  // separately z-indexed by Leaflet.
+  const hasTransparentGoogleOverlay = tileMode === "google_hybrid";
+  const googleContextAboveSmv = hasTransparentGoogleOverlay;
   const tileUrl =
     isGoogleTileMode && googleTileSession && GOOGLE_MAPS_API_KEY
       ? `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(
@@ -1046,6 +1055,7 @@ export default function LeafletMap({
             tile modes keep opacity 1 so the normal class colors stay
             vivid over raster basemaps. */}
         <Pane
+          key={`zones-pane-${isVectorBasemapMode}`}
           name="zones-pane"
           style={{
             zIndex: 420,
@@ -1075,47 +1085,59 @@ export default function LeafletMap({
         <Pane name="boundary-halo-pane" style={{ zIndex: 440 }} />
         <Pane name="brgy-pane" style={{ zIndex: 450 }} />
         <Pane name="muni-halo-pane" style={{ zIndex: 455 }} />
-        {/* Google-mode label/POI context should read above roads and SMV.
-            Non-Google raster modes keep the labels underneath the SMV
-            plate to avoid cluttering editor/reference views. */}
+        {/* Layer order:
+            690 SMV class labels
+            660 custom/curated POIs
+            650 Google POIs/labels
+            430 roads
+            420 SMV colors
+            200 basemap tiles */}
         <Pane
+          key={`label-tiles-pane-${googleContextAboveSmv}`}
           name="label-tiles-pane"
-          style={{ zIndex: isGoogleTileMode ? 650 : 390, pointerEvents: "none" }}
+          style={{ zIndex: googleContextAboveSmv ? 650 : 390, pointerEvents: "none" }}
         />
-        {/* Google label/POI overlay. Hybrid uses Google's transparent
-            layerRoadmap overlay; Streets uses a blended roadmap pass so
-            the default Google Streets font/POI styling is preserved. */}
+        {/* Google label/POI overlay. Hybrid gets a genuinely transparent
+            layerRoadmap tile here (satellite + overlay:true). Streets has
+            no transparent equivalent, so it does not render this overlay. */}
         <Pane
+          key={`google-labels-pane-${googleContextAboveSmv}-${hasTransparentGoogleOverlay}`}
           name="google-labels-pane"
           style={{
-            zIndex: 650,
+            zIndex: googleContextAboveSmv ? 650 : 390,
             pointerEvents: "none",
-            mixBlendMode: tileMode === "google_street" ? "multiply" : "normal",
+            mixBlendMode: "normal",
           }}
         />
         <Pane
+          key={`basemap-pois-pane-${googleContextAboveSmv}`}
           name="basemap-pois-pane"
-          style={{ zIndex: 650, pointerEvents: "none" }}
+          style={{ zIndex: googleContextAboveSmv ? 650 : 390, pointerEvents: "none" }}
         />
         <Pane
           name="zone-class-labels-pane"
-          style={{ zIndex: 670, pointerEvents: "none" }}
+          style={{ zIndex: 690, pointerEvents: "none" }}
         />
-        {/* POIs are the annotation layer: above roads and SMV fills,
-            below the SMV class labels and Leaflet popups (700). */}
+        {/* Custom/curated POIs sit with Google POIs: above roads and SMV
+            colors, below SMV class labels. */}
         <Pane name="pois-pane" style={{ zIndex: 660, pointerEvents: "none" }} />
 
-        {isGoogleTileMode && googleOverlayTileUrl && !useVectorBasemap && (
-          <TileLayer
-            key={`google-overlay-${googleOverlayTileSession}`}
-            url={googleOverlayTileUrl}
-            attribution={tile.attribution}
-            maxZoom={tile.maxZoom}
-            maxNativeZoom={tile.maxNativeZoom}
-            pane="google-labels-pane"
-            opacity={tileMode === "google_street" ? 0.86 : 1}
-          />
-        )}
+        {hasTransparentGoogleOverlay &&
+          googleOverlayTileUrl &&
+          !useVectorBasemap &&
+          Array.from({
+            length: GOOGLE_CONTEXT_PASSES,
+          }).map((_, passIndex) => (
+            <TileLayer
+              key={`google-overlay-${googleOverlayTileSession}-${passIndex}`}
+              url={googleOverlayTileUrl}
+              attribution={passIndex === 0 ? tile.attribution : ""}
+              maxZoom={tile.maxZoom}
+              maxNativeZoom={tile.maxNativeZoom}
+              pane="google-labels-pane"
+              opacity={GOOGLE_CONTEXT_OPACITY}
+            />
+          ))}
 
         {layers.zones &&
           !drawMode &&
