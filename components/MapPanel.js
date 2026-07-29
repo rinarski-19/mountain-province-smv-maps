@@ -7,6 +7,8 @@ const LAYERS = [
   ["barangays", "Barangays"],
   ["zones", "SMV zones"],
   ["smv", "SMV (₱/m²)"],
+  ["parcels", "Land parcels"],
+  ["buildings", "Building footprints"],
   ["frontageBands", "Frontage bands (0–30 / 30–60 m)"],
   ["landmarks", "Landmarks (OSM + custom pins)"],
 ];
@@ -21,8 +23,7 @@ function clamp(value, min, max) {
 // The map panel is now an editor-only utility — it only surfaces while the
 // user is in drawMode (toggling layers while authoring zones). The SMV
 // legend that used to live here was removed for a cleaner consultation
-// view; the bottom bar's class chip + headline already communicate the
-// active class and price.
+// view; the sidebar now carries the active class and price reference.
 //
 // Collapsible — the title row acts as a button. State persists to
 // localStorage so the user's last choice carries across sessions.

@@ -1,0 +1,282 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785133186339-iq3u9u",
+        "name": "Natonin \nCentral\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:19:46.339Z",
+        "updated_at": "2026-07-27T06:20:50.735Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.27854824058701,
+          17.10757525104568
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785133396360-l3c0rc",
+        "name": "Natonin\nCommunity\nHospital",
+        "kind": "hospital",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:23:16.360Z",
+        "updated_at": "2026-07-27T06:58:42.488Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.27964258159103,
+          17.110287013326506
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785133718375-mmvuqc",
+        "name": "Sta. Isabel\nNational\nHigh School",
+        "kind": "business",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:28:38.375Z",
+        "updated_at": "2026-07-27T06:28:40.734Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.2596520781596,
+          17.10116599617219
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785133740368-7agw49",
+        "name": "Sta. Isabel\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:29:00.368Z",
+        "updated_at": "2026-07-27T06:29:36.856Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.26007586719965,
+          17.10149171612225
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785133856829-l4gb8n",
+        "name": "Apapawan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:30:56.829Z",
+        "updated_at": "2026-07-27T06:31:00.705Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.27359420053736,
+          17.0959490747142
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785134299739-7eu4kn",
+        "name": "Tappo\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:38:19.739Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.33884429902409,
+          17.1400115298229
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785134385313-h42dl0",
+        "name": "Puya-ao\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:39:45.313Z",
+        "updated_at": "2026-07-27T06:39:48.604Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.25043869016176,
+          17.098266573489216
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785134474172-xb1t3y",
+        "name": "Natonin\nStandalone\nSenior \nHigh School",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:41:14.172Z",
+        "updated_at": "2026-07-27T06:41:15.919Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.2389051914447,
+          17.092623959906373
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785134672821-vy01yd",
+        "name": "Tonglayan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:44:32.821Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.23046696144436,
+          17.086761292210394
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785134699024-2ylraw",
+        "name": "Natonin\nNational\nHigh School",
+        "kind": "business",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:44:59.024Z",
+        "updated_at": "2026-07-27T06:45:02.578Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.23053669926996,
+          17.08602477110253
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785134930744-er2id7",
+        "name": "Purag\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:48:50.744Z",
+        "updated_at": "2026-07-27T06:48:54.764Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.21262222527524,
+          17.07152073130953
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785134998396-y3qgvy",
+        "name": "Barangay Hall\nBanao",
+        "kind": "govt",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:49:58.396Z",
+        "updated_at": "2026-07-27T06:50:03.034Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.21259808540943,
+          17.071107825673263
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785135397154-yyzkzb",
+        "name": "Amuruc\nZipline",
+        "kind": "tourism",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:56:37.154Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.27788305168464,
+          17.15445795808951
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785135471170-nyd2lc",
+        "name": "DPWH -MPSDEO",
+        "kind": "govt",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:57:51.170Z",
+        "updated_at": "2026-07-27T06:57:54.214Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.31916493170357,
+          17.150281138082427
+        ]
+      }
+    }
+  ]
+}

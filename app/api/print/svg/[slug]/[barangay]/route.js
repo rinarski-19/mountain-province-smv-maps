@@ -102,10 +102,16 @@ export async function GET(request, context) {
   const url = new URL(request.url);
   const rawBuffer = url.searchParams.get("smvBuffer");
   const smvBufferM = rawBuffer == null ? undefined : parseFloat(rawBuffer);
+  const rawBuildings = url.searchParams.get("buildings");
+  const showBuildingFootprints =
+    rawBuildings == null
+      ? undefined
+      : rawBuildings !== "0" && rawBuildings !== "false";
 
   try {
     const { svg } = buildSvgForSlug(slug, publicDataDir, {
       smvBufferM,
+      showBuildingFootprints,
       barangayName: matchFeature.properties.name,
     });
     return new Response(svg, {

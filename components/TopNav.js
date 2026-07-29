@@ -6,14 +6,19 @@ import SearchBar from "./SearchBar";
 const READ_ONLY = process.env.NEXT_PUBLIC_READ_ONLY === "true";
 const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 const HAS_GOOGLE_MAPS_API_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
-const TILE_MODE_OPTIONS = [
+const GOOGLE_TILE_MODE_OPTIONS = HAS_GOOGLE_MAPS_API_KEY
+  ? [
+      ["google_street", "Google Streets"],
+      ["google_hybrid", "Google Hybrid"],
+    ]
+  : [];
+const WORKSPACE_TILE_MODE_OPTIONS = [
   ["online", "Online OSM"],
-  ...(HAS_GOOGLE_MAPS_API_KEY
-    ? [
-        ["google_street", "Google Streets"],
-        ["google_hybrid", "Google Hybrid"],
-      ]
-    : []),
+  ["vector_basemap", "Vector Map"],
+];
+const TILE_MODE_OPTIONS = [
+  ...(READ_ONLY ? GOOGLE_TILE_MODE_OPTIONS : WORKSPACE_TILE_MODE_OPTIONS),
+  ...(READ_ONLY ? WORKSPACE_TILE_MODE_OPTIONS : GOOGLE_TILE_MODE_OPTIONS),
   ...(HAS_MAPBOX_TOKEN ? [["mapbox_hybrid", "Mapbox Hybrid"]] : []),
 ];
 
@@ -41,6 +46,7 @@ export default function TopNav({
   onSearchFlyToBounds,
   onSearchFlyToPoint,
   onPrint,
+  isPrintPreparing = false,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -253,13 +259,25 @@ export default function TopNav({
         {!READ_ONLY && (
           <button
             type="button"
-            className="icon-button icon-button--compact"
-            aria-label="Open A3 land value print sheet"
-            title="Open A3 land value print sheet"
+            className={`icon-button icon-button--compact ${
+              isPrintPreparing ? "is-busy" : ""
+            }`}
+            aria-label={
+              isPrintPreparing
+                ? "Preparing A3 land value print sheet"
+                : "Open A3 land value print sheet"
+            }
+            title={
+              isPrintPreparing
+                ? "Saving current edits before opening print"
+                : "Open A3 land value print sheet"
+            }
+            disabled={isPrintPreparing}
             onClick={() => {
               setMenuOpen(false);
               setEditOpen(false);
               setSettingsOpen(false);
+              if (isPrintPreparing) return;
               onPrint?.();
             }}
           >

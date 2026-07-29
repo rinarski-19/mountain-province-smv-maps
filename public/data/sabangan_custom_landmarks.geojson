@@ -1,0 +1,465 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785117036069-7qwaef",
+        "name": "Sabangan\nMunicipal \nHall",
+        "kind": "govt",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T01:50:36.069Z",
+        "updated_at": "2026-07-27T02:54:17.106Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92221945536251,
+          17.005754531946945
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785117105940-podncv",
+        "name": "San\nAlfonso\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T01:51:45.940Z",
+        "updated_at": "2026-07-27T02:05:29.001Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92345595854671,
+          17.004744106043006
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785118111498-44axdz",
+        "name": "Sabangan\nCentral\nSchool",
+        "kind": "school",
+        "label_placement": "callout-bottom",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T02:08:31.498Z",
+        "updated_at": "2026-07-27T02:10:44.192Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92345058670568,
+          17.000893970510365
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785118152102-uvl3m5",
+        "name": "Sabangan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T02:09:12.102Z",
+        "updated_at": "2026-07-27T02:10:39.187Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92299997585441,
+          17.00128898262152
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785120511386-r8psb4",
+        "name": "St. Mary\nMother of Christ",
+        "kind": "worship",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T02:48:31.386Z",
+        "updated_at": "2026-07-27T02:48:46.584Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.91003954178915,
+          17.004341264877294
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785121619276-0ualde",
+        "name": "Bun-ayan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:06:59.276Z",
+        "updated_at": "2026-07-27T03:07:10.101Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90938508508331,
+          16.973515585390473
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785121729908-d3vhvh",
+        "name": "Pingad-\nBaoangan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:08:49.908Z",
+        "updated_at": "2026-07-27T03:09:11.066Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90587407207649,
+          16.972138199097845
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785121820350-ukf2d8",
+        "name": "Labbay\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:10:20.350Z",
+        "updated_at": "2026-07-27T03:10:29.829Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.91326087568844,
+          16.975624788223215
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785122110162-3fcaro",
+        "name": "Pingad\nNational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:15:10.162Z",
+        "updated_at": "2026-07-27T03:15:15.062Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90788572904069,
+          16.966830281759485
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785122176574-yi5foc",
+        "name": "St. Mary\nof Purrification",
+        "kind": "worship",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:16:16.574Z",
+        "updated_at": "2026-07-27T03:16:38.173Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90678870300404,
+          16.9715018437037
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785122427068-tvzgup",
+        "name": "Gayang\nElementary School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:20:27.068Z",
+        "updated_at": "2026-07-27T03:20:41.523Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92294901523688,
+          16.97028870803354
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785122557617-qa3yzu",
+        "name": "Camatagan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:22:37.617Z",
+        "updated_at": "2026-07-27T03:22:49.975Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.91318846130962,
+          16.965360419300588
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785122692588-o8axco",
+        "name": "Capinitan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:24:52.588Z",
+        "updated_at": "2026-07-27T03:24:56.134Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90874940364512,
+          16.950120518973783
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123002749-qtzbp4",
+        "name": "Busa\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:30:02.749Z",
+        "updated_at": "2026-07-27T03:30:07.046Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.912472305125,
+          16.943459786525896
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123143309-o1tx3r",
+        "name": "Namatec\nNational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:32:23.309Z",
+        "updated_at": "2026-07-27T03:32:26.043Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.9086877122286,
+          16.935955013957305
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123209347-grmr34",
+        "name": "Namatec\nElementary School",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:33:29.347Z",
+        "updated_at": "2026-07-27T03:33:37.421Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.9082934293159,
+          16.933571409048326
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123324984-95ojq7",
+        "name": "Lagan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:35:24.984Z",
+        "updated_at": "2026-07-27T03:35:28.190Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92585653124546,
+          17.00502350142531
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123394510-k04jlf",
+        "name": "Sabangan\nNational \nHigh School",
+        "kind": "school",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:36:34.510Z",
+        "updated_at": "2026-07-27T03:36:39.073Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92766165363314,
+          17.01330021606376
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123473373-xpq7to",
+        "name": "Madepdepan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:37:53.373Z",
+        "updated_at": "2026-07-27T03:37:56.074Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90802252480657,
+          17.017452893154406
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123565037-f9drl8",
+        "name": "Data\nNational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-bottom",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:39:25.037Z",
+        "updated_at": "2026-07-27T03:39:38.954Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90376317613128,
+          17.02848608298819
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123596797-wifqjh",
+        "name": "Data\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:39:56.797Z",
+        "updated_at": "2026-07-27T03:40:02.819Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90338498605907,
+          17.028870639954757
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123717241-pes94v",
+        "name": "Libo\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:41:57.241Z",
+        "updated_at": "2026-07-27T03:42:00.197Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90106487441135,
+          16.925408588468187
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123755241-c71pw1",
+        "name": "Dumanegdeg\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:42:35.241Z",
+        "updated_at": "2026-07-27T03:42:39.044Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90498626173488,
+          16.92884721399913
+        ]
+      }
+    }
+  ]
+}

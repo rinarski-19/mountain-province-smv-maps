@@ -88,7 +88,7 @@ code {
    =========================================================== */
 .consultation-page {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
   background: var(--bg);
@@ -96,8 +96,14 @@ code {
 
 .page-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: minmax(0, 1fr) 400px;
   min-height: 0;
+}
+
+/* The legend can collapse to a slim handle so the map gets the reclaimed
+   sidebar width without needing a page-level state prop. */
+.page-body:has(.smv-sidebar.is-collapsed) {
+  grid-template-columns: minmax(0, 1fr) 48px;
 }
 
 /* ----- SMV walkthrough sidebar ----- */
@@ -107,7 +113,67 @@ code {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   box-shadow: -1px 0 3px rgba(15, 23, 42, 0.04);
+  font-size: 13px;
+}
+
+.smv-sidebar.is-collapsed {
+  overflow: hidden;
+}
+
+.smv-sidebar__collapse,
+.smv-sidebar__expand {
+  border: 1px solid var(--divider);
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.smv-sidebar__collapse {
+  flex: 0 0 34px;
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 4px;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.smv-sidebar__collapse:hover,
+.smv-sidebar__expand:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.smv-sidebar__expand {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 48px;
+  min-width: 48px;
+  min-height: 100%;
+  padding: 12px 4px;
+  border: 0;
+  border-radius: 0;
+  font-weight: 700;
+}
+
+.smv-sidebar__expand > span:first-child {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.smv-sidebar__expand-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.12em;
+  font-size: 11px;
 }
 
 .smv-section {
@@ -117,16 +183,23 @@ code {
   border-bottom: 1px solid var(--divider);
 }
 
+.smv-sidebar--legend .smv-section {
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
 .smv-section--scroll {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
 }
 
 .smv-section__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 8px 10px;
   background: var(--surface-soft);
   border-bottom: 1px solid var(--divider);
 }
@@ -134,13 +207,15 @@ code {
 .smv-section__title {
   margin: 0;
   font: var(--t-label-caps);
-  letter-spacing: 0.1em;
+  font-size: 11px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
 .smv-section__count {
   font: var(--t-caption);
+  font-size: 11px;
   color: var(--text-subtle);
 }
 
@@ -152,9 +227,9 @@ code {
 }
 
 .smv-section__list--scroll {
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  overflow: visible;
+  flex: 0 0 auto;
+  min-height: auto;
 }
 
 .smv-row {
@@ -209,18 +284,20 @@ code {
 .smv-legend__toolbar {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 5;
   display: flex;
   justify-content: stretch;
   padding: 8px 10px;
+  gap: 8px;
   border-bottom: 1px solid var(--divider);
   background: var(--surface, #fff);
 }
 
 .smv-legend__show-all {
-  width: 100%;
-  padding: 6px 10px;
-  border-radius: 4px;
+  flex: 1;
+  width: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
   border: 1px solid var(--divider);
   background: var(--surface, #fff);
   font: inherit;
@@ -246,13 +323,22 @@ code {
   opacity: 0.6;
 }
 
+.smv-legend__values-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--divider);
+  background: #f8fafc;
+}
+
 /* ---- Legend-card variant ----
    Stripped-down two-column rows used when the sidebar is the "legend
    card" view (chip + price only). Drops the caret + label columns
    that the accordion variant relies on. */
 .smv-sidebar--legend .smv-section__list--legend {
   /* Slightly tighter rows than the accordion default. */
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
 .smv-row--legend {
@@ -261,12 +347,12 @@ code {
 
 .smv-row__head--legend {
   display: grid;
-  grid-template-columns: 56px auto;
+  grid-template-columns: minmax(44px, max-content) minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  padding: 8px 14px;
+  min-height: 30px;
+  padding: 4px 8px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -286,25 +372,97 @@ code {
 
 .smv-row__head--legend .smv-row__chip {
   /* Slightly larger swatch since the row's now compact. */
-  min-width: 56px;
-  padding: 4px 8px;
+  min-width: 44px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 3px 6px;
   font-weight: 700;
+  font-size: 12px;
+  line-height: 1.1;
   text-align: center;
   border-radius: 4px;
+  white-space: nowrap;
 }
 
 .smv-row__head--legend .smv-row__value {
   justify-self: end;
+  min-width: 0;
   font-weight: 600;
   color: var(--text);
-  font-size: 14px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 /* ---- Roads section ----
    Reference-only road tier legend. Wider swatch so the road's casing
    color is visible alongside the fill. */
 .smv-section--roads {
+  margin: 8px;
   border-top: 1px solid var(--divider);
+}
+
+/* Blue-violet Institutional class and the same landmark pictograms used by
+   the map pins. Kept compact so the reference stays useful on laptop-sized
+   screens without taking over the scrollable legend. */
+.smv-section--others {
+  flex: 0 0 auto;
+  margin: 8px 8px 0;
+}
+
+.smv-section--others .smv-row__head--legend {
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+}
+
+.smv-section--others .smv-row__head--legend {
+  cursor: default;
+}
+
+.smv-section--others .smv-row__head--legend:hover {
+  background: transparent;
+}
+
+.smv-landmark-legend {
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--divider);
+}
+
+.smv-landmark-legend__title {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.smv-landmark-legend__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px 8px;
+}
+
+.smv-landmark-legend__item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.smv-landmark-legend__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.smv-landmark-legend__icon .landmark-icon {
+  width: 17px;
+  height: 17px;
 }
 
 .smv-row__head--road {
@@ -317,8 +475,8 @@ code {
 }
 
 .smv-road__swatch {
-  width: 48px;
-  height: 14px;
+  width: 44px;
+  height: 12px;
   border-radius: 3px;
   border: 2px solid;
   box-sizing: border-box;
@@ -332,13 +490,13 @@ code {
 }
 
 .smv-road__name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
 }
 
 .smv-road__sub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted, #6b7280);
 }
 
@@ -404,7 +562,12 @@ code {
   border-radius: 4px;
   font-size: 13px;
   font-family: inherit;
+  line-height: 1.35;
   background: white;
+}
+.landmark-form textarea.landmark-form__input {
+  min-height: 44px;
+  resize: vertical;
 }
 .landmark-picker {
   display: grid;
@@ -537,9 +700,8 @@ code {
 
 /* Popup shown when an in-app landmark pin is clicked. Gives the user
    a quick way to fix mistakes — re-pick stretches via "Edit" or
-   remove the pin entirely via "Delete". File-based landmarks stay
-   non-interactive (no popup) so the curated set isn't editable from
-   the UI. */
+   remove the pin entirely via "Delete". Provider-curated file landmarks
+   stay non-interactive, while project-published in-app pins remain editable. */
 .landmark-popup {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", sans-serif;
@@ -628,6 +790,73 @@ code {
   align-items: center;
   gap: 6px;
 }
+.custom-landmark--label-callout-left {
+  flex-direction: row-reverse;
+}
+.custom-landmark--label-callout-top,
+.custom-landmark--label-callout-bottom {
+  position: relative;
+  gap: 0;
+}
+.custom-landmark--label-callout-top .custom-pin-name,
+.custom-landmark--label-callout-bottom .custom-pin-name {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.custom-landmark--label-callout-top .custom-pin-name {
+  bottom: calc(100% + 6px);
+}
+.custom-landmark--label-callout-bottom .custom-pin-name {
+  top: calc(100% + 6px);
+}
+.custom-landmark--inside-label {
+  position: relative;
+  gap: 0;
+}
+.custom-landmark--inside-label .custom-pin-name--inside {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 5px);
+  transform: translateX(-50%);
+  z-index: 2;
+  width: max-content;
+  max-width: 280px;
+  min-width: 0;
+  padding: 2px 5px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.08;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: normal;
+  text-shadow:
+    -1px -1px 0 #fff,
+    1px -1px 0 #fff,
+    -1px 1px 0 #fff,
+    1px 1px 0 #fff,
+    0 1px 3px rgba(255, 255, 255, 0.95);
+}
+.custom-pin-name--size-small {
+  font-size: 10px;
+}
+.custom-pin-name--size-medium {
+  font-size: 11px;
+}
+.custom-pin-name--inside.custom-pin-name--size-small {
+  font-size: 12px;
+}
+.custom-pin-name--inside.custom-pin-name--size-medium {
+  font-size: 14px;
+}
+.custom-pin-name--inside.custom-pin-name--size-large {
+  font-size: 16px;
+}
 .custom-landmark.is-interactive {
   pointer-events: auto;
 }
@@ -683,8 +912,13 @@ code {
 .custom-pin--food,
 .custom-pin--shop { --landmark-color: #f57c00; }
 .custom-pin-name {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: none;
+  min-width: max-content;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", sans-serif;
   color: #0f172a;
@@ -693,6 +927,15 @@ code {
   padding: 2px 7px;
   border-radius: 5px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+  /* Preserve only line breaks entered in the landmark name. Do not
+     reflow ordinary spaces (for example, "Bontoc Circle"). */
+  white-space: pre;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.custom-pin-name--hidden {
+  display: none !important;
 }
 
 .custom-landmark--osm {
@@ -732,7 +975,13 @@ code {
   background: #fde047;
   border-color: #ca8a04;
   color: #422006;
-  font-weight: 700;
+  font-weight: 400;
+}
+.custom-landmark--inside-label.is-active-stretch .custom-pin-name--inside {
+  background: transparent;
+  border: 0;
+  color: #0f172a;
+  box-shadow: none;
 }
 
 /* "Move pin" mode: while toggled on (from the editor toolbar) the
@@ -1447,7 +1696,8 @@ body.draw-mode-off .leaflet-pm-toolbar {
 }
 
 .leaflet-container.zone-editing-active .leaflet-tooltip,
-.leaflet-container.zone-editing-active .leaflet-pm-touch-hint {
+.leaflet-container.zone-editing-active .leaflet-pm-touch-hint,
+.leaflet-container.zone-editing-active .smv-zone-class-label-anchor {
   display: none !important;
 }
 
@@ -1465,6 +1715,47 @@ body.draw-mode-off .leaflet-pm-toolbar {
 
 .leaflet-tooltip.smv-parcel-class-label::before {
   display: none;
+}
+
+.smv-zone-class-label-anchor {
+  background: transparent;
+  border: 0;
+}
+
+.smv-zone-class-label {
+  display: inline-block;
+  transform: translate(-50%, -50%);
+  color: #171717;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow:
+    -1px -1px 0 #ffffff,
+    1px -1px 0 #ffffff,
+    -1px 1px 0 #ffffff,
+    1px 1px 0 #ffffff,
+    0 0 3px rgba(255, 255, 255, 0.95);
+  white-space: nowrap;
+}
+
+.zoom-tier-low .smv-zone-class-label {
+  display: none;
+}
+
+.zoom-tier-mid .smv-zone-class-label {
+  display: none;
+}
+
+.zoom-tier-high .smv-zone-class-label {
+  font-size: 14px;
+  text-shadow:
+    -1px -1px 0 #ffffff,
+    1px -1px 0 #ffffff,
+    -1px 1px 0 #ffffff,
+    1px 1px 0 #ffffff,
+    0 0 4px rgba(255, 255, 255, 1);
 }
 
 /* Label pinned to the saved barangay viewport center (custom view preset).
@@ -1601,312 +1892,6 @@ body.draw-mode-off .leaflet-pm-toolbar {
 }
 
 /* ===========================================================
-   Bottom bar
-   =========================================================== */
-/* ----- SMV bottom walkthrough bar ----- */
-.smv-bottom {
-  position: relative;
-  z-index: 1500;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border-top: 1px solid var(--divider);
-  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M4 16 28 5l-6.5 22-6.2-7.8L9 22l2.3-6.3L4 16Z' fill='%23f8fafc' stroke='%231e293b' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M11.3 15.7 28 5' stroke='%231e293b' stroke-width='1.3' stroke-linecap='round'/%3E%3Cpath d='m15.3 19.2 3.2-3.1' stroke='%2394a3b8' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E")
-      8 8,
-    auto;
-}
-
-.smv-bottom * {
-  cursor: inherit !important;
-}
-
-.smv-bottom__disclaimer {
-  margin: 0;
-  padding: 6px 22px;
-  text-align: left;
-  font: var(--t-caption);
-  font-size: 11px;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
-  color: var(--text-muted);
-  background: var(--surface-soft);
-  border-bottom: 1px solid var(--divider);
-}
-
-.smv-bottom__row {
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr) 80px;
-  align-items: stretch;
-  min-height: 132px;
-}
-
-.smv-bottom__nav {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  color: var(--text-strong);
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-
-.smv-bottom__nav:hover {
-  background: var(--surface-hover);
-}
-
-.smv-bottom__arrow {
-  font-size: 36px;
-  line-height: 1;
-}
-
-.smv-bottom__body {
-  display: flex;
-  align-items: center;
-  padding: 10px 22px;
-  border-left: 1px solid var(--divider);
-  border-right: 1px solid var(--divider);
-}
-
-.smv-bottom__idle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  justify-content: center;
-  font: var(--t-body-l);
-  color: var(--text-muted);
-}
-
-.smv-bottom__idle kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  padding: 4px 8px;
-  border: 1px solid var(--divider);
-  border-radius: 4px;
-  background: var(--surface-soft);
-  font: var(--t-body);
-  color: var(--text);
-}
-
-.smv-summary {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  width: 100%;
-}
-
-.smv-summary__chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 80px;
-  height: 80px;
-  border-radius: 12px;
-  color: #fff;
-  font: var(--t-display-l);
-  font-weight: 800;
-  letter-spacing: 0;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3);
-}
-
-.smv-summary__copy {
-  min-width: 0;
-  text-align: left;
-}
-
-.smv-summary__headline {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  gap: 14px;
-  font: var(--t-headline);
-  color: var(--text-strong);
-}
-
-.smv-summary__price {
-  font: var(--t-display-s);
-  font-weight: 800;
-  color: var(--text-strong);
-}
-
-.smv-summary__per {
-  margin-left: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-.smv-summary__brgy {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid var(--divider);
-  background: var(--surface-soft);
-  border-radius: 999px;
-  font: var(--t-body-l);
-  color: var(--text);
-}
-
-.smv-summary__brgy small {
-  color: var(--text-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.smv-summary__group {
-  margin: 4px 0 0;
-  font: var(--t-body);
-  color: var(--text-muted);
-  font-style: italic;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.smv-summary__counters {
-  display: grid;
-  grid-template-columns: repeat(3, auto) auto;
-  gap: 10px 18px;
-  align-items: center;
-  padding-left: 18px;
-  border-left: 1px solid var(--divider);
-  text-align: right;
-}
-
-.smv-summary__counters > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.smv-summary__counters span {
-  font: var(--t-caption);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 10px;
-}
-
-.smv-summary__counters strong {
-  font: var(--t-headline);
-  font-weight: 700;
-  color: var(--text-strong);
-  font-variant-numeric: tabular-nums;
-}
-
-.smv-summary__counters small {
-  font-weight: 500;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.smv-summary__clear {
-  padding: 6px 14px;
-  border: 1px solid var(--divider);
-  border-radius: 6px;
-  background: var(--surface-soft);
-  font: var(--t-caption);
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.smv-summary__clear:hover {
-  background: var(--surface);
-  color: var(--text);
-}
-
-.selection-display {
-  position: relative;
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 56px;
-  align-items: center;
-  gap: 20px;
-  padding: 12px 22px;
-}
-
-.selection-display.is-idle {
-  display: flex;
-  justify-content: center;
-}
-
-.selection-badge {
-  width: 96px;
-  height: 96px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 22px;
-  color: var(--text-inverse);
-  font: var(--t-display-l);
-  letter-spacing: 0;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3),
-    0 4px 16px rgba(15, 23, 42, 0.12);
-}
-
-.selection-copy {
-  min-width: 0;
-}
-
-.selection-headline {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-strong);
-  font: var(--t-display-s);
-  letter-spacing: -0.015em;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: var(--num-feature);
-}
-
-.selection-subline {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-top: 6px;
-  color: var(--text-muted);
-  font: var(--t-body);
-  font-weight: 500;
-}
-
-.selection-close {
-  width: 52px;
-  height: 52px;
-  border: 2px solid var(--divider);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-muted);
-  font-size: 30px;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
-}
-
-.selection-close:hover {
-  background: var(--surface-hover);
-  color: var(--text-strong);
-}
-
-.selection-idle {
-  color: var(--text-subtle);
-  font: var(--t-display-s);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-/* ===========================================================
    Offline overlay
    =========================================================== */
 .offline-missing {
@@ -2008,44 +1993,6 @@ body.draw-mode-off .leaflet-pm-toolbar {
     font-size: 16px;
   }
 
-  .bottom-bar {
-    height: 154px;
-    grid-template-rows: 52px 102px;
-  }
-
-  .class-tab {
-    min-width: 72px;
-    font-size: 21px;
-    padding: 0 14px;
-  }
-
-  .selection-display {
-    grid-template-columns: 76px minmax(0, 1fr) 48px;
-    gap: 14px;
-    padding: 10px 16px;
-  }
-
-  .selection-badge {
-    width: 76px;
-    height: 76px;
-    font-size: 26px;
-    border-radius: 18px;
-  }
-
-  .selection-headline {
-    white-space: normal;
-    font-size: 22px;
-  }
-
-  .selection-subline {
-    white-space: normal;
-    font-size: 14px;
-  }
-
-  .selection-idle {
-    font-size: 18px;
-    text-align: center;
-  }
 }
 
 /* ============================================================
@@ -2077,7 +2024,6 @@ body.is-printing {
 
 body.is-printing .top-nav,
 body.is-printing .sidebar,
-body.is-printing .bottom-bar,
 body.is-printing .map-panel,
 body.is-printing .print-legend,
 body.is-printing .editable-zones-panel,
@@ -2166,7 +2112,6 @@ body.is-printing .map-wrapper {
   /* Hide screen chrome. */
   body.is-printing .top-nav,
   body.is-printing .sidebar,
-  body.is-printing .bottom-bar,
   body.is-printing .map-panel,
   body.is-printing .print-legend,
   body.is-printing .editable-zones-panel,
@@ -2221,13 +2166,40 @@ body.is-printing .map-wrapper {
   }
   body.is-printing .custom-pin-name {
     font-size: 8.5pt;
-    font-weight: 800;
+    font-weight: 400;
     color: #0f172a;
     background: white;
     border: 0.35pt solid rgba(15, 23, 42, 0.45);
     box-shadow:
       0 0 0 1.2mm rgba(255, 255, 255, 0.92),
       0 0.4mm 1.2mm rgba(15, 23, 42, 0.35);
+  }
+  body.is-printing .custom-landmark--inside-label .custom-pin-name--inside {
+    font-size: 11pt;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    text-shadow:
+      -0.6pt -0.6pt 0 #fff,
+      0.6pt -0.6pt 0 #fff,
+      -0.6pt 0.6pt 0 #fff,
+      0.6pt 0.6pt 0 #fff;
+  }
+  body.is-printing .custom-pin-name--size-small {
+    font-size: 7pt;
+  }
+  body.is-printing .custom-pin-name--size-medium {
+    font-size: 8pt;
+  }
+  body.is-printing .custom-pin-name--inside.custom-pin-name--size-small {
+    font-size: 8.5pt;
+  }
+  body.is-printing .custom-pin-name--inside.custom-pin-name--size-medium {
+    font-size: 10pt;
+  }
+  body.is-printing .custom-pin-name--inside.custom-pin-name--size-large {
+    font-size: 11pt;
   }
   body.is-printing .custom-landmark--osm .custom-pin-name {
     font-size: 7.5pt;

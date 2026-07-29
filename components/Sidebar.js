@@ -1,6 +1,16 @@
 "use client";
 
-import { textColorForBackground } from "@/lib/classifications";
+import { useEffect, useState } from "react";
+import {
+  CLASSIFICATION_INFO,
+  textColorForBackground,
+} from "@/lib/classifications";
+import {
+  LANDMARK_KIND_OPTIONS,
+  landmarkIconMarkup,
+} from "@/lib/landmark-icons";
+
+const SIDEBAR_COLLAPSED_KEY = "smv-sidebar-collapsed-v1";
 
 // Road-tier legend entries. Colors match the print SVG palette in
 // lib/print-svg-builder.js (yellow national → orange provincial →
@@ -67,42 +77,135 @@ export default function Sidebar({
   getUniqueBarangaysForClass: _getUniqueBarangaysForClass,
   savedStretchViews: _savedStretchViews,
 }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCollapsed(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1");
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
+    } catch {}
+  }, [collapsed]);
+
   // When any class is active, clicking it again would clear the
   // filter — but that's not obvious. Surface an explicit "Show all"
   // button while a filter is active so the affordance is visible.
   const showAllVisible = activeClassId != null;
   return (
-    <aside className="smv-sidebar smv-sidebar--legend" aria-label="SMV legend">
-      <div className="smv-legend__toolbar" data-active={showAllVisible}>
+    <aside
+      className={`smv-sidebar smv-sidebar--legend ${
+        collapsed ? "is-collapsed" : ""
+      }`}
+      aria-label="SMV legend"
+    >
+      {collapsed ? (
         <button
           type="button"
-          className="smv-legend__show-all"
-          onClick={() => onSelectClass(null)}
-          disabled={!showAllVisible}
-          title={
-            showAllVisible
-              ? "Clear the class filter — show every SMV class on the map"
-              : "All classes are already visible"
-          }
+          className="smv-sidebar__expand"
+          onClick={() => setCollapsed(false)}
+          aria-label="Expand SMV legend sidebar"
+          title="Expand SMV legend sidebar"
         >
-          {showAllVisible ? "Show all classes" : "All classes shown"}
+          <span aria-hidden="true">‹</span>
+          <span className="smv-sidebar__expand-label">SMV</span>
         </button>
-      </div>
-      <LegendSection
-        title="Commercial"
-        rows={commercialRows}
-        activeClassId={activeClassId}
-        onSelectClass={onSelectClass}
-      />
-      <LegendSection
-        title="Residential"
-        rows={residentialRows}
-        activeClassId={activeClassId}
-        onSelectClass={onSelectClass}
-        scroll
-      />
-      <RoadsLegend />
+      ) : (
+        <>
+          <div className="smv-legend__toolbar" data-active={showAllVisible}>
+            <button
+              type="button"
+              className="smv-legend__show-all"
+              onClick={() => onSelectClass(null)}
+              disabled={!showAllVisible}
+              title={
+                showAllVisible
+                  ? "Clear the class filter — show every SMV class on the map"
+                  : "All classes are already visible"
+              }
+            >
+              {showAllVisible ? "Show all classes" : "All classes shown"}
+            </button>
+            <button
+              type="button"
+              className="smv-sidebar__collapse"
+              onClick={() => setCollapsed(true)}
+              aria-label="Collapse SMV legend sidebar"
+              title="Collapse sidebar to expand the map"
+            >
+              ›
+            </button>
+          </div>
+          <div className="smv-legend__values-card">
+            <LegendSection
+              title="Commercial"
+              rows={commercialRows}
+              activeClassId={activeClassId}
+              onSelectClass={onSelectClass}
+            />
+            <LegendSection
+              title="Residential"
+              rows={residentialRows}
+              activeClassId={activeClassId}
+              onSelectClass={onSelectClass}
+            />
+          </div>
+          <OthersLegend />
+          <RoadsLegend />
+        </>
+      )}
     </aside>
+  );
+}
+
+// Reference-only legend for SMV classes that do not belong to the
+// commercial/residential value ladders, plus the shared landmark pictograms
+// used by the add-landmark picker and map pins.
+function OthersLegend() {
+  const institutional = CLASSIFICATION_INFO.INSTITUTIONAL;
+  return (
+    <div className="smv-section smv-section--legend smv-section--others">
+      <header className="smv-section__head">
+        <h3 className="smv-section__title">Others</h3>
+        <span className="smv-section__count">1 class</span>
+      </header>
+      <ul className="smv-section__list smv-section__list--legend">
+        <li className="smv-row smv-row--legend">
+          <div className="smv-row__head smv-row__head--legend">
+            <span
+              className="smv-row__chip"
+              style={{
+                backgroundColor: institutional.color,
+                color: textColorForBackground(institutional.color),
+              }}
+            >
+              {institutional.label}
+            </span>
+            <span className="smv-row__value tnum">—</span>
+          </div>
+        </li>
+      </ul>
+      <div className="smv-landmark-legend" aria-label="Landmark icons">
+        <div className="smv-landmark-legend__title">Landmark icons</div>
+        <div className="smv-landmark-legend__grid">
+          {LANDMARK_KIND_OPTIONS.map((kind) => (
+            <div className="smv-landmark-legend__item" key={kind.value}>
+              <span
+                className="smv-landmark-legend__icon"
+                style={{ color: kind.color }}
+                dangerouslySetInnerHTML={{
+                  __html: landmarkIconMarkup(kind.value),
+                }}
+              />
+              <span>{kind.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -122,10 +225,7 @@ function RoadsLegend() {
       <ul className="smv-section__list smv-section__list--legend">
         {ROAD_TIERS.map((tier) => (
           <li key={tier.id} className="smv-row smv-row--legend smv-row--road">
-            <div
-              className="smv-row__head smv-row__head--legend smv-row__head--road"
-              title={`${tier.label} road tier (${tier.sub})`}
-            >
+            <div className="smv-row__head smv-row__head--legend smv-row__head--road">
               <span
                 className="smv-road__swatch"
                 style={{
@@ -151,24 +251,15 @@ function LegendSection({
   rows,
   activeClassId,
   onSelectClass,
-  scroll = false,
 }) {
   if (!rows.length) return null;
   return (
-    <div
-      className={`smv-section smv-section--legend ${
-        scroll ? "smv-section--scroll" : ""
-      }`}
-    >
+    <div className="smv-section smv-section--legend">
       <header className="smv-section__head">
         <h3 className="smv-section__title">{title}</h3>
         <span className="smv-section__count">{rows.length} classes</span>
       </header>
-      <ul
-        className={`smv-section__list smv-section__list--legend ${
-          scroll ? "smv-section__list--scroll" : ""
-        }`}
-      >
+      <ul className="smv-section__list smv-section__list--legend">
         {rows.map((row) => {
           const isActive = activeClassId === row.id;
           const valueText =
@@ -186,7 +277,7 @@ function LegendSection({
                 }`}
                 onClick={() => onSelectClass(row.id)}
                 aria-pressed={isActive}
-                title={
+                aria-label={
                   row.locationGroups?.[0]?.label
                     ? `${row.subClass} — ${valueText}\n${row.locationGroups[0].label}`
                     : `${row.subClass} — ${valueText}`

@@ -17,6 +17,11 @@ public/tiles-mapbox-hidpi/
 # Generated print map exports. `npm run build` regenerates these via prebuild.
 public/print/**/*.svg
 
+# Local CAD/map exports. Source GeoJSON and CAD files remain trackable when
+# intentionally added to the repository.
+exports/
+public/exports/
+
 # Build/cache artifacts that don't belong in version control.
 *.tsbuildinfo
 .vercel/

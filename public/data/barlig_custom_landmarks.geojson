@@ -1,0 +1,305 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785123971266-h6p45v",
+        "name": "Lingoy-Chatol\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:46:11.266Z",
+        "updated_at": "2026-07-27T03:46:16.153Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.08316808749457,
+          17.05760504046035
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124006009-gwogar",
+        "name": "Eastern Bontoc\nNational Agricultural\nVocational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:46:46.009Z",
+        "updated_at": "2026-07-27T03:51:28.293Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.08412027374051,
+          17.058845825720002
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124166665-ycjid3",
+        "name": "Lingoy\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:49:26.665Z",
+        "updated_at": "2026-07-27T03:49:29.687Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.08903676175925,
+          17.091790781985953
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124332986-lxend1",
+        "name": "Latang\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:52:12.986Z",
+        "updated_at": "2026-07-27T03:52:21.137Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.09521120677616,
+          17.038180140528546
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124570126-16m38j",
+        "name": "Barlig National\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:56:10.126Z",
+        "updated_at": "2026-07-27T03:57:49.135Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.09964221751277,
+          17.041957698975718
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124602318-3tfwfb",
+        "name": "Barlig\nCentral\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:56:42.318Z",
+        "updated_at": "2026-07-27T03:57:54.185Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.10114961883625,
+          17.040793377433843
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124635521-b6tyh9",
+        "name": "Barlig\nMunicipal\nHall",
+        "kind": "govt",
+        "label_placement": "callout-bottom",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:57:15.521Z",
+        "updated_at": "2026-07-27T03:57:44.668Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.09955906594226,
+          17.041290833299037
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124710105-3b2fyo",
+        "name": "Barlig District\nHospital",
+        "kind": "hospital",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:58:30.105Z",
+        "updated_at": "2026-07-27T03:58:41.425Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.0970619319892,
+          17.044776007934875
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124760558-je6f9b",
+        "name": "Barlig Rural\nHealth Center",
+        "kind": "clinic",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T03:59:20.558Z",
+        "updated_at": "2026-07-27T03:59:25.292Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.0992908488914,
+          17.04216292333951
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785124824686-0yk6of",
+        "name": "CSPI",
+        "kind": "worship",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T04:00:24.686Z",
+        "updated_at": "2026-07-27T04:00:28.044Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.10450774602705,
+          17.038485525324212
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785129203735-1z4u76",
+        "name": "Kaleo\nElementary School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:13:23.735Z",
+        "updated_at": "2026-07-27T05:13:26.948Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.19655042878358,
+          17.0512482400897
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785129338350-cxlbeb",
+        "name": "Kadaclan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:15:38.350Z",
+        "updated_at": "2026-07-27T05:15:42.885Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.19792640195084,
+          17.055595004292268
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785129359734-e0xuca",
+        "name": "Kadaclan\nNational \nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:15:59.734Z",
+        "updated_at": "2026-07-27T05:16:01.569Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.19828045346938,
+          17.056051411827866
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785129436039-679w50",
+        "name": "Lunas\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:17:16.039Z",
+        "updated_at": "2026-07-27T05:17:18.841Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.20592474940035,
+          17.061076965377364
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785129486973-keegql",
+        "name": "Ogo-og\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:18:06.973Z",
+        "updated_at": "2026-07-27T05:18:28.083Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.19203627113038,
+          17.043893639582024
+        ]
+      }
+    }
+  ]
+}

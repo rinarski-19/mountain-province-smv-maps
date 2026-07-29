@@ -92,7 +92,7 @@ function logZonesSummary(zonesSummary) {
   if (zonesSummary.widened) {
     console.log(
       `  Render-widened: ${zonesSummary.widened} ribbon zones ` +
-        `(+${zonesSummary.smvBufferM} m per side default at print only).`
+        `(+${zonesSummary.effectiveRibbonBufferM ?? zonesSummary.smvBufferM} m per side at print only).`
     );
   }
   if (zonesSummary.widenedByBarangayOverride) {

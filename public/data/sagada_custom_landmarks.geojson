@@ -1,0 +1,343 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785285671554-c3wlrj",
+        "name": "Sagada\nNational\nHigh\nSchool",
+        "kind": "school",
+        "label_placement": "callout-bottom",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T00:41:11.554Z",
+        "updated_at": "2026-07-29T00:41:20.230Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.89810907569984,
+          17.08416360526357
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785285695858-rkkdsf",
+        "name": "Sagada\nCentral\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T00:41:35.858Z",
+        "updated_at": "2026-07-29T00:41:37.952Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.8979320497544,
+          17.085357921411276
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785286298802-hgi1sa",
+        "name": "Sagada\nTown Hall",
+        "kind": "govt",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T00:51:38.802Z",
+        "updated_at": "2026-07-29T00:51:44.101Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90042650552962,
+          17.08442235121228
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785287726020-37qw72",
+        "name": "St. Mary's\nEpiscopal\nChurch",
+        "kind": "worship",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T01:15:26.020Z",
+        "updated_at": "2026-07-29T01:15:31.298Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90215384916556,
+          17.08379935231254
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785289331846-pxtcq3",
+        "name": "Tangeb\nGrounds",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T01:42:11.846Z",
+        "updated_at": "2026-07-29T01:42:28.793Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90128481582131,
+          17.080184390849176
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785289374329-696lii",
+        "name": "Saint\nMary's\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T01:42:54.329Z",
+        "updated_at": "2026-07-29T01:42:55.703Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90244889394717,
+          17.081353600517236
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785291029536-r9htah",
+        "name": "Balugan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T02:10:29.536Z",
+        "updated_at": "2026-07-29T02:29:48.382Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.8920660552169,
+          17.061376715398744
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785291367970-dik660",
+        "name": "Ambasing\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T02:16:07.970Z",
+        "updated_at": "2026-07-29T02:16:13.663Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.89865087950665,
+          17.073605254784987
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785292205265-o6gxje",
+        "name": "Balugan \nNational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T02:30:05.265Z",
+        "updated_at": "2026-07-29T02:30:12.388Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.89748144049753,
+          17.061643712233177
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785292265554-25x6gh",
+        "name": "St. John's\nMission",
+        "kind": "worship",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T02:31:05.554Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.89301555723823,
+          17.065173859525466
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785292454277-mm6nxy",
+        "name": "Ankileng\nNational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-bottom",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T02:34:14.277Z",
+        "updated_at": "2026-07-29T02:55:00.984Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90300410970909,
+          17.0490790630358
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785292472895-j2n98y",
+        "name": "Ankileng\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T02:34:32.895Z",
+        "updated_at": "2026-07-29T02:34:55.449Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90305775274622,
+          17.0469865377462
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785293777578-s10571",
+        "name": "Nacagang\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T02:56:17.578Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90333401525837,
+          17.037833198523163
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785294171068-0hqvg8",
+        "name": "Taccong\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T03:02:51.069Z",
+        "updated_at": "2026-07-29T03:03:19.006Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.90870112086702,
+          17.041596038677373
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785295083376-rjapjn",
+        "name": "Antadao\nNational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T03:18:03.376Z",
+        "updated_at": "2026-07-29T03:18:06.096Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92717081206084,
+          17.08048416082275
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785295097942-5ssiwm",
+        "name": "Antadao\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-bottom",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T03:18:17.942Z",
+        "updated_at": "2026-07-29T03:18:19.272Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.92743635124967,
+          17.07952022163491
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785295686375-udulog",
+        "name": "Teptepan\nElementary School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-29T03:28:06.375Z",
+        "updated_at": "2026-07-29T03:28:08.662Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.93012124303002,
+          17.09082439028619
+        ]
+      }
+    }
+  ]
+}

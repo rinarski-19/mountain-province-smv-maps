@@ -6,6 +6,10 @@ import {
   landmarkIconPath,
   normalizeLandmarkKind,
 } from "@/lib/landmark-icons";
+import {
+  LANDMARK_LABEL_PLACEMENTS,
+  normalizeLandmarkLabelPlacement,
+} from "@/lib/landmark-labels";
 
 function LandmarkIcon({ kind, size = 22 }) {
   return (
@@ -36,12 +40,15 @@ function groupStretches(catalog) {
     .map((cls) => ({ classLabel: cls, options: by[cls] }));
 }
 
+const DEFAULT_LANDMARK_KIND = "school";
+const DEFAULT_LANDMARK_LABEL_PLACEMENT = "callout-top";
+
 // Floating modal for adding a custom landmark via the in-app "+ Landmark"
 // tool. Header + scrollable body + sticky footer so the Save buttons are
 // always reachable no matter how many stretch chips the user attaches.
 //
 // Props:
-//   pending: { lat, lng, name, kind, stretchKeys }
+//   pending: { lat, lng, name, kind, labelPlacement, labelSize, stretchKeys }
 //   setPending: state setter
 //   stretchCatalog: flat list of { value, classLabel, barangayName, stretchText }
 //   onCommit: (data) => void
@@ -104,8 +111,7 @@ export default function LandmarkAddForm({
       >
         <label className="landmark-form__field">
           <span className="landmark-form__label">Name</span>
-          <input
-            type="text"
+          <textarea
             value={pending.name}
             autoFocus
             onChange={(e) =>
@@ -113,8 +119,49 @@ export default function LandmarkAddForm({
             }
             placeholder="e.g. Bontoc Municipal Capitol"
             className="landmark-form__input"
+            rows={2}
             required
           />
+        </label>
+
+        <label className="landmark-form__field">
+          <span className="landmark-form__label">Label placement</span>
+          <select
+            value={normalizeLandmarkLabelPlacement(
+              pending.labelPlacement || DEFAULT_LANDMARK_LABEL_PLACEMENT
+            )}
+            onChange={(e) =>
+              setPending((p) => ({ ...p, labelPlacement: e.target.value }))
+            }
+            className="landmark-form__input"
+          >
+            {LANDMARK_LABEL_PLACEMENTS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <span className="landmark-form__hint">
+            Placement is saved with the landmark and used by the printed SVG.
+          </span>
+        </label>
+
+        <label className="landmark-form__field">
+          <span className="landmark-form__label">Label text size</span>
+          <select
+            value={pending.labelSize || "large"}
+            onChange={(e) =>
+              setPending((p) => ({ ...p, labelSize: e.target.value }))
+            }
+            className="landmark-form__input"
+          >
+            <option value="small">Small</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large</option>
+          </select>
+          <span className="landmark-form__hint">
+            Applies to the landmark name on the map and on the printed SVG.
+          </span>
         </label>
 
         <div className="landmark-form__field">
@@ -125,7 +172,9 @@ export default function LandmarkAddForm({
             aria-label="Landmark kind"
           >
             {LANDMARK_KIND_OPTIONS.map((o) => {
-              const selected = normalizeLandmarkKind(pending.kind) === o.value;
+              const selected =
+                normalizeLandmarkKind(pending.kind || DEFAULT_LANDMARK_KIND) ===
+                o.value;
               return (
                 <button
                   key={o.value}

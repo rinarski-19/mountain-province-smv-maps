@@ -1,0 +1,462 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784615372521-sovin9",
+        "name": "St. Clements Church",
+        "kind": "worship",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "updated_at": "2026-07-28T03:11:16.538Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.85909366607667,
+          17.08996526830589
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784616205388-h0bgmw",
+        "name": "Besao Evangelical Church",
+        "kind": "worship",
+        "label_placement": "callout-bottom",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T06:43:25.388Z",
+        "updated_at": "2026-07-28T03:12:51.121Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.86157470941545,
+          17.08955388011334
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784617216029-uch2gb",
+        "name": "Saint Ambrose Church",
+        "kind": "worship",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T07:00:16.029Z",
+        "updated_at": "2026-07-28T03:16:27.342Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.87093159556392,
+          17.082861657319647
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784617285323-31znia",
+        "name": "Seventh Day Adventist Church",
+        "kind": "worship",
+        "label_placement": "inside-smv",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T07:01:25.323Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.86184561252595,
+          17.096869402007894
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784617318105-rs7bio",
+        "name": "Faith Baptist Church",
+        "kind": "worship",
+        "label_placement": "inside-smv",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T07:01:58.105Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.86001098155977,
+          17.097489798731182
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785207513743-079ub5",
+        "name": "Besao Central School",
+        "kind": "school",
+        "label_placement": "callout-bottom",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T02:58:33.743Z",
+        "updated_at": "2026-07-28T02:58:41.673Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.85669040681464,
+          17.09524144945299
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785207542064-0qg696",
+        "name": "Besao\nNational High School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T02:59:02.064Z",
+        "updated_at": "2026-07-28T02:59:04.413Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.85619688029615,
+          17.094685457897036
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785207682068-lb1iku",
+        "name": "Tamboan\nNational \nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:01:22.068Z",
+        "updated_at": "2026-07-28T03:01:23.332Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.80223351712662,
+          17.113642915695028
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785207700015-f6sqdx",
+        "name": "Tamboan \nElementary \nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:01:40.015Z",
+        "updated_at": "2026-07-28T03:01:41.139Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.8012357353858,
+          17.107580139105824
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785207725966-4mj73d",
+        "name": "Dandanac\nElementary School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:02:05.966Z",
+        "updated_at": "2026-07-28T03:02:11.357Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.79785615208124,
+          17.119987264571506
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785207867934-49sdt4",
+        "name": "Panabungen\nSchool of Arts,\nTrades and \nHome Industries",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:04:27.934Z",
+        "updated_at": "2026-07-28T03:04:29.471Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.78844964126698,
+          17.09489564513171
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785207931228-pr0ajj",
+        "name": "Panabungen\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:05:31.228Z",
+        "updated_at": "2026-07-28T03:05:33.761Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.78909336894868,
+          17.09283448708726
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785207995127-nunzde",
+        "name": "Catengan \nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:06:35.127Z",
+        "updated_at": "2026-07-28T03:06:36.934Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.80511153025574,
+          17.084752976145264
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208019792-etw4op",
+        "name": "Bunga\nElementary School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:06:59.792Z",
+        "updated_at": "2026-07-28T03:07:09.073Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.82770645715458,
+          17.089006613760777
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208196256-c0gbrd",
+        "name": "Banguitan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:09:56.256Z",
+        "updated_at": "2026-07-28T03:09:59.638Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.85390090843862,
+          17.07557692128356
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208219105-denr20",
+        "name": "Banguitan\nNational \nHigh School",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:10:19.105Z",
+        "updated_at": "2026-07-28T03:10:20.729Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.85487186563519,
+          17.076453790876677
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208310071-nqqsst",
+        "name": "Payeo\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:11:50.071Z",
+        "updated_at": "2026-07-28T03:11:55.814Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.8598124951445,
+          17.088639593346628
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208474196-ursd4b",
+        "name": "Besao \nElementary \nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:14:34.196Z",
+        "updated_at": "2026-07-28T03:14:39.473Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.86810320720312,
+          17.085348089346216
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208544380-57jrf5",
+        "name": "Suquib\nPrimary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:15:44.380Z",
+        "updated_at": "2026-07-28T03:16:13.978Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.87166249773105,
+          17.083035418210294
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208701375-gjio3e",
+        "name": "Masameyeo\nPrimary School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:18:21.375Z",
+        "updated_at": "2026-07-28T03:18:24.861Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.87363285053559,
+          17.119300244618568
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208726351-os2xt2",
+        "name": "Agawa\nElementary \nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:18:46.351Z",
+        "updated_at": "2026-07-28T03:18:47.926Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.86663067232551,
+          17.11228427193164
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208848197-9nuyxr",
+        "name": "Gueday \nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:20:48.197Z",
+        "updated_at": "2026-07-28T03:20:53.146Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.86836874486521,
+          17.11924387733817
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785208912220-hik464",
+        "name": "Ambagiw \nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-28T03:21:52.220Z",
+        "updated_at": "2026-07-28T03:21:53.712Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.84515154408358,
+          17.119966896093707
+        ]
+      }
+    }
+  ]
+}

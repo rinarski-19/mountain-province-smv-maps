@@ -9,11 +9,150 @@ import {
   styleForClass,
   textColorForBackground,
 } from "@/lib/classifications";
+import {
+  normalizeLandmarkLabelPlacement,
+  normalizeLandmarkLabelSize,
+} from "@/lib/landmark-labels";
 import LandmarkAddForm from "./LandmarkAddForm";
 
 const DEFAULT_STORAGE_KEY = "bauko-zones-v1";
 const DEFAULT_BUNDLED_ZONES_URL = "/data/bauko_zones.geojson";
 const DEFAULT_CLASS_KEYS = Object.keys(CLASSIFICATION_INFO);
+const DEFAULT_LANDMARK_KIND = "school";
+const DEFAULT_LANDMARK_LABEL_PLACEMENT = "callout-top";
+
+function compactCustomLandmarkFeature(feature) {
+  if (!feature || feature.geometry?.type !== "Point") return null;
+  const coords = feature.geometry.coordinates || [];
+  const lng = Number(coords[0]);
+  const lat = Number(coords[1]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+  const props = feature.properties || {};
+  const stretchKeys = Array.isArray(props.stretch_keys)
+    ? props.stretch_keys.filter(Boolean)
+    : props.stretch_key
+      ? [props.stretch_key]
+      : [];
+  return {
+    type: "Feature",
+    properties: {
+      ...(props.id ? { id: props.id } : {}),
+      name: String(props.name || "").trim(),
+      kind: props.kind || DEFAULT_LANDMARK_KIND,
+      label_placement: normalizeLandmarkLabelPlacement(
+        props.label_placement ||
+          props.labelPlacement ||
+          DEFAULT_LANDMARK_LABEL_PLACEMENT
+      ),
+      label_size: normalizeLandmarkLabelSize(props.label_size || props.labelSize),
+      source: props.source || "in-app",
+      ...(props.added_at ? { added_at: props.added_at } : {}),
+      ...(props.updated_at ? { updated_at: props.updated_at } : {}),
+      ...(stretchKeys.length
+        ? { stretch_keys: stretchKeys }
+        : {}),
+    },
+    geometry: {
+      type: "Point",
+      coordinates: [lng, lat],
+    },
+  };
+}
+
+function compactCustomLandmarkList(list) {
+  return (Array.isArray(list) ? list : [])
+    .map(compactCustomLandmarkFeature)
+    .filter(Boolean);
+}
+
+function localStorageFailureMessage(error) {
+  const name = error?.name || "StorageError";
+  if (name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED") {
+    return "Browser local storage is full. I compacted the landmark data, but the browser still refused the save.";
+  }
+  if (name === "SecurityError") {
+    return "Browser local storage is blocked for this page.";
+  }
+  return error?.message || "Browser local storage refused the save.";
+}
+
+function isQuotaExceededError(error) {
+  return Boolean(
+    error &&
+      (error.name === "QuotaExceededError" ||
+        error.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+        error.code === 22 ||
+        error.code === 1014 ||
+        /quota/i.test(error.message || ""))
+  );
+}
+
+function recoverLocalStorageQuota({ currentZoneStorageKey = null } = {}) {
+  const removed = [];
+  const zoneSnapshotKeyRe = /^[a-z0-9-]+-zones-v1$/i;
+  try {
+    const keys = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key) keys.push(key);
+    }
+    for (const key of keys) {
+      if (!zoneSnapshotKeyRe.test(key)) continue;
+      if (currentZoneStorageKey && key === currentZoneStorageKey) continue;
+      window.localStorage.removeItem(key);
+      removed.push(key);
+    }
+  } catch {}
+  return removed;
+}
+
+function removeCurrentZoneSnapshotForQuota(currentZoneStorageKey) {
+  if (!currentZoneStorageKey) return false;
+  try {
+    window.localStorage.removeItem(currentZoneStorageKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function setJsonLocalStorageOrThrow(
+  key,
+  value,
+  { currentZoneStorageKey = null } = {}
+) {
+  const payload = JSON.stringify(value);
+  try {
+    window.localStorage.setItem(key, payload);
+    return { recovered: false, removedKeys: [] };
+  } catch (firstError) {
+    if (!isQuotaExceededError(firstError)) throw firstError;
+    const removedKeys = recoverLocalStorageQuota({ currentZoneStorageKey });
+    try {
+      window.localStorage.setItem(key, payload);
+      return { recovered: true, removedKeys };
+    } catch (secondError) {
+      if (!isQuotaExceededError(secondError)) throw secondError;
+      const removedCurrent = removeCurrentZoneSnapshotForQuota(
+        currentZoneStorageKey
+      );
+      try {
+        window.localStorage.setItem(key, payload);
+        return {
+          recovered: true,
+          removedKeys: removedCurrent
+            ? [...removedKeys, currentZoneStorageKey]
+            : removedKeys,
+        };
+      } catch (finalError) {
+        finalError.localStorageRecoveryRemovedKeys = removedCurrent
+          ? [...removedKeys, currentZoneStorageKey]
+          : removedKeys;
+        throw finalError;
+      }
+    }
+  }
+}
 
 // Visual styles for the chipped OSM road layer in edit mode.
 // Keep lines solid (no dash pattern) to match the Bauko presentation style.
@@ -682,6 +821,8 @@ export default function EditableZones({
   frontageBandsUrl = null,
   showFrontageBands = false,
   barangaysUrl = null,
+  customLandmarksUrl = null,
+  onRegisterSaveHandler = null,
   // OSM building polygons for per-building override mode. Currently
   // only Sadanga sets this in its municipality config; other LGUs
   // pass null and skip the buildings layer entirely.
@@ -1078,18 +1219,24 @@ export default function EditableZones({
     placingLandmarkRef.current = placingLandmark;
   }, [placingLandmark]);
   const customLandmarksKey = `custom-landmarks-local-v1:${municipalitySlug}`;
+  const deletedCustomLandmarksKey = `custom-landmarks-deleted-v1:${municipalitySlug}`;
 
-  // Delete a single in-app landmark. Prefers matching by stable
-  // `properties.id`; falls back to (name + lng + lat) for pins that
-  // somehow lack an id. Coordinates are compared with a tiny epsilon
-  // to absorb floating-point round-trips through JSON.
+  const landmarkStorageKey = ({ id, name, lng, lat }) =>
+    id
+      ? `id:${id}`
+      : `coord:${name || ""}:${lng ?? ""}:${lat ?? ""}`;
+
+  // Delete a single in-app landmark. A published in-app pin may no longer
+  // exist in localStorage, so keep a small tombstone list as well. The map
+  // uses it to hide the previous project-file snapshot immediately, and
+  // Save landmarks removes the pin from the canonical GeoJSON.
   const deleteLandmark = ({ id, name, lng, lat }) => {
     try {
       const raw = window.localStorage.getItem(customLandmarksKey);
       const arr = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(arr)) return;
+      const list = compactCustomLandmarkList(arr);
       const EPS = 1e-9;
-      const next = arr.filter((f) => {
+      const next = list.filter((f) => {
         const p = f?.properties || {};
         if (id && p.id === id) return false; // primary match
         if (!id && name && p.name === name) {
@@ -1103,26 +1250,42 @@ export default function EditableZones({
         }
         return true;
       });
-      if (next.length === arr.length) {
-        console.warn(
-          "deleteLandmark: no matching entry found for",
-          { id, name, lng, lat }
-        );
-        return;
+      const storageKey = landmarkStorageKey({ id, name, lng, lat });
+      const deletedRaw = window.localStorage.getItem(deletedCustomLandmarksKey);
+      const deleted = deletedRaw ? JSON.parse(deletedRaw) : [];
+      const deletedList = Array.isArray(deleted) ? deleted : [];
+      if (!deletedList.includes(storageKey)) {
+        deletedList.push(storageKey);
       }
-      window.localStorage.setItem(customLandmarksKey, JSON.stringify(next));
+      setJsonLocalStorageOrThrow(
+        customLandmarksKey,
+        compactCustomLandmarkList(next),
+        { currentZoneStorageKey: storageKey }
+      );
+      setJsonLocalStorageOrThrow(deletedCustomLandmarksKey, deletedList, {
+        currentZoneStorageKey: storageKey,
+      });
       window.dispatchEvent(
         new CustomEvent(`${municipalitySlug}:custom-landmarks-updated`)
       );
     } catch (e) {
       console.warn("deleteLandmark failed:", e);
+      window.alert(`Could not delete this landmark. ${localStorageFailureMessage(e)}`);
     }
   };
 
   // Move a single in-app landmark to new coordinates. Same id-first,
   // (name + old coords) fallback matching as `deleteLandmark`. Fired
   // by LeafletMap when the user drops a pin in `movingLandmark` mode.
-  const moveLandmark = ({ id, name, oldLng, oldLat, newLng, newLat }) => {
+  const moveLandmark = ({
+    id,
+    name,
+    oldLng,
+    oldLat,
+    newLng,
+    newLat,
+    feature,
+  }) => {
     if (
       !Number.isFinite(newLng) ||
       !Number.isFinite(newLat)
@@ -1133,10 +1296,10 @@ export default function EditableZones({
     try {
       const raw = window.localStorage.getItem(customLandmarksKey);
       const arr = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(arr)) return;
+      const list = compactCustomLandmarkList(arr);
       const EPS = 1e-9;
       let matched = false;
-      const next = arr.map((f) => {
+      const next = list.map((f) => {
         if (matched) return f;
         const p = f?.properties || {};
         const c = f?.geometry?.coordinates || [];
@@ -1162,6 +1325,53 @@ export default function EditableZones({
           },
         };
       });
+      // A published in-app pin is in the project file, not localStorage.
+      // Create a local override when it is dragged so the map and the next
+      // project save both retain the new position.
+      if (!matched && feature?.geometry?.type === "Point") {
+        matched = true;
+        const featureProps = feature.properties || {};
+        const stableId =
+          featureProps.id ||
+          `lm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        // If the published feature predates stable ids, hide its old
+        // coordinate-based snapshot while the moved local override is
+        // displayed. Otherwise both the old and new pins remain visible.
+        const oldStorageKey = landmarkStorageKey({
+          id: featureProps.id,
+          name: featureProps.name || name,
+          lng: oldLng,
+          lat: oldLat,
+        });
+        let deletedList = [];
+        try {
+          const deletedRaw = window.localStorage.getItem(
+            deletedCustomLandmarksKey
+          );
+          const deleted = deletedRaw ? JSON.parse(deletedRaw) : [];
+          deletedList = Array.isArray(deleted) ? deleted : [];
+        } catch {}
+        if (!deletedList.includes(oldStorageKey)) {
+          deletedList.push(oldStorageKey);
+        }
+        next.push({
+          ...feature,
+          properties: {
+            ...featureProps,
+            id: stableId,
+            source: "in-app",
+            updated_at: new Date().toISOString(),
+          },
+          geometry: {
+            ...(feature.geometry || { type: "Point" }),
+            type: "Point",
+            coordinates: [newLng, newLat],
+          },
+        });
+        setJsonLocalStorageOrThrow(deletedCustomLandmarksKey, deletedList, {
+          currentZoneStorageKey: storageKey,
+        });
+      }
       if (!matched) {
         console.warn(
           "moveLandmark: no matching entry found for",
@@ -1169,12 +1379,17 @@ export default function EditableZones({
         );
         return;
       }
-      window.localStorage.setItem(customLandmarksKey, JSON.stringify(next));
+      setJsonLocalStorageOrThrow(
+        customLandmarksKey,
+        compactCustomLandmarkList(next),
+        { currentZoneStorageKey: storageKey }
+      );
       window.dispatchEvent(
         new CustomEvent(`${municipalitySlug}:custom-landmarks-updated`)
       );
     } catch (e) {
       console.warn("moveLandmark failed:", e);
+      window.alert(`Could not move this landmark. ${localStorageFailureMessage(e)}`);
     }
   };
 
@@ -1213,7 +1428,15 @@ export default function EditableZones({
         originalLat: coords[1],
         originalLng: coords[0],
         name: props.name || "",
-        kind: props.kind || "business",
+        kind: props.kind || DEFAULT_LANDMARK_KIND,
+        labelPlacement: normalizeLandmarkLabelPlacement(
+          props.label_placement ||
+            props.labelPlacement ||
+            DEFAULT_LANDMARK_LABEL_PLACEMENT
+        ),
+        labelSize: normalizeLandmarkLabelSize(
+          props.label_size || props.labelSize
+        ),
         stretchKeys: Array.isArray(props.stretch_keys)
           ? [...props.stretch_keys]
           : props.stretch_key
@@ -1271,7 +1494,7 @@ export default function EditableZones({
     try {
       const raw = window.localStorage.getItem(customLandmarksKey);
       const arr = raw ? JSON.parse(raw) : [];
-      const list = Array.isArray(arr) ? arr : [];
+      const list = compactCustomLandmarkList(arr);
       const editingId = data.id || null;
       const EPS = 1e-9;
       const idx = editingId
@@ -1290,6 +1513,8 @@ export default function EditableZones({
       const existing = idx >= 0 ? list[idx] : null;
       const existingProps = existing?.properties || {};
       const isEditing = Boolean(editingId || existing);
+      const labelPlacement = normalizeLandmarkLabelPlacement(data.labelPlacement);
+      const labelSize = normalizeLandmarkLabelSize(data.labelSize);
       const id =
         editingId ||
         existingProps.id ||
@@ -1300,7 +1525,9 @@ export default function EditableZones({
           ...existingProps,
           id,
           name: data.name.trim(),
-          kind: data.kind || "business",
+          kind: data.kind || DEFAULT_LANDMARK_KIND,
+          label_placement: labelPlacement,
+          label_size: labelSize,
           source: "in-app",
           ...(isEditing
             ? { updated_at: new Date().toISOString() }
@@ -1321,13 +1548,17 @@ export default function EditableZones({
         idx >= 0
           ? [...list.slice(0, idx), feature, ...list.slice(idx + 1)]
           : [...list, feature];
-      window.localStorage.setItem(customLandmarksKey, JSON.stringify(next));
+      setJsonLocalStorageOrThrow(
+        customLandmarksKey,
+        compactCustomLandmarkList(next),
+        { currentZoneStorageKey: storageKey }
+      );
       window.dispatchEvent(
         new CustomEvent(`${municipalitySlug}:custom-landmarks-updated`)
       );
     } catch (e) {
       console.warn("Could not save landmark to localStorage:", e);
-      window.alert("Could not save this landmark. Please try again.");
+      window.alert(`Could not save this landmark. ${localStorageFailureMessage(e)}`);
       return;
     }
     setPendingLandmark(null);
@@ -1564,6 +1795,7 @@ export default function EditableZones({
       : [];
     const ordered = incoming.length ? incoming : DEFAULT_CLASS_KEYS;
     const deduped = Array.from(new Set(ordered));
+    if (!deduped.includes("INSTITUTIONAL")) deduped.push("INSTITUTIONAL");
     if (!deduped.includes("UNCLASSIFIED")) deduped.push("UNCLASSIFIED");
     return deduped;
   }, [classKeys]);
@@ -1779,6 +2011,15 @@ export default function EditableZones({
       );
     }
     multiSelectedLayersRef.current = new Set();
+  };
+
+  const cancelJoinSelection = () => {
+    // Restore any dashed multi-selection styling without touching the normal
+    // active edit selection or changing zone geometry.
+    clearMultiSelection();
+    setJoinSelectionMode(false);
+    setBakeNotice("");
+    refresh();
   };
 
   // Shift+click toggle: add/remove `layer` from the Join multi-select set
@@ -2141,6 +2382,11 @@ export default function EditableZones({
 
     const sourceProps = { ...(matches[0].feature?.properties ?? {}) };
     let combined = null;
+    // Only layers actually folded into `combined` get deleted below —
+    // previously every selected layer was removed regardless, so a
+    // zone whose union step failed would silently vanish from the map
+    // without its area ending up in the merged result.
+    const mergedLayers = [];
     for (const lyr of matches) {
       let gj;
       try {
@@ -2151,19 +2397,31 @@ export default function EditableZones({
       if (!gj?.geometry) continue;
       if (!combined) {
         combined = gj;
+        mergedLayers.push(lyr);
         continue;
       }
       try {
         const merged = turf.union(turf.featureCollection([combined, gj]));
-        if (merged?.geometry) combined = merged;
+        if (merged?.geometry) {
+          combined = merged;
+          mergedLayers.push(lyr);
+        } else {
+          console.warn(
+            "joinSameClassZones: union returned no geometry, leaving this zone unmerged instead of deleting it"
+          );
+        }
       } catch (e) {
         console.warn(
-          "joinSameClassZones: union step failed, keeping previous combined geometry",
+          "joinSameClassZones: union step failed, leaving this zone unmerged instead of deleting it",
           e
         );
       }
     }
-    if (!combined?.geometry) return;
+    if (!combined?.geometry || mergedLayers.length < 2) {
+      setBakeNotice("Join failed — geometry union didn't succeed, nothing was changed.");
+      setTimeout(() => setBakeNotice(""), 3000);
+      return;
+    }
 
     try {
       combined = turf.cleanCoords(combined);
@@ -2191,7 +2449,7 @@ export default function EditableZones({
       newLayer = sub;
     });
 
-    for (const lyr of matches) {
+    for (const lyr of mergedLayers) {
       if (selectedLayerRef.current === lyr) selectedLayerRef.current = null;
       try {
         if (lyr.pm?.enabled?.()) lyr.pm.disable();
@@ -2212,7 +2470,12 @@ export default function EditableZones({
     pushHistory();
     refresh();
     if (newLayer) selectLayer(newLayer);
-    setBakeNotice(`Joined ${matches.length} ${targetClass} zones into one shape.`);
+    const skipped = matches.length - mergedLayers.length;
+    setBakeNotice(
+      skipped > 0
+        ? `Joined ${mergedLayers.length} ${targetClass} zones — ${skipped} couldn't be merged and were left as-is.`
+        : `Joined ${mergedLayers.length} ${targetClass} zones into one shape.`
+    );
     setTimeout(() => setBakeNotice(""), 3000);
   };
 
@@ -3969,15 +4232,10 @@ export default function EditableZones({
 
     // Scope leaflet-geoman's Cut tool to only the currently-selected
     // polygon. By default Cut subtracts the drawn shape from EVERY
-    // layer in `layerGroup` that overlaps — so cutting at an
-    // intersection where C-1, R-1 and a bunch of corridors overlap
-    // would punch a hole in all of them. Two-pronged guard:
-    //   1. pmIgnore = true on every non-selected layer so geoman's
-    //      overlap scan skips them.
-    //   2. Swap the global layerGroup to a single-layer FeatureGroup
-    //      containing only the selection.
-    // Both are restored on exit so subsequent draws / edits behave
-    // normally.
+    // overlapping polygon. Geoman's `layersToCut` option is the actual
+    // allow-list for this job; `layerGroup` is an exclusion group, so it
+    // must NOT contain the selected layer or Geoman will skip the target
+    // and cut the other SMV classes instead.
     const onGlobalCutModeToggled = (e) => {
       if (e.enabled) {
         const selected = selectedLayerRef.current;
@@ -3997,7 +4255,9 @@ export default function EditableZones({
         cutSourcePropsRef.current = {
           ...(selected.feature?.properties || {}),
         };
-        const cutScope = L.featureGroup([selected]);
+        // Keep the exclusion group empty and use layersToCut as the
+        // explicit allow-list.
+        const cutScope = L.featureGroup();
         cutScopedGroupRef.current = cutScope;
         group.eachLayer((layer) => {
           if (layer !== selected) {
@@ -4008,6 +4268,7 @@ export default function EditableZones({
         try {
           map.pm.setGlobalOptions({
             layerGroup: cutScope,
+            layersToCut: [selected],
           });
         } catch {}
       } else {
@@ -4019,7 +4280,7 @@ export default function EditableZones({
           }
         });
         try {
-          map.pm.setGlobalOptions({ layerGroup: group });
+          map.pm.setGlobalOptions({ layerGroup: group, layersToCut: [] });
         } catch {}
       }
     };
@@ -4457,7 +4718,9 @@ export default function EditableZones({
           lat: e.latlng.lat,
           lng: e.latlng.lng,
           name: "",
-          kind: "business",
+          kind: DEFAULT_LANDMARK_KIND,
+          labelPlacement: DEFAULT_LANDMARK_LABEL_PLACEMENT,
+          labelSize: "large",
           // Always an array — one landmark can link to many stretches.
           // Auto-seeded with whatever's active in the sidebar so the
           // user gets one click for "link to this stretch".
@@ -4644,6 +4907,7 @@ export default function EditableZones({
   // returning editors don't have to retype it each time.
   const SAVE_PW_KEY = "zones-save-password-v1";
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
+  const [landmarkSaveStatus, setLandmarkSaveStatus] = useState("idle");
   const promptForSavePassword = (reason) => {
     if (typeof window === "undefined") return null;
     const stored = window.localStorage.getItem(SAVE_PW_KEY) || "";
@@ -4659,9 +4923,11 @@ export default function EditableZones({
     }
     return pw;
   };
-  const saveToProject = async () => {
+  const saveToProject = async ({ alertOnError = true } = {}) => {
     const group = groupRef.current;
-    if (!group) return;
+    if (!group) {
+      return { ok: false, error: "No editable zone layer is loaded." };
+    }
     setSaveStatus("saving");
 
     const url = `/api/zones/save?slug=${encodeURIComponent(saveSlug)}`;
@@ -4697,7 +4963,7 @@ export default function EditableZones({
         );
         if (!promptedPw) {
           setSaveStatus("idle");
-          return;
+          return { ok: false, cancelled: true };
         }
         res = await send(promptedPw);
         if (res.status === 401) {
@@ -4720,18 +4986,145 @@ export default function EditableZones({
       window.dispatchEvent(new CustomEvent(saveEventName));
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 1800);
+      return data;
     } catch (e) {
       console.error("Save to project failed:", e);
-      alert(
-        "Could not save to project file.\n" +
-          e.message +
-          "\n\nLocal dev: make sure `npm run dev` is running.\n" +
-          "Deployed: confirm SAVE_PASSWORD + GITHUB_* env vars are set on Vercel."
-      );
+      if (alertOnError) {
+        alert(
+          "Could not save to project file.\n" +
+            e.message +
+            "\n\nLocal dev: make sure `npm run dev` is running.\n" +
+            "Deployed: confirm SAVE_PASSWORD + GITHUB_* env vars are set on Vercel."
+        );
+      }
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 2400);
+      throw e;
     }
   };
+
+  // Publish locally-added custom landmarks so the server-rendered print route
+  // can see them. The print endpoint cannot read browser localStorage, so the
+  // project file is the bridge between the editor and paper output.
+  const saveLandmarksToProject = async ({ alertOnError = true } = {}) => {
+    if (!customLandmarksUrl) return { ok: true, skipped: true };
+    setLandmarkSaveStatus("saving");
+    let localFeatures = [];
+    try {
+      const raw = window.localStorage.getItem(customLandmarksKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      localFeatures = compactCustomLandmarkList(parsed);
+    } catch {}
+
+    try {
+      let projectFeatures = [];
+      try {
+        const existing = await fetch(customLandmarksUrl, { cache: "no-store" });
+        if (existing.ok) {
+          const data = await existing.json();
+          projectFeatures = Array.isArray(data?.features) ? data.features : [];
+        }
+      } catch {}
+      const landmarkIdentity = (feature) => {
+        const props = feature?.properties || {};
+        const coords = feature?.geometry?.coordinates || [];
+        return props.id
+          ? `id:${props.id}`
+          : `coord:${props.name || ""}:${coords[0] ?? ""}:${coords[1] ?? ""}`;
+      };
+      const localKeys = new Set(localFeatures.map(landmarkIdentity));
+      let deletedKeys = new Set();
+      try {
+        const deletedRaw = window.localStorage.getItem(
+          deletedCustomLandmarksKey
+        );
+        const deleted = deletedRaw ? JSON.parse(deletedRaw) : [];
+        deletedKeys = new Set(Array.isArray(deleted) ? deleted : []);
+      } catch {}
+      const preserved = projectFeatures.filter((feature) => {
+        const key = landmarkIdentity(feature);
+        // A moved/deleted project pin may have a different source than
+        // in-app. Local identity/tombstone keys still need to suppress the
+        // old file snapshot so it is not written back beside the override.
+        if (localKeys.has(key) || deletedKeys.has(key)) return false;
+        return feature?.properties?.source !== "in-app";
+      });
+      const body = JSON.stringify({
+        type: "FeatureCollection",
+        features: [...preserved, ...localFeatures],
+      });
+      const url = `/api/landmarks/save?slug=${encodeURIComponent(municipalitySlug)}`;
+      const send = (pw) =>
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(pw ? { Authorization: `Bearer ${pw}` } : {}),
+          },
+          body,
+        });
+      let cachedPw = "";
+      try {
+        cachedPw = window.localStorage.getItem(SAVE_PW_KEY) || "";
+      } catch {}
+      let res = await send(cachedPw);
+      if (res.status === 401) {
+        const promptedPw = promptForSavePassword(
+          cachedPw
+            ? "Save password rejected. Try again:"
+            : "Enter the team save password to publish landmarks:"
+        );
+        if (!promptedPw) {
+          setLandmarkSaveStatus("idle");
+          return { ok: false, cancelled: true };
+        }
+        res = await send(promptedPw);
+        if (res.status === 401) {
+          try {
+            window.localStorage.removeItem(SAVE_PW_KEY);
+          } catch {}
+          throw new Error("Save password rejected.");
+        }
+      }
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.ok) throw new Error(result.error || `HTTP ${res.status}`);
+      // Keep the local entries as the editor's current overlay. This avoids
+      // a newly-published pin disappearing while a deployed GitHub/Vercel
+      // copy is still rebuilding; the project file remains the print source.
+      window.dispatchEvent(
+        new CustomEvent(`${municipalitySlug}:custom-landmarks-updated`)
+      );
+      setLandmarkSaveStatus("saved");
+      setTimeout(() => setLandmarkSaveStatus("idle"), 1800);
+      return result;
+    } catch (e) {
+      console.error("Save landmarks failed:", e);
+      if (alertOnError) {
+        alert(
+          "Could not save landmarks to the project file.\n" +
+            e.message +
+            "\n\nLocal dev: make sure `npm run dev` is running."
+        );
+      }
+      setLandmarkSaveStatus("error");
+      setTimeout(() => setLandmarkSaveStatus("idle"), 2400);
+      throw e;
+    }
+  };
+
+  const saveEditorStateToProject = async (options = {}) => {
+    const zones = await saveToProject(options);
+    if (!zones?.ok || zones.cancelled) return zones;
+    const landmarks = await saveLandmarksToProject(options);
+    if (!landmarks?.ok || landmarks.cancelled) return landmarks;
+    return { ok: true, zones, landmarks };
+  };
+
+  useEffect(() => {
+    if (!onRegisterSaveHandler) return undefined;
+    onRegisterSaveHandler(saveEditorStateToProject);
+    return () => onRegisterSaveHandler(null);
+  }, [onRegisterSaveHandler, saveEditorStateToProject]);
 
   const importGeoJSON = (file) => {
     const reader = new FileReader();
@@ -5775,6 +6168,22 @@ export default function EditableZones({
             ? "Join (mixed classes)"
             : `Join ${joinTargetClass} (${joinMatchCount})`}
         </button>
+        {joinSelectionMode && (
+          <button
+            type="button"
+            onClick={cancelJoinSelection}
+            style={{
+              ...smallBtn,
+              background: "#f8fafc",
+              borderColor: "#94a3b8",
+              color: "#475569",
+              fontWeight: 600,
+            }}
+            title="Exit join mode and clear the temporary join selection without changing any zones"
+          >
+            Cancel
+          </button>
+        )}
         <button
           onClick={() => {
             setPlacingLandmark((on) => !on);
@@ -5963,7 +6372,7 @@ export default function EditableZones({
           {layerPanelOpen ? "Layers tree ✓" : "Layers tree"}
         </button>
         <button
-          onClick={saveToProject}
+          onClick={() => saveToProject()}
           disabled={saveStatus === "saving"}
           style={{
             ...smallBtn,
@@ -5995,8 +6404,45 @@ export default function EditableZones({
               ? "Saved ✓"
               : saveStatus === "error"
                 ? "Save failed"
-                : "Save to project"}
+              : "Save to project"}
         </button>
+        {customLandmarksUrl && (
+          <button
+            onClick={() => saveLandmarksToProject()}
+            disabled={landmarkSaveStatus === "saving"}
+            style={{
+              ...smallBtn,
+              background:
+                landmarkSaveStatus === "saved"
+                  ? "#dcfce7"
+                  : landmarkSaveStatus === "error"
+                    ? "#fee2e2"
+                    : "#f3e8ff",
+              borderColor:
+                landmarkSaveStatus === "saved"
+                  ? "#16a34a"
+                  : landmarkSaveStatus === "error"
+                    ? "#dc2626"
+                    : "#9333ea",
+              color:
+                landmarkSaveStatus === "saved"
+                  ? "#166534"
+                  : landmarkSaveStatus === "error"
+                    ? "#991b1b"
+                    : "#7e22ce",
+              fontWeight: 600,
+            }}
+            title="Publish locally-added custom landmarks so they appear in the server-rendered print export"
+          >
+            {landmarkSaveStatus === "saving"
+              ? "Saving landmarks…"
+              : landmarkSaveStatus === "saved"
+                ? "Landmarks saved ✓"
+                : landmarkSaveStatus === "error"
+                  ? "Landmarks failed"
+                  : "Save landmarks"}
+          </button>
+        )}
         <button onClick={exportGeoJSON} style={smallBtn}>
           Export GeoJSON
         </button>

@@ -11,6 +11,9 @@ function toItems(category) {
     (cls) =>
       cls.locationGroups.map((group) => ({
         location_description: group.label,
+        ...(cls.marketValue2012 == null
+          ? {}
+          : { unit_value_2012_per_sqm: cls.marketValue2012 }),
         unit_value_2026_per_sqm: cls.marketValue2027,
         sub_classification: cls.subClass,
         barangays: group.barangays.map((s) => slugToName.get(s) ?? s),

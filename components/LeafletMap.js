@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   GeoJSON,
   MapContainer,
@@ -17,6 +17,7 @@ import "leaflet/dist/leaflet.css";
 import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import {
+  CLASSIFICATION_INFO,
   classForFeature,
   commercialHatchColorForClass,
   isCommercialClass,
@@ -28,6 +29,11 @@ import {
   landmarkIconMarkup,
   normalizeLandmarkKind,
 } from "@/lib/landmark-icons";
+import {
+  isInsideLandmarkLabel,
+  normalizeLandmarkLabelPlacement,
+  normalizeLandmarkLabelSize,
+} from "@/lib/landmark-labels";
 import EditableZones from "./EditableZones";
 import ZoneHoverInfo from "./ZoneHoverInfo";
 
@@ -105,6 +111,94 @@ function buildOutsideMaskFeature(feature) {
   };
 }
 
+function isParcelZoneFeature(feature) {
+  const props = feature?.properties ?? {};
+  return (
+    props.source === "dxf" ||
+    props.parcel_id != null ||
+    props.lot_number != null ||
+    props.lot_no != null
+  );
+}
+
+function zoneLabelCandidatePoint(feature) {
+  const candidates = [];
+  const add = (point) => {
+    if (!point?.geometry || point.geometry.type !== "Point") return;
+    const key = point.geometry.coordinates
+      .map((value) => Number(value).toFixed(8))
+      .join(",");
+    if (!candidates.some((candidate) => candidate.key === key)) {
+      candidates.push({ key, point });
+    }
+  };
+  try {
+    add(turf.pointOnFeature(feature));
+  } catch {}
+  try {
+    add(turf.centerOfMass(feature));
+  } catch {}
+  try {
+    const [west, south, east, north] = turf.bbox(feature);
+    for (const yRatio of [0.14, 0.26, 0.38, 0.5, 0.62, 0.74, 0.86]) {
+      for (const xRatio of [0.14, 0.26, 0.38, 0.5, 0.62, 0.74, 0.86]) {
+        add(
+          turf.point([
+            west + (east - west) * xRatio,
+            south + (north - south) * yRatio,
+          ])
+        );
+      }
+    }
+  } catch {}
+
+  let boundary = null;
+  try {
+    boundary = turf.polygonToLine(feature);
+  } catch {}
+  const ranked = candidates
+    .map(({ point }, index) => {
+      let inside = false;
+      try {
+        inside = turf.booleanPointInPolygon(point, feature, {
+          ignoreBoundary: true,
+        });
+      } catch {}
+      let clearance = 0;
+      if (inside && boundary) {
+        try {
+          clearance = turf.pointToLineDistance(point, boundary, {
+            units: "meters",
+          });
+        } catch {}
+      }
+      return { point, index, inside, clearance };
+    })
+    .sort((a, b) => {
+      if (a.inside !== b.inside) return a.inside ? -1 : 1;
+      if (b.clearance !== a.clearance) return b.clearance - a.clearance;
+      return a.index - b.index;
+    });
+  return ranked.find((candidate) => candidate.inside)?.point ?? ranked[0]?.point ?? null;
+}
+
+function zoneClassLabelMarker(feature, latlng) {
+  const label = feature?.properties?.label ?? "";
+  const classKey = String(feature?.properties?.classKey || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-");
+  return L.marker(latlng, {
+    icon: L.divIcon({
+      className: "smv-zone-class-label-anchor",
+      html: `<span class="smv-zone-class-label smv-zone-class-label--${escapeHtml(classKey)}">${escapeHtml(label)}</span>`,
+      iconSize: [1, 1],
+      iconAnchor: [0, 0],
+    }),
+    interactive: false,
+    keyboard: false,
+  });
+}
+
 const BARANGAY_STROKE = {
   color: "#1f2937",
   weight: 1.8,
@@ -151,6 +245,8 @@ const OFFLINE_MAPBOX_TILE_REV = "2026-05-16-hidpi";
 const OFFLINE_MAPBOX_TILE_ROOT = "/tiles-mapbox-hidpi";
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+const GOOGLE_NATIVE_MAX_ZOOM = 22;
+const GOOGLE_DISPLAY_MAX_ZOOM = 24;
 
 // Basemap providers. The "settings" menu in TopNav lets the user
 // switch between the public-safe options. Online OSM is the default;
@@ -187,14 +283,14 @@ const TILE_SOURCES = {
         google_street: {
           provider: "google",
           attribution: "&copy; Google",
-          maxNativeZoom: 22,
-          maxZoom: 22,
+          maxNativeZoom: GOOGLE_NATIVE_MAX_ZOOM,
+          maxZoom: GOOGLE_DISPLAY_MAX_ZOOM,
         },
         google_hybrid: {
           provider: "google",
           attribution: "&copy; Google",
-          maxNativeZoom: 22,
-          maxZoom: 22,
+          maxNativeZoom: GOOGLE_NATIVE_MAX_ZOOM,
+          maxZoom: GOOGLE_DISPLAY_MAX_ZOOM,
         },
       }
     : {}),
@@ -237,6 +333,8 @@ const LABELS_OVERLAY_ATTRIBUTION =
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 const ACTIVE_SMV_OPACITY = 0.7;
+const CUSTOM_LANDMARK_LABEL_MIN_ZOOM = 15;
+const SMV_CLASS_LABEL_MIN_ZOOM = 16;
 const freshJson = (url) =>
   fetch(url, { cache: "no-store" }).then((r) => {
     if (!r.ok) {
@@ -263,9 +361,11 @@ export default function LeafletMap({
   onMapReady,
   municipality,
 }) {
+  const editableZonesSaveRef = useRef(null);
   const [tilesAvailable, setTilesAvailable] = useState(true);
   const [mapZoom, setMapZoom] = useState(null);
   const [googleTileSession, setGoogleTileSession] = useState(null);
+  const [googleOverlayTileSession, setGoogleOverlayTileSession] = useState(null);
   const [googleTileError, setGoogleTileError] = useState(null);
   // MapX-style hover card: the zone Feature under the cursor + the
   // client coords to anchor the card at. Set on mouseover/mousemove,
@@ -280,6 +380,7 @@ export default function LeafletMap({
     bauko: null,
     barangays: null,
     zones: null,
+    parcels: null,
     valuations: null,
     monamonSurRoads: null,
     monamonNorteRoads: null,
@@ -291,8 +392,10 @@ export default function LeafletMap({
     // visible without leaving the SMV zone fills looking opaque over
     // roads. Loaded from the same osmRoads file the editor uses.
     osmRoads: null,
-    // Print-only vector basemap layers. Built by the new fetch-osm-*
-    // scripts and clipped to the municipal outline. When printMode is
+    // Print/vector reference layers. Built by the fetch-* scripts and
+    // clipped to the municipal outline. Buildings prefer
+    // <slug>_overture_buildings.geojson when present, then fall back to
+    // <slug>_osm_buildings.geojson. When printMode is
     // on, the raster TileLayer is hidden and these render in its
     // place — pure SVG, sharp at any paper size. Files follow the
     // convention /data/<slug>_osm_<layer>.geojson and silently fall
@@ -307,41 +410,76 @@ export default function LeafletMap({
     const isGoogleMode =
       tileMode === "google_street" || tileMode === "google_hybrid";
     if (!isGoogleMode || !GOOGLE_MAPS_API_KEY) {
+      setGoogleTileSession(null);
+      setGoogleOverlayTileSession(null);
       setGoogleTileError(null);
       return;
     }
     let active = true;
+    setGoogleTileSession(null);
+    setGoogleOverlayTileSession(null);
     setGoogleTileError(null);
     (async () => {
       try {
-        const response = await fetch(
-          `https://tile.googleapis.com/v1/createSession?key=${encodeURIComponent(
-            GOOGLE_MAPS_API_KEY
-          )}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              mapType: tileMode === "google_street" ? "roadmap" : "satellite",
-              language: "en-US",
-              region: "PH",
-              ...(tileMode === "google_hybrid"
-                ? { layerTypes: ["layerRoadmap"] }
-                : {}),
-              overlay: false,
-              scale: "scaleFactor2x",
-            }),
+        const createSession = async (body) => {
+          const response = await fetch(
+            `https://tile.googleapis.com/v1/createSession?key=${encodeURIComponent(
+              GOOGLE_MAPS_API_KEY
+            )}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }
+          );
+          if (!response.ok) {
+            throw new Error(`Google tile session failed: HTTP ${response.status}`);
           }
-        );
-        if (!response.ok) {
-          throw new Error(`Google tile session failed: HTTP ${response.status}`);
+          return response.json();
+        };
+        const common = {
+          language: "en-US",
+          region: "PH",
+          scale: "scaleFactor2x",
+        };
+        if (tileMode === "google_hybrid") {
+          // Split hybrid into two layers:
+          //   1. satellite imagery below SMV
+          //   2. transparent Google roadmap/POI overlay above SMV
+          // A single baked hybrid tile keeps POIs under the red/yellow SMV
+          // fills, which is why Google place icons looked muted.
+          const [baseSession, overlaySession] = await Promise.all([
+            createSession({
+              ...common,
+              mapType: "satellite",
+              overlay: false,
+            }),
+            createSession({
+              ...common,
+              mapType: "satellite",
+              layerTypes: ["layerRoadmap"],
+              overlay: true,
+            }),
+          ]);
+          if (active) {
+            setGoogleTileSession(baseSession.session);
+            setGoogleOverlayTileSession(overlaySession.session);
+          }
+          return;
         }
-        const session = await response.json();
-        if (active) setGoogleTileSession(session.session);
+        const session = await createSession({
+          ...common,
+          mapType: "roadmap",
+          overlay: false,
+        });
+        if (active) {
+          setGoogleTileSession(session.session);
+        }
       } catch (error) {
         console.error(error);
         if (active) {
           setGoogleTileSession(null);
+          setGoogleOverlayTileSession(null);
           setGoogleTileError(
             "Google Maps could not start. Check the API key and Map Tiles API."
           );
@@ -369,6 +507,7 @@ export default function LeafletMap({
         const valuationsFile =
           municipality?.dataFiles?.valuations ?? "/data/bauko_valuations.json";
         const zonesFile = municipality?.dataFiles?.zones ?? "/data/bauko_zones.geojson";
+        const parcelsFile = municipality?.dataFiles?.parcels;
         const frontageBandsFile = municipality?.dataFiles?.frontageBands;
         const slug = municipality?.slug ?? "bauko";
         const landmarksFile =
@@ -386,6 +525,7 @@ export default function LeafletMap({
           barangays,
           valuations,
           zones,
+          parcels,
           monamonSurRoads,
           monamonNorteRoads,
           frontageBands,
@@ -419,6 +559,11 @@ export default function LeafletMap({
           sources.has_zones && zonesFile
             ? freshJson(zonesFile).catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
+          // Parcel boundaries are an optional cadastral overlay. They sit
+          // above SMV fills and do not participate in zone editing.
+          parcelsFile
+            ? freshJson(parcelsFile).catch(() => EMPTY_FC)
+            : Promise.resolve(EMPTY_FC),
           municipality?.slug === "bauko"
             ? freshJson("/data/bauko_monamon_sur_roads_highlight.geojson").catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
@@ -445,15 +590,18 @@ export default function LeafletMap({
           osmRoadsFile
             ? freshJson(osmRoadsFile).catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
-          // Print-only vector basemap layers. Filename convention:
+          // Print/vector reference layers. Filename convention:
           //   /data/<slug>_osm_water.geojson      (npm run water:fetch:<slug>)
           //   /data/<slug>_osm_places.geojson     (npm run places:fetch:<slug>)
-          //   /data/<slug>_osm_buildings.geojson  (npm run buildings:fetch:<slug>)
+          //   /data/<slug>_overture_buildings.geojson
+          //   /data/<slug>_osm_buildings.geojson  (fallback)
           // Each silently falls back to EMPTY_FC when missing so the
           // raster basemap still works for LGUs not yet processed.
           freshJson(`/data/${slug}_osm_water.geojson`).catch(() => EMPTY_FC),
           freshJson(`/data/${slug}_osm_places.geojson`).catch(() => EMPTY_FC),
-          freshJson(`/data/${slug}_osm_buildings.geojson`).catch(() => EMPTY_FC),
+          freshJson(`/data/${slug}_overture_buildings.geojson`).catch(() =>
+            freshJson(`/data/${slug}_osm_buildings.geojson`).catch(() => EMPTY_FC)
+          ),
         ]);
         if (!active) return;
         setData({
@@ -461,6 +609,7 @@ export default function LeafletMap({
           barangays,
           valuations,
           zones,
+          parcels,
           monamonSurRoads,
           monamonNorteRoads,
           frontageBands,
@@ -489,10 +638,12 @@ export default function LeafletMap({
   // file-based custom landmarks at render. Listens for a custom event
   // that EditableZones fires on add/remove so the map updates live.
   const [localCustomLandmarks, setLocalCustomLandmarks] = useState([]);
+  const [deletedCustomLandmarkKeys, setDeletedCustomLandmarkKeys] = useState([]);
   useEffect(() => {
     const slug = municipality?.slug;
     if (!slug) return undefined;
     const storageKey = `custom-landmarks-local-v1:${slug}`;
+    const deletedStorageKey = `custom-landmarks-deleted-v1:${slug}`;
     const load = () => {
       try {
         const raw = localStorage.getItem(storageKey);
@@ -524,8 +675,14 @@ export default function LeafletMap({
           } catch {}
         }
         setLocalCustomLandmarks(fixed);
+        const deletedRaw = localStorage.getItem(deletedStorageKey);
+        const deleted = deletedRaw ? JSON.parse(deletedRaw) : [];
+        setDeletedCustomLandmarkKeys(
+          Array.isArray(deleted) ? deleted.filter((id) => typeof id === "string") : []
+        );
       } catch {
         setLocalCustomLandmarks([]);
+        setDeletedCustomLandmarkKeys([]);
       }
     };
     load();
@@ -623,6 +780,12 @@ export default function LeafletMap({
           googleTileSession
         )}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`
       : tile.url;
+  const googleOverlayTileUrl =
+    tileMode === "google_hybrid" && googleOverlayTileSession && GOOGLE_MAPS_API_KEY
+      ? `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(
+          googleOverlayTileSession
+        )}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`
+      : null;
   const hasRasterTileUrl =
     !isGoogleTileMode || Boolean(googleTileSession && tileUrl);
   // Vector-basemap mode: no raster tiles at all, OSM data renders as
@@ -637,6 +800,8 @@ export default function LeafletMap({
     tileMode !== "offline_mapbox" &&
     tileMode !== "mapbox_hybrid" &&
     tileMode !== "google_hybrid";
+  const showBuildingFootprintsOverlay =
+    !!layers?.buildings && (data.osmBuildings?.features?.length ?? 0) > 0;
   const baukoFeature = data.bauko?.features?.[0] ?? null;
   const printMaskFeature = useMemo(
     () => (printMode && baukoFeature ? buildOutsideMaskFeature(baukoFeature) : null),
@@ -646,16 +811,10 @@ export default function LeafletMap({
   const defaultZoom = municipality?.map?.defaultZoom ?? DEFAULT_ZOOM;
   const slugForNameResolver = municipality?.schedule?.slugForName;
 
-  // Editor renders zones at their on-disk 30 m geometry — no
-  // render-time buffer. The print SVG still applies its own +12 m
-  // widening via lib/print-svg-builder.js, so the print looks
-  // schematic-wider than the editor by design. This breaks the
-  // WYSIWYG promise on purpose so the editor shows truth.
-  //
-  // The buffered version is preserved below as a comment block —
-  // uncomment to restore WYSIWYG editor widening if rounded /
-  // exploding ribbons turn out to be a worse tradeoff than the
-  // 30 m vs ~54 m visual gap.
+  // Editor and normal print both render zones at their on-disk geometry —
+  // no render-time buffer. The print route still has an explicit
+  // ?smvBuffer=N debug/production knob for schematic widening, but the
+  // default is WYSIWYG with the saved GeoJSON.
   const displayedZones = useMemo(() => data.zones ?? null, [data.zones]);
   /*
   // --- WYSIWYG editor buffer (commented out for now, see note above) ---
@@ -711,6 +870,55 @@ export default function LeafletMap({
   }, [activeBarangaySlug, activeFeatureCollection]);
 
   const isClassActive = Boolean(activeClass);
+  const zoneClassLabelFeatures = useMemo(() => {
+    const activeKey = normaliseClassKey(isClassActive ? activeClass?.subClass : null);
+    const zoom = Number.isFinite(mapZoom) ? mapZoom : defaultZoom;
+    if (!activeKey && zoom < SMV_CLASS_LABEL_MIN_ZOOM) {
+      return { type: "FeatureCollection", features: [] };
+    }
+    const features = (displayedZones?.features ?? [])
+      .map((feature, index) => {
+        if (!feature?.geometry || isParcelZoneFeature(feature)) return null;
+        const classes = classKeysForFeature(feature);
+        if (activeKey && !classes.includes(activeKey)) return null;
+        const klass = activeKey || solidClassForFeature(feature, activeKey);
+        // The long "Institutional" word reads like a place label and
+        // dominates dense town centers. The violet fill + legend already
+        // communicate this class in the live app.
+        if (klass === "INSTITUTIONAL") return null;
+        const label = CLASSIFICATION_INFO[klass]?.label ?? klass;
+        if (!label) return null;
+        const point = zoneLabelCandidatePoint(feature);
+        if (!point?.geometry) return null;
+        return {
+          type: "Feature",
+          id: feature.id ?? feature.properties?.id ?? `zone-label-${index}`,
+          properties: {
+            label,
+            classKey: klass,
+          },
+          geometry: point.geometry,
+        };
+      })
+      .filter(Boolean);
+    return { type: "FeatureCollection", features };
+  }, [activeClass?.subClass, defaultZoom, displayedZones, isClassActive, mapZoom]);
+  const zoneClassLabelRenderKey = useMemo(
+    () => {
+      let hash = 0;
+      for (const feature of zoneClassLabelFeatures.features) {
+        const [lng, lat] = feature.geometry?.coordinates ?? [];
+        const part = `${feature.id}:${feature.properties?.label}:${Number(lng).toFixed(
+          6
+        )},${Number(lat).toFixed(6)}`;
+        for (let i = 0; i < part.length; i += 1) {
+          hash = (hash * 31 + part.charCodeAt(i)) >>> 0;
+        }
+      }
+      return `${zoneClassLabelFeatures.features.length}-${hash.toString(36)}`;
+    },
+    [zoneClassLabelFeatures]
+  );
   const showMonamonSurRoads =
     municipality?.slug === "bauko" &&
     activeClass?.subClass === "C-3" &&
@@ -730,9 +938,14 @@ export default function LeafletMap({
   // different name/kind/coordinates) rebuilds the layer and shows the save
   // immediately instead of leaving the old label on screen.
   const localLandmarkRenderKey = useMemo(
-    () => localCustomLandmarks.map((feature) => JSON.stringify(feature)).join("|"),
-    [localCustomLandmarks]
+    () =>
+      localCustomLandmarks.map((feature) => JSON.stringify(feature)).join("|") +
+      `|deleted:${deletedCustomLandmarkKeys.join(",")}`,
+    [localCustomLandmarks, deletedCustomLandmarkKeys]
   );
+  const registerEditableZonesSaveHandler = useCallback((handler) => {
+    editableZonesSaveRef.current = typeof handler === "function" ? handler : null;
+  }, []);
 
   return (
     <div className="leaflet-shell">
@@ -744,7 +957,10 @@ export default function LeafletMap({
         zoomControl={false}
         className="consultation-map"
       >
-        <MapBridge onMapReady={onMapReady} />
+        <MapBridge
+          onMapReady={onMapReady}
+          editableZonesSaveRef={editableZonesSaveRef}
+        />
         <MapZoomBridge onZoomChange={setMapZoom} />
         <ZoomTier />
         <CommercialHatchDefs
@@ -794,7 +1010,26 @@ export default function LeafletMap({
             opacity: isVectorBasemap ? 0.7 : 1,
           }}
         />
+        <Pane
+          name="building-footprints-pane"
+          style={{ zIndex: 421, pointerEvents: "none" }}
+        />
         <Pane name="roads-pane" style={{ zIndex: 430 }} />
+        {/* Cadastral parcel lines sit above SMV fills but below roads. */}
+        <Pane
+          name="parcels-pane"
+          style={{
+            zIndex: 422,
+            pointerEvents: "none",
+          }}
+        />
+        <Pane
+          name="smv-boundary-halo-pane"
+          style={{ zIndex: 423, pointerEvents: "none" }}
+        />
+        {/* White SMV outlines sit above parcel lines so class boundaries stay
+            readable in dense cadastral areas, but below roads. */}
+        <Pane name="smv-boundary-pane" style={{ zIndex: 424, pointerEvents: "none" }} />
         <Pane name="boundary-halo-pane" style={{ zIndex: 440 }} />
         <Pane name="brgy-pane" style={{ zIndex: 450 }} />
         <Pane name="muni-halo-pane" style={{ zIndex: 455 }} />
@@ -805,10 +1040,44 @@ export default function LeafletMap({
           name="label-tiles-pane"
           style={{ zIndex: 650, pointerEvents: "none" }}
         />
+        {/* Google Hybrid uses a transparent Google roadmap/POI overlay here
+            so Google labels and place icons can sit above SMV fills. */}
+        <Pane
+          name="google-labels-pane"
+          style={{ zIndex: 655, pointerEvents: "none" }}
+        />
+        <Pane
+          name="zone-class-labels-pane"
+          style={{ zIndex: 658, pointerEvents: "none" }}
+        />
         {/* POIs are the top annotation layer. They intentionally sit
             above SMV fills, frontage bands, labels, and boundaries,
             while staying below Leaflet popups (700). */}
         <Pane name="pois-pane" style={{ zIndex: 660, pointerEvents: "none" }} />
+
+        {tileMode === "google_hybrid" && googleOverlayTileUrl && !useVectorBasemap && (
+          <TileLayer
+            key={`google-overlay-${googleOverlayTileSession}`}
+            url={googleOverlayTileUrl}
+            attribution={tile.attribution}
+            maxZoom={tile.maxZoom}
+            maxNativeZoom={tile.maxNativeZoom}
+            pane="google-labels-pane"
+            opacity={1}
+          />
+        )}
+
+        {layers.zones &&
+          !drawMode &&
+          zoneClassLabelFeatures.features.length > 0 && (
+            <GeoJSON
+              key={`zone-class-labels-${activeClass?.id ?? "all"}-${zoneClassLabelRenderKey}`}
+              data={zoneClassLabelFeatures}
+              pane="zone-class-labels-pane"
+              interactive={false}
+              pointToLayer={zoneClassLabelMarker}
+            />
+          )}
 
         {/* CartoDB Voyager Only Labels — transparent tile layer that
             carries place names + road names on top of everything.
@@ -844,7 +1113,9 @@ export default function LeafletMap({
             style={printWaterStyle}
           />
         )}
-        {useVectorBasemap && data.osmBuildings?.features?.length > 0 && (
+        {useVectorBasemap &&
+          !showBuildingFootprintsOverlay &&
+          data.osmBuildings?.features?.length > 0 && (
           <GeoJSON
             key={`vector-buildings-${municipality?.slug ?? "bauko"}`}
             data={data.osmBuildings}
@@ -918,6 +1189,38 @@ export default function LeafletMap({
           />
         )}
 
+        {/* Bontoc cadastral parcel overlay. Paint order is basemap → SMV →
+            parcels → roads. */}
+        {layers?.parcels && data.parcels?.features?.length > 0 && (
+          <GeoJSON
+            key={`parcels-${municipality?.slug ?? "bauko"}-${data.parcels.features.length}`}
+            data={data.parcels}
+            pane="parcels-pane"
+            interactive={false}
+            style={parcelOverlayStyle}
+          />
+        )}
+
+        {layers.zones && !drawMode && displayedZones?.features?.length > 0 && (
+          <GeoJSON
+            key={`smv-boundary-halos-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}`}
+            data={displayedZones}
+            pane="smv-boundary-halo-pane"
+            interactive={false}
+            style={smvBoundaryHaloStyle}
+          />
+        )}
+
+        {layers.zones && !drawMode && displayedZones?.features?.length > 0 && (
+          <GeoJSON
+            key={`smv-boundaries-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}`}
+            data={displayedZones}
+            pane="smv-boundary-pane"
+            interactive={false}
+            style={smvBoundaryStyle}
+          />
+        )}
+
         {/* OSM POI labels fetched into public/data/<slug>_landmarks.geojson.
             Basemap tile labels are baked into PNG/JPEG imagery, so we
             cannot force missing business names to appear there. This
@@ -961,17 +1264,51 @@ export default function LeafletMap({
           // tagged with `source: "in-app"` so they're distinguishable
           // in audits and the "Save to project" flow.
           const fileFeatures = data.customLandmarks?.features || [];
-          const merged = [...fileFeatures, ...localCustomLandmarks];
+          const landmarkIdentity = (feature) => {
+            const props = feature?.properties || {};
+            const coords = feature?.geometry?.coordinates || [];
+            return props.id
+              ? `id:${props.id}`
+              : `coord:${props.name || ""}:${coords[0] ?? ""}:${coords[1] ?? ""}`;
+          };
+          const localKeys = new Set(
+            localCustomLandmarks.map((feature) => landmarkIdentity(feature))
+          );
+          const deletedKeys = new Set(deletedCustomLandmarkKeys);
+          // Local edits/deletes take precedence over the last file snapshot.
+          // This matters immediately after publishing: the server file may
+          // still be the previous deployment while the editor already knows
+          // which in-app pins were changed or removed.
+          const visibleFileFeatures = fileFeatures.filter((feature) => {
+            const props = feature?.properties || {};
+            const key = landmarkIdentity(feature);
+            // Local moves/deletes can override curated file pins too. Check
+            // identity keys before the source guard so an old coordinate
+            // cannot reappear beside the moved local override.
+            if (localKeys.has(key) || deletedKeys.has(key)) return false;
+            if (props.source !== "in-app") return true;
+            return !localKeys.has(key) && !deletedKeys.has(key);
+          });
+          const merged = [...visibleFileFeatures, ...localCustomLandmarks];
           if (merged.length === 0) return null;
+          const showWideCustomLandmarkLabels =
+            mapZoom == null || mapZoom >= CUSTOM_LANDMARK_LABEL_MIN_ZOOM;
           return (
             <GeoJSON
-              key={`custom-landmarks-${municipality?.slug ?? "bauko"}-${activeStretchKey ?? ""}-${localLandmarkRenderKey}-${isMovingLandmarks ? "drag" : "static"}`}
+              key={`custom-landmarks-${municipality?.slug ?? "bauko"}-${activeStretchKey ?? ""}-${localLandmarkRenderKey}-${isMovingLandmarks ? "drag" : "static"}-${showWideCustomLandmarkLabels ? "labels" : "pins"}`}
               data={{ type: "FeatureCollection", features: merged }}
             pane="pois-pane"
             pointToLayer={(feature, latlng) => {
               const props = feature?.properties || {};
               const kind = normalizeLandmarkKind(props.kind);
               const name = String(props.name || "");
+              const labelPlacement = normalizeLandmarkLabelPlacement(
+                props.label_placement || props.labelPlacement
+              );
+              const labelSize = normalizeLandmarkLabelSize(
+                props.label_size || props.labelSize
+              );
+              const insideLabel = isInsideLandmarkLabel(labelPlacement);
               const isInApp = props.source === "in-app";
               // Accept both `stretch_keys` (array) and legacy
               // `stretch_key` (string). Highlight when any linked key
@@ -984,37 +1321,47 @@ export default function LeafletMap({
               const isActive =
                 Boolean(activeStretchKey) &&
                 featKeys.includes(activeStretchKey);
+              const showLabel =
+                showWideCustomLandmarkLabels || isActive || draggable;
               const safeName = name
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;");
-              const draggable = isInApp && isMovingLandmarks;
+              // Move mode applies to every custom landmark rendered by this
+              // layer, including curated project-file pins. OSM-only labels
+              // use a separate non-interactive layer above.
+              const draggable = isMovingLandmarks;
               const marker = L.marker(latlng, {
                 icon: L.divIcon({
                   html:
                     `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkIconMarkup(kind)}</span></span>` +
-                    `<span class="custom-pin-name">${safeName}</span>`,
+                    `<span class="custom-pin-name custom-pin-name--size-${labelSize}${insideLabel ? " custom-pin-name--inside" : ""}${showLabel ? "" : " custom-pin-name--hidden"}">${showLabel ? safeName : ""}</span>`,
                   className:
                     "custom-landmark" +
+                    ` custom-landmark--label-${labelPlacement}` +
+                    (insideLabel ? " custom-landmark--inside-label" : "") +
                     (isInApp ? " is-interactive" : "") +
                     (isActive ? " is-active-stretch" : "") +
                     (draggable ? " is-draggable" : ""),
                   iconSize: [0, 0],
                   iconAnchor: [9, 9],
                 }),
-                // Only in-app pins are interactive — clicking them
-                // opens an edit/delete popup. File-based pins
-                // (curated in *_custom_landmarks.geojson) stay
-                // non-interactive so they can't be modified through
-                // the UI.
-                interactive: isInApp,
-                keyboard: isInApp,
+                // In-app pins are interactive — including pins already
+                // published into *_custom_landmarks.geojson. Curated
+                // provider/file pins remain non-interactive.
+                interactive: isInApp || draggable,
+                keyboard: isInApp || draggable,
                 draggable,
                 autoPan: draggable,
                 pane: "pois-pane",
               });
               if (draggable) {
+                // Keep this explicit because the marker is created inside a
+                // React-Leaflet GeoJSON layer and the zero-size divIcon can
+                // otherwise leave Leaflet's drag handler disabled after a
+                // layer rebuild.
+                marker.dragging?.enable?.();
                 // Persist the new lat/lng when the user finishes
                 // dragging. We pass both the stable id and the OLD
                 // coords so EditableZones can fall back to (name +
@@ -1028,6 +1375,8 @@ export default function LeafletMap({
                       {
                         detail: {
                           id: props.id,
+                          source: props.source,
+                          feature,
                           name: props.name,
                           oldLng: oldCoords[0],
                           oldLat: oldCoords[1],
@@ -1086,6 +1435,7 @@ export default function LeafletMap({
                           {
                             detail: {
                               id: props.id,
+                              source: props.source,
                               name: props.name,
                               lng: coords?.[0],
                               lat: coords?.[1],
@@ -1172,14 +1522,9 @@ export default function LeafletMap({
             }
             onEachFeature={(feature, layer) => {
               const props = feature?.properties ?? {};
-              const isParcel =
-                props.source === "dxf" ||
-                props.parcel_id != null ||
-                props.lot_number != null ||
-                props.lot_no != null;
               const parcelClass = normaliseClassKey(props.classification);
-              if (isParcel && parcelClass) {
-                layer.bindTooltip(parcelClass, {
+              if (isParcelZoneFeature(feature) && parcelClass) {
+                layer.bindTooltip(CLASSIFICATION_INFO[parcelClass]?.label ?? parcelClass, {
                   permanent: true,
                   direction: "center",
                   className: "smv-parcel-class-label",
@@ -1205,6 +1550,23 @@ export default function LeafletMap({
                   setHoveredZone({ feature: null, x: null, y: null });
                 },
               });
+            }}
+          />
+        )}
+        {showBuildingFootprintsOverlay && (
+          <GeoJSON
+            key={`building-footprints-${municipality?.slug ?? "bauko"}-${data.osmBuildings.features.length}`}
+            data={data.osmBuildings}
+            pane="building-footprints-pane"
+            interactive={false}
+            style={buildingFootprintOverlayStyle}
+            onEachFeature={(_, layer) => {
+              // Visual reference only. Geoman snapping can still see
+              // non-interactive vector layers unless they are explicitly
+              // ignored, so keep drawn SMV polygons from sticking to the
+              // Overture building footprint vertices.
+              layer.options.pmIgnore = true;
+              layer.options.snapIgnore = true;
             }}
           />
         )}
@@ -1324,10 +1686,15 @@ export default function LeafletMap({
             frontageBandsUrl={municipality?.dataFiles?.frontageBands}
             showFrontageBands={!!layers?.frontageBands}
             barangaysUrl={municipality?.dataFiles?.barangays}
+            customLandmarksUrl={
+              municipality?.dataFiles?.customLandmarks ??
+              `/data/${municipality?.slug ?? "bauko"}_custom_landmarks.geojson`
+            }
             activeStretchKey={activeStretchKey}
             stretchCatalog={stretchCatalog}
             municipalitySlug={municipality?.slug}
             classKeys={municipality?.schedule?.classifications?.map((row) => row?.subClass)}
+            onRegisterSaveHandler={registerEditableZonesSaveHandler}
           />
         )}
       </MapContainer>
@@ -1403,6 +1770,54 @@ function printBuildingStyle() {
     opacity: 0.9,
     fillColor: "#ebe8e2",
     fillOpacity: 1,
+  };
+}
+function buildingFootprintOverlayStyle() {
+  return {
+    color: "#111827",
+    weight: 0.75,
+    opacity: 0.38,
+    fill: false,
+    fillOpacity: 0,
+    lineCap: "round",
+    lineJoin: "round",
+  };
+}
+function parcelOverlayStyle() {
+  return {
+    color: "#111827",
+    weight: 1,
+    opacity: 0.88,
+    fill: false,
+    fillOpacity: 0,
+    lineCap: "round",
+    lineJoin: "round",
+  };
+}
+
+function smvBoundaryStyle() {
+  return {
+    color: "#ffffff",
+    // Keep the class separator visible without extending noticeably into
+    // road corridors where the saved SMV polygon meets the road edge.
+    weight: 0.9,
+    opacity: 0.98,
+    fill: false,
+    fillOpacity: 0,
+    lineCap: "round",
+    lineJoin: "round",
+  };
+}
+
+function smvBoundaryHaloStyle() {
+  return {
+    color: "#334155",
+    weight: 1.35,
+    opacity: 0.72,
+    fill: false,
+    fillOpacity: 0,
+    lineCap: "round",
+    lineJoin: "round",
   };
 }
 // Road weight by OSM highway tag. Tuned for A3 print at whole-LGU
@@ -1807,7 +2222,7 @@ function ZoomTier() {
   return null;
 }
 
-function MapBridge({ onMapReady }) {
+function MapBridge({ onMapReady, editableZonesSaveRef }) {
   const map = useMap();
 
   useEffect(() => {
@@ -1906,9 +2321,16 @@ function MapBridge({ onMapReady }) {
           // when tiles were already cached.
           setTimeout(done, 1500);
         }),
+      saveEditableZones: (options) => {
+        const saveEditableZones = editableZonesSaveRef?.current;
+        if (typeof saveEditableZones !== "function") {
+          return Promise.resolve({ ok: true, skipped: true });
+        }
+        return saveEditableZones(options);
+      },
     });
     return () => onMapReady?.(null);
-  }, [map, onMapReady]);
+  }, [editableZonesSaveRef, map, onMapReady]);
 
   return null;
 }
@@ -2112,8 +2534,8 @@ function BarangayFocus({
 }
 
 // Style for the spotlit barangay: ring only, no fill. The class color is
-// already represented in the bottom bar / sidebar; the polygon stroke
-// here is just spatial wayfinding.
+// already represented in the sidebar; the polygon stroke here is just
+// spatial wayfinding.
 function barangayHighlightStyle(activeClass) {
   const color = activeClass?.color ?? "#1d4ed8";
   return {

@@ -1,21 +1,5 @@
 {
   "type": "FeatureCollection",
-  "_meta": {
-    "description": "LGU-curated POIs for Bontoc that aren't well-mapped in OpenStreetMap or visible on Google's basemap tiles. Edit this file by hand to add more. Each Feature must be a Point with name + kind in properties.",
-    "kinds": [
-      "govt",
-      "hospital",
-      "clinic",
-      "school",
-      "worship",
-      "market",
-      "tourism",
-      "business",
-      "transport"
-    ],
-    "how_to_add": "Search the business on Google Maps; the URL contains coordinates like @17.0918222,120.9782217. Paste them in below.",
-    "stretch_keys_format": "Optional `stretch_keys` field (array) links a landmark to one OR MANY schedule stretches. Each key is `${classId}|${barangaySlug}|${stretchIdx}`. The pin lights up yellow whenever ANY of its linked stretches is the active sidebar selection. Legacy singular `stretch_key` (string) is still read for backwards compat."
-  },
   "features": [
     {
       "type": "Feature",
@@ -24,12 +8,17 @@
         "kind": "business",
         "barangay": "Poblacion",
         "source": "google-maps",
-        "stretch_keys": ["c-1|poblacion|0"],
+        "stretch_keys": [
+          "c-1|poblacion|0"
+        ],
         "notes": "5.0★ business center, opens 8 AM closes 5 PM. Endpoint of the C-1 'Circle → Kalangeg building' stretch."
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [120.9782217, 17.0918222]
+        "coordinates": [
+          120.9782217,
+          17.0918222
+        ]
       }
     },
     {
@@ -55,7 +44,728 @@
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [120.9771021, 17.0899394]
+        "coordinates": [
+          120.9771021,
+          17.0899394
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784662164703-qhv7zy",
+        "name": "Mountain\nProvince\nSpecial\nEducation\nCenter",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T19:29:24.704Z",
+        "updated_at": "2026-07-27T07:46:07.337Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97806036472322,
+          17.090931908317422
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784663333962-00qpu0",
+        "name": "Bontoc\nCentral\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T19:48:53.962Z",
+        "updated_at": "2026-07-27T07:45:40.865Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97739517688753,
+          17.090939598080844
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784665494540-xfnc6s",
+        "name": "Provincial Capitol of\nMountain Province",
+        "kind": "govt",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T20:24:54.540Z",
+        "updated_at": "2026-07-27T07:45:47.220Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97608089447023,
+          17.090821655598216
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784668227972-4192az",
+        "name": "Bontoc\nGeneral\nHospital",
+        "kind": "hospital",
+        "label_placement": "inside-smv",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T21:10:27.972Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97653150558473,
+          17.093751991156015
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784669287271-hrnhe8",
+        "name": "The Bontoc Museum",
+        "kind": "tourism",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-21T21:28:07.271Z",
+        "updated_at": "2026-07-27T07:45:52.305Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.9755390882492,
+          17.08993967069468
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784680904623-nphgpf",
+        "name": "Mountain Province\nGeneralComprehensive\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-22T00:41:44.623Z",
+        "updated_at": "2026-07-27T07:45:32.322Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97875505685808,
+          17.089224382163952
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784681917426-s6i7cx",
+        "name": "Pingew Restaurant",
+        "kind": "business",
+        "label_placement": "inside-smv",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-22T00:58:37.426Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.9883949160576,
+          17.096420835881293
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784682150723-plpl5t",
+        "name": "Anayah's\nRiverside\nRestaurant",
+        "kind": "business",
+        "label_placement": "callout-top",
+        "label_size": "medium",
+        "source": "in-app",
+        "added_at": "2026-07-22T01:02:30.723Z",
+        "updated_at": "2026-07-27T01:34:49.383Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.98779141735211,
+          17.07223598527695
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784688625244-96sl66",
+        "name": "Ut-utan\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-22T02:50:25.244Z",
+        "updated_at": "2026-07-27T05:37:57.891Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97678090907279,
+          17.08365554532024
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784689994219-ok78qe",
+        "name": "Dalican\nNational\nHighschool",
+        "kind": "school",
+        "label_placement": "inside-smv",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-22T03:13:14.219Z",
+        "updated_at": "2026-07-22T04:26:13.746Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.93381464481355,
+          17.11872101057062
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784690140813-qa45tt",
+        "name": "Dalican\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "inside-smv",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-22T03:15:40.813Z",
+        "updated_at": "2026-07-22T04:26:23.606Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.93557953834534,
+          17.122330215039025
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784692550997-3qji1w",
+        "name": "Guina-ang\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "inside-smv",
+        "label_size": "small",
+        "source": "in-app",
+        "added_at": "2026-07-22T03:55:50.997Z",
+        "updated_at": "2026-07-22T03:56:17.833Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.95215290784837,
+          17.134961870987166
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784722624292-rsez2h",
+        "name": "Albago National \nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "medium",
+        "source": "in-app",
+        "added_at": "2026-07-22T12:17:04.292Z",
+        "updated_at": "2026-07-22T12:18:40.757Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.9361830353737,
+          17.047260812412645
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784722674886-lqs8a6",
+        "name": "Balili Elementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "medium",
+        "source": "in-app",
+        "added_at": "2026-07-22T12:17:54.886Z",
+        "updated_at": "2026-07-22T12:18:56.497Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.93618839979173,
+          17.04656330696147
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1784725754816-ofuu2v",
+        "name": "Talubin\nNational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "medium",
+        "source": "in-app",
+        "added_at": "2026-07-22T13:09:14.816Z",
+        "updated_at": "2026-07-22T13:09:19.509Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.00702553987504,
+          17.053992141094042
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785115529067-gtsbks",
+        "name": "Samoki\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "medium",
+        "source": "in-app",
+        "added_at": "2026-07-27T01:25:29.067Z",
+        "updated_at": "2026-07-27T01:35:09.120Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.98364472614847,
+          17.087588689235663
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785115567591-26o9zi",
+        "name": "Samoki\nBarangay Hall",
+        "kind": "govt",
+        "label_placement": "callout-top",
+        "label_size": "medium",
+        "source": "in-app",
+        "added_at": "2026-07-27T01:26:07.591Z",
+        "updated_at": "2026-07-27T01:35:03.715Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.98322630364798,
+          17.08460171910454
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785115610730-b39oci",
+        "name": "St. Paul\nChurch",
+        "kind": "worship",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T01:26:50.730Z",
+        "updated_at": "2026-07-27T01:27:56.113Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.98255575255246,
+          17.08387352196027
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785130601705-j3sokg",
+        "name": "Bontoc\nMaterials\nFacility",
+        "kind": "govt",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:36:41.705Z",
+        "updated_at": "2026-07-27T05:37:18.117Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.95277249818524,
+          17.092040173642477
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785130885039-aum51j",
+        "name": "Alab Oriente\nBarangay Hall",
+        "kind": "govt",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:41:25.039Z",
+        "updated_at": "2026-07-27T05:41:30.261Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.94122827070929,
+          17.06012268062605
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785130949331-xs5gw4",
+        "name": "Alab\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:42:29.331Z",
+        "updated_at": "2026-07-27T05:42:34.489Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.93842267993176,
+          17.056538079044554
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785131058113-wt1ana",
+        "name": "Dantay\nElementary \nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:44:18.113Z",
+        "updated_at": "2026-07-27T05:44:21.034Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.94420820481409,
+          17.076592184933304
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785131272793-znglgo",
+        "name": "Bilig\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:47:52.793Z",
+        "updated_at": "2026-07-27T05:47:56.741Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.934125781078,
+          17.05641024083968
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785131345057-lybzxb",
+        "name": "Divine\nMercy\nChapel",
+        "kind": "worship",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:49:05.057Z",
+        "updated_at": "2026-07-27T05:49:07.920Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.93982279290552,
+          17.061420625843887
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785131403624-nol6dn",
+        "name": "St. Barnabas",
+        "kind": "worship",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:50:03.624Z",
+        "updated_at": "2026-07-27T05:51:29.452Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.93950092791661,
+          17.058451370436167
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785131567312-fded7y",
+        "name": "Gonogon\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:52:47.312Z",
+        "updated_at": "2026-07-27T05:52:49.934Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.93880891799505,
+          17.031784347265393
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785131767352-wtsbzt",
+        "name": "Bayoo\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:56:07.352Z",
+        "updated_at": "2026-07-27T05:56:10.625Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.01623088119142,
+          17.006993456022144
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785131944985-zpn19m",
+        "name": "Talubin\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T05:59:04.985Z",
+        "updated_at": "2026-07-27T05:59:06.696Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.01108103995341,
+          17.036418272495617
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785132036090-d0zor0",
+        "name": "Caneo\nElementary School",
+        "kind": "school",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:00:36.090Z",
+        "updated_at": "2026-07-27T06:00:38.183Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.01188302048095,
+          17.075887175653474
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785132118933-k3vlyg",
+        "name": "Tocucan \nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:01:58.933Z",
+        "updated_at": "2026-07-27T06:02:00.458Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.01448476317735,
+          17.11325084404702
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785132156815-0cwvwc",
+        "name": "Tocucan\nNational\nHigh School",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:02:36.815Z",
+        "updated_at": "2026-07-27T06:02:47.018Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.01562201979776,
+          17.119454426200022
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785132328698-8gezx1",
+        "name": "Allikaw Lake",
+        "kind": "tourism",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:05:28.698Z",
+        "updated_at": "2026-07-27T06:05:32.584Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.01294517485881,
+          17.11573202011483
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785132415608-7gc2vc",
+        "name": "Maligcong\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:06:55.608Z",
+        "updated_at": "2026-07-27T06:09:10.047Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.98083913317802,
+          17.127415876841432
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785132923406-mnp2fy",
+        "name": "Mainit\nElementary\nSchool",
+        "kind": "school",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:15:23.406Z",
+        "updated_at": "2026-07-27T06:15:28.241Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.95303803676079,
+          17.15427927200652
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785132953422-qj3ixb",
+        "name": "St. Joseph\nChurch",
+        "kind": "worship",
+        "label_placement": "callout-left",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T06:15:53.422Z",
+        "updated_at": "2026-07-27T06:16:40.019Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.95448374732796,
+          17.149893762833013
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785138304249-cc2ktf",
+        "name": "Bontoc\nMunicipal\nHall",
+        "kind": "govt",
+        "label_placement": "callout-top",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-07-27T07:45:04.249Z",
+        "updated_at": "2026-07-27T07:45:11.666Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97676754013979,
+          17.0863783839504
+        ]
       }
     }
   ]

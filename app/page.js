@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import BottomBar from "@/components/BottomBar";
 import Map from "@/components/Map";
 import MapPanel from "@/components/MapPanel";
 import PrintLegend from "@/components/PrintLegend";
@@ -43,6 +42,7 @@ const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 const HAS_GOOGLE_MAPS_API_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
 const SELECTABLE_TILE_MODES = new Set([
   "online",
+  "vector_basemap",
   ...(HAS_GOOGLE_MAPS_API_KEY ? ["google_street", "google_hybrid"] : []),
   ...(HAS_MAPBOX_TOKEN ? ["mapbox_hybrid"] : []),
 ]);
@@ -51,15 +51,31 @@ function normalizeTileMode(mode) {
   return SELECTABLE_TILE_MODES.has(mode) ? mode : "online";
 }
 
+const CLIENT_FACING_DEFAULT_TILE_MODE = HAS_GOOGLE_MAPS_API_KEY
+  ? "google_street"
+  : "online";
+const WORKSPACE_DEFAULT_TILE_MODE = "online";
+
+function getProjectDefaultTileMode() {
+  return READ_ONLY ? CLIENT_FACING_DEFAULT_TILE_MODE : WORKSPACE_DEFAULT_TILE_MODE;
+}
+
+function getDefaultTileModeForMunicipality(municipality) {
+  return normalizeTileMode(
+    municipality?.tiles?.defaultTileMode ?? getProjectDefaultTileMode()
+  );
+}
+
 export default function Home() {
   const mapApiRef = useRef(null);
   const [drawMode, setDrawMode] = useState(false);
   const [autoPrintRequested, setAutoPrintRequested] = useState(false);
   const [printMode, setPrintMode] = useState(false);
-  // Project-wide default basemap. Online OSM is always available; legal
-  // hybrid options appear when their provider keys exist.
-  const PROJECT_DEFAULT_TILE_MODE = "online";
-  const [tileMode, setTileMode] = useState(PROJECT_DEFAULT_TILE_MODE);
+  const [printPreparing, setPrintPreparing] = useState(false);
+  // Client-facing read-only maps open on Google Streets when configured.
+  // The editing/workspace version stays on Online OSM unless an LGU profile
+  // overrides the default (for example the Bauko print/vector profile).
+  const [tileMode, setTileMode] = useState(() => getProjectDefaultTileMode());
   // Always start from "bauko" so the first server render and the first
   // client render match (no hydration mismatch). The URL slug is read
   // from window.location.search in a post-mount effect below — that
@@ -80,6 +96,8 @@ export default function Home() {
     barangays: true,
     zones: true,
     smv: false,
+    parcels: true,
+    buildings: true,
     // Off by default — it's a guide for editors, not a consultation
     // overlay. Editors flip it on from the Layers panel while drawing.
     frontageBands: false,
@@ -257,16 +275,14 @@ export default function Home() {
   // Switching municipalities should reset the slideshow walkthrough so
   // a stale (classIdx, groupIdx, barangayIdx) from a longer schedule
   // doesn't index past the end of the new municipality's classes.
-  // It should also reset the basemap to the LGU's default (or the
-  // project-wide Online OSM default if the LGU doesn't override).
+  // It should also reset the basemap to the LGU's default (or the scoped
+  // project default if the LGU doesn't override).
   // Users can override per-session via the gear-icon tile picker.
   useEffect(() => {
     setClassIdx(null);
     setGroupIdx(0);
     setBarangayIdx(0);
-    const defaultTile = normalizeTileMode(
-      municipality?.tiles?.defaultTileMode ?? PROJECT_DEFAULT_TILE_MODE
-    );
+    const defaultTile = getDefaultTileModeForMunicipality(municipality);
     setTileMode(defaultTile);
     setLayers((current) => ({
       ...current,
@@ -506,14 +522,53 @@ export default function Home() {
   // view through @media print CSS. That path mixed raster tiles with
   // SVG overlays and produced pixelated output; this one returns a
   // pure vector SVG so Cmd+P on the new tab yields a fully vector PDF.
-  const handlePrint = useCallback(() => {
-    if (!municipalitySlug) return;
+  const handlePrint = useCallback(async () => {
+    if (!municipalitySlug || printPreparing) return;
     const printSlug = municipality?.zones?.saveSlug ?? municipalitySlug;
     const url = `/api/print/svg/${encodeURIComponent(printSlug)}`;
     // Open in a new tab so the user keeps the editor open behind it.
     // They Cmd+P (or Ctrl+P) on the SVG tab to get the vector PDF.
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, [municipality, municipalitySlug]);
+    //
+    // Keep the blank tab creation synchronous (before any await), otherwise
+    // popup blockers can treat the finished save as a non-user-initiated open.
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Could not open the print tab. Please allow popups for this site.");
+      return;
+    }
+    try {
+      printWindow.document.write(
+        '<!doctype html><title>Preparing print…</title><body style="font-family:system-ui,sans-serif;padding:24px;color:#111827">Saving current edits before opening print…</body>'
+      );
+      printWindow.document.close();
+    } catch {}
+
+    setPrintPreparing(true);
+    try {
+      const saveEditableZones = mapApiRef.current?.saveEditableZones;
+      if (!READ_ONLY && typeof saveEditableZones === "function") {
+        const result = await saveEditableZones({ alertOnError: false });
+        if (result?.cancelled) {
+          printWindow.close();
+          return;
+        }
+        if (!result?.ok) {
+          throw new Error(result?.error || "Could not save current zone edits.");
+        }
+      }
+      printWindow.location.href = url;
+    } catch (e) {
+      try {
+        printWindow.close();
+      } catch {}
+      alert(
+        "Could not prepare the print sheet because the current zone edits were not saved.\n" +
+          (e?.message ?? e)
+      );
+    } finally {
+      setPrintPreparing(false);
+    }
+  }, [municipality, municipalitySlug, printPreparing]);
 
   useEffect(() => {
     if (!autoPrintRequested || municipalitySlug !== "bauko" || !mapApiRef.current) {
@@ -679,6 +734,7 @@ export default function Home() {
         onSearchFlyToBounds={handleSearchFlyToBounds}
         onSearchFlyToPoint={handleSearchFlyToPoint}
         onPrint={handlePrint}
+        isPrintPreparing={printPreparing}
       />
       <div className="page-body">
         <div className="map-wrapper">
@@ -730,20 +786,6 @@ export default function Home() {
           savedStretchViews={savedStretchViews}
         />
       </div>
-      <BottomBar
-        active={active}
-        activeGroup={activeGroup}
-        activeBarangaySlug={activeBarangaySlug}
-        classIdx={classIdx ?? 0}
-        groupIdx={groupIdx}
-        barangayIdx={barangayIdx}
-        total={total}
-        onPrev={stepBackward}
-        onNext={stepForward}
-        onClear={clear}
-        barangays={schedule.barangays}
-        getBarangayBySlug={schedule.getBarangayBySlug}
-      />
     </main>
   );
 }
