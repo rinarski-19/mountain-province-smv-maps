@@ -8,7 +8,7 @@ const LAYERS = [
   ["zones", "SMV zones"],
   ["smv", "SMV (₱/m²)"],
   ["parcels", "Land parcels"],
-  ["buildings", "Building footprints"],
+  ["buildings", "Building footprints (zoom 16+)"],
   ["frontageBands", "Frontage bands (0–30 / 30–60 m)"],
   ["landmarks", "Landmarks (OSM + custom pins)"],
 ];

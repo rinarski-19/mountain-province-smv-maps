@@ -16,11 +16,15 @@ const WORKSPACE_TILE_MODE_OPTIONS = [
   ["online", "Online OSM"],
   ["vector_basemap", "Vector Map"],
 ];
-const TILE_MODE_OPTIONS = [
-  ...(READ_ONLY ? GOOGLE_TILE_MODE_OPTIONS : WORKSPACE_TILE_MODE_OPTIONS),
-  ...(READ_ONLY ? WORKSPACE_TILE_MODE_OPTIONS : GOOGLE_TILE_MODE_OPTIONS),
-  ...(HAS_MAPBOX_TOKEN ? [["mapbox_hybrid", "Mapbox Hybrid"]] : []),
-];
+const TILE_MODE_OPTIONS = READ_ONLY
+  ? GOOGLE_TILE_MODE_OPTIONS.length
+    ? GOOGLE_TILE_MODE_OPTIONS
+    : [["online", "Online OSM"]]
+  : [
+      ...WORKSPACE_TILE_MODE_OPTIONS,
+      ...GOOGLE_TILE_MODE_OPTIONS,
+      ...(HAS_MAPBOX_TOKEN ? [["mapbox_hybrid", "Mapbox Hybrid"]] : []),
+    ];
 
 export default function TopNav({
   drawMode,

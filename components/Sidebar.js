@@ -56,14 +56,12 @@ const ROAD_TIERS = [
 // reference is more useful — when you're drawing, all you need is
 // "what color is which class and how much per square meter".
 //
-// Each row is still a button so clicking it filters the map to that
-// class (handled by onSelectClass higher up). The expand/collapse UI
-// for barangays + stretches is gone — fall through to the map's
-// search bar or the chip palette if you need to focus a specific
-// barangay.
+// Rows are reference-only. The sidebar should always show the whole
+// schedule instead of doubling as a map filter; use the map/search
+// tools for navigation.
 export default function Sidebar({
-  activeClassId,
-  onSelectClass,
+  activeClassId: _activeClassId,
+  onSelectClass: _onSelectClass,
   commercialRows = [],
   residentialRows = [],
   // Props kept in the signature so callers don't break — they're
@@ -91,10 +89,6 @@ export default function Sidebar({
     } catch {}
   }, [collapsed]);
 
-  // When any class is active, clicking it again would clear the
-  // filter — but that's not obvious. Surface an explicit "Show all"
-  // button while a filter is active so the affordance is visible.
-  const showAllVisible = activeClassId != null;
   return (
     <aside
       className={`smv-sidebar smv-sidebar--legend ${
@@ -115,20 +109,13 @@ export default function Sidebar({
         </button>
       ) : (
         <>
-          <div className="smv-legend__toolbar" data-active={showAllVisible}>
-            <button
-              type="button"
-              className="smv-legend__show-all"
-              onClick={() => onSelectClass(null)}
-              disabled={!showAllVisible}
-              title={
-                showAllVisible
-                  ? "Clear the class filter — show every SMV class on the map"
-                  : "All classes are already visible"
-              }
+          <div className="smv-legend__toolbar">
+            <div
+              className="smv-legend__status"
+              title="The legend is reference-only and always shows every SMV class"
             >
-              {showAllVisible ? "Show all classes" : "All classes shown"}
-            </button>
+              All classes shown
+            </div>
             <button
               type="button"
               className="smv-sidebar__collapse"
@@ -143,14 +130,10 @@ export default function Sidebar({
             <LegendSection
               title="Commercial"
               rows={commercialRows}
-              activeClassId={activeClassId}
-              onSelectClass={onSelectClass}
             />
             <LegendSection
               title="Residential"
               rows={residentialRows}
-              activeClassId={activeClassId}
-              onSelectClass={onSelectClass}
             />
           </div>
           <OthersLegend />
@@ -246,12 +229,7 @@ function RoadsLegend() {
   );
 }
 
-function LegendSection({
-  title,
-  rows,
-  activeClassId,
-  onSelectClass,
-}) {
+function LegendSection({ title, rows }) {
   if (!rows.length) return null;
   return (
     <div className="smv-section smv-section--legend">
@@ -261,7 +239,6 @@ function LegendSection({
       </header>
       <ul className="smv-section__list smv-section__list--legend">
         {rows.map((row) => {
-          const isActive = activeClassId === row.id;
           const valueText =
             row.marketValue2027 == null
               ? row.provisional
@@ -270,14 +247,9 @@ function LegendSection({
               : `₱${row.marketValue2027.toLocaleString()}`;
           return (
             <li key={row.id} className="smv-row smv-row--legend">
-              <button
-                type="button"
-                className={`smv-row__head smv-row__head--legend ${
-                  isActive ? "is-active" : ""
-                }`}
-                onClick={() => onSelectClass(row.id)}
-                aria-pressed={isActive}
-                aria-label={
+              <div
+                className="smv-row__head smv-row__head--legend"
+                title={
                   row.locationGroups?.[0]?.label
                     ? `${row.subClass} — ${valueText}\n${row.locationGroups[0].label}`
                     : `${row.subClass} — ${valueText}`
@@ -293,7 +265,7 @@ function LegendSection({
                   {row.subClass}
                 </span>
                 <span className="smv-row__value tnum">{valueText}</span>
-              </button>
+              </div>
             </li>
           );
         })}

@@ -278,9 +278,8 @@ code {
   pointer-events: none;
 }
 
-/* Sticky toolbar at the top of the legend with the "Show all" reset
-   button. Visible state (data-active="true") gives the button some
-   pop so users notice they're currently filtered to one class. */
+/* Sticky toolbar at the top of the legend. The SMV list is now
+   reference-only, so it always shows the whole schedule. */
 .smv-legend__toolbar {
   position: sticky;
   top: 0;
@@ -293,34 +292,20 @@ code {
   background: var(--surface, #fff);
 }
 
-.smv-legend__show-all {
+.smv-legend__status {
   flex: 1;
   width: auto;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--divider);
-  background: var(--surface, #fff);
+  background: #f8fafc;
   font: inherit;
   font-size: 12px;
   color: var(--text-muted, #6b7280);
-  cursor: pointer;
-  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
-}
-
-.smv-legend__toolbar[data-active="true"] .smv-legend__show-all {
-  border-color: #1d4ed8;
-  background: #dbeafe;
-  color: #1d4ed8;
   font-weight: 600;
-}
-
-.smv-legend__show-all:hover:not(:disabled) {
-  background: #eff6ff;
-}
-
-.smv-legend__show-all:disabled {
-  cursor: default;
-  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .smv-legend__values-card {
@@ -357,17 +342,12 @@ code {
   background: transparent;
   text-align: left;
   color: var(--text);
-  cursor: pointer;
+  cursor: default;
   font: inherit;
-  transition: background 100ms ease;
 }
 
 .smv-row__head--legend:hover {
-  background: var(--surface-hover);
-}
-
-.smv-row__head--legend.is-active {
-  background: var(--surface-hover);
+  background: transparent;
 }
 
 .smv-row__head--legend .smv-row__chip {

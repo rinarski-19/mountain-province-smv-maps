@@ -97,7 +97,9 @@ export default function Home() {
     zones: true,
     smv: false,
     parcels: true,
-    buildings: true,
+    // Heavy detail layer. Building footprints can be tens of thousands
+    // of SVG polygons, so keep them off until explicitly needed.
+    buildings: false,
     // Off by default — it's a guide for editors, not a consultation
     // overlay. Editors flip it on from the Layers panel while drawing.
     frontageBands: false,

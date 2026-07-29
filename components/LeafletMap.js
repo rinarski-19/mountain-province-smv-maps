@@ -35,7 +35,6 @@ import {
   normalizeLandmarkLabelSize,
 } from "@/lib/landmark-labels";
 import EditableZones from "./EditableZones";
-import ZoneHoverInfo from "./ZoneHoverInfo";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -247,6 +246,7 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 const GOOGLE_NATIVE_MAX_ZOOM = 22;
 const GOOGLE_DISPLAY_MAX_ZOOM = 24;
+const BUILDING_FOOTPRINT_MIN_ZOOM = 16;
 
 // Basemap providers. The "settings" menu in TopNav lets the user
 // switch between the public-safe options. Online OSM is the default;
@@ -367,15 +367,6 @@ export default function LeafletMap({
   const [googleTileSession, setGoogleTileSession] = useState(null);
   const [googleOverlayTileSession, setGoogleOverlayTileSession] = useState(null);
   const [googleTileError, setGoogleTileError] = useState(null);
-  // MapX-style hover card: the zone Feature under the cursor + the
-  // client coords to anchor the card at. Set on mouseover/mousemove,
-  // cleared on mouseout. Outside of drawMode only — in the editor the
-  // user wants click-to-select, not hover noise.
-  const [hoveredZone, setHoveredZone] = useState({
-    feature: null,
-    x: null,
-    y: null,
-  });
   const [data, setData] = useState({
     bauko: null,
     barangays: null,
@@ -404,7 +395,14 @@ export default function LeafletMap({
     osmWater: null,
     osmPlaces: null,
     osmBuildings: null,
+    osmBuildingsSlug: null,
   });
+  const isVectorBasemapMode = tileMode === "vector_basemap";
+  const shouldLoadBuildingFootprints =
+    Boolean(layers?.buildings) &&
+    (printMode ||
+      isVectorBasemapMode ||
+      (Number.isFinite(mapZoom) && mapZoom >= BUILDING_FOOTPRINT_MIN_ZOOM));
 
   useEffect(() => {
     const isGoogleMode =
@@ -534,7 +532,6 @@ export default function LeafletMap({
           osmRoads,
           osmWater,
           osmPlaces,
-          osmBuildings,
         ] = await Promise.all([
           // Outline / barangays / valuations used to be required, so the
           // fetches were unguarded. With more LGUs being scaffolded
@@ -593,15 +590,12 @@ export default function LeafletMap({
           // Print/vector reference layers. Filename convention:
           //   /data/<slug>_osm_water.geojson      (npm run water:fetch:<slug>)
           //   /data/<slug>_osm_places.geojson     (npm run places:fetch:<slug>)
-          //   /data/<slug>_overture_buildings.geojson
-          //   /data/<slug>_osm_buildings.geojson  (fallback)
           // Each silently falls back to EMPTY_FC when missing so the
           // raster basemap still works for LGUs not yet processed.
+          // Buildings are intentionally lazy-loaded in a separate effect
+          // because they can be 10+ MB / 20k SVG polygons.
           freshJson(`/data/${slug}_osm_water.geojson`).catch(() => EMPTY_FC),
           freshJson(`/data/${slug}_osm_places.geojson`).catch(() => EMPTY_FC),
-          freshJson(`/data/${slug}_overture_buildings.geojson`).catch(() =>
-            freshJson(`/data/${slug}_osm_buildings.geojson`).catch(() => EMPTY_FC)
-          ),
         ]);
         if (!active) return;
         setData({
@@ -618,7 +612,8 @@ export default function LeafletMap({
           osmRoads,
           osmWater,
           osmPlaces,
-          osmBuildings,
+          osmBuildings: EMPTY_FC,
+          osmBuildingsSlug: null,
         });
       } catch (e) {
         console.error("Failed to load map data:", e);
@@ -628,6 +623,45 @@ export default function LeafletMap({
       active = false;
     };
   }, [municipality]);
+
+  useEffect(() => {
+    const slug = municipality?.slug ?? "bauko";
+    if (!shouldLoadBuildingFootprints) return undefined;
+    if (data.osmBuildingsSlug === slug) {
+      return undefined;
+    }
+
+    let active = true;
+    (async () => {
+      try {
+        const osmBuildings = await freshJson(
+          `/data/${slug}_overture_buildings.geojson`
+        ).catch(() =>
+          freshJson(`/data/${slug}_osm_buildings.geojson`).catch(() => EMPTY_FC)
+        );
+        if (!active) return;
+        setData((prev) => ({
+          ...prev,
+          osmBuildings,
+          osmBuildingsSlug: slug,
+        }));
+      } catch {
+        if (!active) return;
+        setData((prev) => ({
+          ...prev,
+          osmBuildings: EMPTY_FC,
+          osmBuildingsSlug: slug,
+        }));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [
+    data.osmBuildingsSlug,
+    municipality?.slug,
+    shouldLoadBuildingFootprints,
+  ]);
 
   useEffect(() => {
     onDataChange?.(data);
@@ -690,13 +724,6 @@ export default function LeafletMap({
     window.addEventListener(eventName, load);
     return () => window.removeEventListener(eventName, load);
   }, [municipality?.slug]);
-
-  // Clear the zone-hover card whenever drawMode toggles. The editor
-  // owns the cursor inside drawMode, and a stale card from the last
-  // hover would float there until the mouse moved again.
-  useEffect(() => {
-    setHoveredZone({ feature: null, x: null, y: null });
-  }, [drawMode]);
 
   // "Move pin" mode lives in EditableZones (the toolbar lives there).
   // When the toggle flips, EditableZones broadcasts on a custom event;
@@ -792,8 +819,7 @@ export default function LeafletMap({
   // SVG (water / buildings / roads / place labels) styled to match
   // the print SVG. Used so the editor view is WYSIWYG with the
   // printed map — what you draw is what you print.
-  const isVectorBasemap = tileMode === "vector_basemap";
-  const useVectorBasemap = printMode || isVectorBasemap;
+  const useVectorBasemap = printMode || isVectorBasemapMode;
   const showLabelsOverlay =
     !municipality?.ui?.hideMapLabels &&
     tileMode !== "offline" &&
@@ -801,7 +827,9 @@ export default function LeafletMap({
     tileMode !== "mapbox_hybrid" &&
     tileMode !== "google_hybrid";
   const showBuildingFootprintsOverlay =
-    !!layers?.buildings && (data.osmBuildings?.features?.length ?? 0) > 0;
+    shouldLoadBuildingFootprints &&
+    data.osmBuildingsSlug === (municipality?.slug ?? "bauko") &&
+    (data.osmBuildings?.features?.length ?? 0) > 0;
   const baukoFeature = data.bauko?.features?.[0] ?? null;
   const printMaskFeature = useMemo(
     () => (printMode && baukoFeature ? buildOutsideMaskFeature(baukoFeature) : null),
@@ -1001,13 +1029,13 @@ export default function LeafletMap({
         {/* Pane-level opacity in vector_basemap (WYSIWYG print) mode so
             adjacent SMV polygons compose once over the basemap instead
             of stacking per-path fillOpacity at every overlap. Other
-            tile modes keep opacity 1 so the per-class highlighting in
-            zoneStyle (idle/active/muted) remains visible. */}
+            tile modes keep opacity 1 so the normal class colors stay
+            vivid over raster basemaps. */}
         <Pane
           name="zones-pane"
           style={{
             zIndex: 420,
-            opacity: isVectorBasemap ? 0.7 : 1,
+            opacity: isVectorBasemapMode ? 0.7 : 1,
           }}
         />
         <Pane
@@ -1506,11 +1534,9 @@ export default function LeafletMap({
             key={`smv-zones-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}`}
             data={displayedZones}
             pane="zones-pane"
-            // Make the primary zones layer interactive so hover events
-            // fire. The secondary/tertiary aux layers below stay
-            // non-interactive — they share geometry with this one and
-            // double events would cause flicker.
-            interactive={true}
+            // Passive display only. The former hover info card made the map
+            // sluggish over dense SMV polygons.
+            interactive={false}
             bubblingMouseEvents={false}
             style={(feature) =>
               zoneStyle(
@@ -1531,25 +1557,6 @@ export default function LeafletMap({
                   opacity: 1,
                 });
               }
-              layer.on({
-                mouseover: (e) => {
-                  setHoveredZone({
-                    feature,
-                    x: e.originalEvent.clientX,
-                    y: e.originalEvent.clientY,
-                  });
-                },
-                mousemove: (e) => {
-                  setHoveredZone({
-                    feature,
-                    x: e.originalEvent.clientX,
-                    y: e.originalEvent.clientY,
-                  });
-                },
-                mouseout: () => {
-                  setHoveredZone({ feature: null, x: null, y: null });
-                },
-              });
             }}
           />
         )}
@@ -1658,17 +1665,23 @@ export default function LeafletMap({
           />
         )}
 
-        {/* Single-barangay highlight: ring only, in the active class color.
-            Re-keyed per (class, slug) so Leaflet rebuilds cleanly. */}
-        {!drawMode && activeFeatureCollection && (
-          <GeoJSON
-            key={`brgy-highlight-${activeClass?.id ?? "none"}-${activeBarangaySlug}`}
-            data={activeFeatureCollection}
-            pane="brgy-pane"
-            interactive={false}
-            style={() => barangayHighlightStyle(activeClass)}
-          />
-        )}
+        {/*
+          Single-barangay highlight disabled.
+          It made the default map feel like some barangays were selected even
+          when the user only wanted the full SMV map visible. Keep the helper
+          below for now in case we re-enable this as an explicit "focus"
+          toggle later.
+
+          {!drawMode && activeFeatureCollection && (
+            <GeoJSON
+              key={`brgy-highlight-${activeClass?.id ?? "none"}-${activeBarangaySlug}`}
+              data={activeFeatureCollection}
+              pane="brgy-pane"
+              interactive={false}
+              style={() => barangayHighlightStyle(activeClass)}
+            />
+          )}
+        */}
 
         {drawMode && (
           <EditableZones
@@ -1698,22 +1711,6 @@ export default function LeafletMap({
           />
         )}
       </MapContainer>
-
-      {/* MapX-style hover card. Only renders outside drawMode (the
-          editor handles selection differently). Resolves slugs back to
-          PSA names via the municipality's barangay metadata so the
-          card shows "Kayan East" rather than "kayan-east". */}
-      {!drawMode && (
-        <ZoneHoverInfo
-          feature={hoveredZone.feature}
-          x={hoveredZone.x}
-          y={hoveredZone.y}
-          barangayResolver={(slug) => {
-            const resolver = municipality?.schedule?.getBarangayBySlug;
-            return resolver ? resolver(slug) : null;
-          }}
-        />
-      )}
 
       {(tileMode === "offline" || tileMode === "offline_mapbox") &&
         !tilesAvailable && (
@@ -2041,17 +2038,12 @@ function commercialHatchClassForFeature(feature, activeKey = null) {
   return residential && commercial ? commercial : null;
 }
 
-function zoneStyle(feature, activeClass, tileMode, municipalitySlug = null) {
-  const primary = normaliseClassKey(feature?.properties?.classification);
-  const secondary = auxClassForFeature(feature, "secondary");
-  const tertiary = auxClassForFeature(feature, "tertiary");
-  const activeKey = normaliseClassKey(activeClass?.subClass);
-  const isMatching = Boolean(
-    activeKey &&
-      (activeKey === primary ||
-        activeKey === secondary ||
-        activeKey === tertiary)
-  );
+function zoneStyle(feature, _activeClass, tileMode, municipalitySlug = null) {
+  // Active-class SMV color highlighting/dimming is disabled. The map should
+  // default to the full land-value color plate, even if some navigation/search
+  // state still has an active class internally.
+  // const activeKey = normaliseClassKey(activeClass?.subClass);
+  const activeKey = null;
   // Dual-use features print/read cleaner when residential remains the
   // solid base and commercial is rendered as hatch on top.
   const displayClass = solidClassForFeature(feature, activeKey);
@@ -2060,34 +2052,9 @@ function zoneStyle(feature, activeClass, tileMode, municipalitySlug = null) {
   // C-3 (₱4,030, same value as R-3) paints rose pink in the editor,
   // matching the sidebar chip and the print SVG.
   const base = styleForClass(displayClass, municipalitySlug);
-  const isC1 = displayClass === "C-1";
-  const imageryBase = isImageryTileMode(tileMode);
-  const hybridBase = isHybridTileMode(tileMode);
-  const activeOpacity = hybridBase
-    ? 0.58
-    : imageryBase
-      ? 0.42
-      : ACTIVE_SMV_OPACITY;
-  const idleOpacity = hybridBase
-    ? isC1
-      ? 0.78
-      : 0.42
-    : imageryBase
-      ? isC1
-        ? 0.65
-        : 0.28
-      : isC1
-        ? 1
-        : 0.5;
-  const mutedOpacity = imageryBase ? (isC1 ? 0.1 : 0.06) : isC1 ? 0.18 : 0.12;
-  // Three states:
-  //  - No class active → resting opacity.
-  //  - Class active and this polygon matches → 100% opaque so it pops.
-  //  - Class active and this polygon does NOT match → muted way down.
-  let fillOpacity;
-  if (!activeKey) fillOpacity = idleOpacity;
-  else if (isMatching) fillOpacity = activeOpacity;
-  else fillOpacity = mutedOpacity;
+  // Highlight/dim/idle states are disabled: all SMV classes render with
+  // the active-strength opacity so no barangay/class looks muted by default.
+  let fillOpacity = ACTIVE_SMV_OPACITY;
   // In vector_basemap (WYSIWYG print) mode, paint solid: the pane-
   // level opacity composites the entire SMV layer at 0.7 over the
   // basemap, so per-path fillOpacity has to be 1 or overlapping
@@ -2104,11 +2071,14 @@ function zoneStyle(feature, activeClass, tileMode, municipalitySlug = null) {
 
 function commercialHatchZoneStyle(
   feature,
-  activeClass,
+  _activeClass,
   tileMode,
   municipalitySlug = null
 ) {
-  const activeKey = normaliseClassKey(activeClass?.subClass);
+  // Active-class hatch highlighting is disabled so joined commercial/
+  // residential polygons keep their normal appearance by default.
+  // const activeKey = normaliseClassKey(activeClass?.subClass);
+  const activeKey = null;
   const hatchClass = commercialHatchClassForFeature(feature, activeKey);
   if (!hatchClass) {
     return {
@@ -2120,33 +2090,17 @@ function commercialHatchZoneStyle(
     };
   }
 
-  const classes = classKeysForFeature(feature);
-  const isMatching = Boolean(activeKey && classes.includes(activeKey));
-  const isActiveHatch = Boolean(activeKey && activeKey === hatchClass);
-  const imageryBase = isImageryTileMode(tileMode);
-  const opacity = !activeKey
-    ? imageryBase
-      ? 0.58
-      : 0.72
-    : isActiveHatch
-      ? 0.9
-      : isMatching
-        ? 0.62
-        : imageryBase
-          ? 0.16
-          : 0.24;
-
   return {
     stroke: false,
     weight: 0,
-    opacity,
+    opacity: ACTIVE_SMV_OPACITY,
     fill: true,
     fillColor: `url(#${commercialHatchPatternId(hatchClass)})`,
     fillOpacity: 1,
   };
 }
 
-function auxZoneStyle(feature, activeClass, slot = "secondary", tileMode, municipalitySlug = null) {
+function auxZoneStyle(feature, _activeClass, slot = "secondary", tileMode, municipalitySlug = null) {
   const auxClass = auxClassForFeature(feature, slot);
   if (!auxClass) {
     return {
@@ -2158,30 +2112,12 @@ function auxZoneStyle(feature, activeClass, slot = "secondary", tileMode, munici
     };
   }
 
-  const activeKey = normaliseClassKey(activeClass?.subClass);
-  const isActiveAux = Boolean(activeKey && activeKey === auxClass);
-  const isOtherWhenActive = Boolean(activeKey && !isActiveAux);
   const s = styleForClass(auxClass, municipalitySlug);
-  const isTertiary = slot === "tertiary";
-  const imageryBase = isImageryTileMode(tileMode);
-  const activeStrokeOpacity =
-    isHybridTileMode(tileMode)
-      ? 0.65
-      : imageryBase
-        ? 0.5
-        : ACTIVE_SMV_OPACITY;
-  const passiveStrokeOpacity = imageryBase ? (isTertiary ? 0.24 : 0.3) : isTertiary ? 0.35 : 0.42;
-  const mutedStrokeOpacity = imageryBase ? 0.12 : 0.18;
-
   return {
     stroke: true,
     color: s.color,
-    weight: isActiveAux ? (isTertiary ? 2.6 : 3) : isOtherWhenActive ? 1 : 1.5,
-    opacity: isActiveAux
-      ? activeStrokeOpacity
-      : isOtherWhenActive
-        ? mutedStrokeOpacity
-        : passiveStrokeOpacity,
+    weight: 1.5,
+    opacity: ACTIVE_SMV_OPACITY,
     dashArray: undefined,
     lineCap: "round",
     lineJoin: "round",
