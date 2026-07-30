@@ -23,7 +23,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as turf from "@turf/turf";
-import { getMunicipalityConfig } from "../lib/municipalities.js";
+import {
+  MUNICIPALITY_OPTIONS,
+  getMunicipalityConfig,
+} from "../lib/municipalities.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DATA = path.join(ROOT, "public", "data");
@@ -219,13 +222,15 @@ function loadDotEnv() {
 
 function usage() {
   console.log(`Usage:
-  node scripts/fetch-google-places.mjs <municipality-slug> [--barangay <name-or-slug>] [--rank popularity|distance|both] [--text-sweep] [--dry-run]
+  node scripts/fetch-google-places.mjs <municipality-slug|all> [--barangay <name-or-slug>] [--rank popularity|distance|both] [--text-sweep] [--continue-on-error] [--dry-run]
 
 Examples:
   npm run landmarks:google -- besao
   npm run landmarks:google -- besao --barangay "Kin-iway"
   npm run landmarks:google -- besao --rank popularity
   npm run landmarks:google -- besao --text-sweep
+  npm run landmarks:google -- all --text-sweep --dry-run
+  npm run landmarks:google:all -- --text-sweep
 
 Output:
   public/data/<slug>_landmarks.geojson`);
@@ -243,6 +248,7 @@ function parseArgs(argv) {
     dryRun: false,
     rank: "both",
     textSweep: false,
+    continueOnError: false,
   };
   while (args.length) {
     const arg = args.shift();
@@ -252,6 +258,8 @@ function parseArgs(argv) {
       out.dryRun = true;
     } else if (arg === "--text-sweep") {
       out.textSweep = true;
+    } else if (arg === "--continue-on-error") {
+      out.continueOnError = true;
     } else if (arg === "--rank") {
       out.rank = String(args.shift() || "").toLowerCase();
       if (!["popularity", "distance", "both"].includes(out.rank)) {
@@ -409,18 +417,16 @@ async function searchText({ apiKey, area, textQuery, municipality }) {
   return Array.isArray(json.places) ? json.places : [];
 }
 
-async function main() {
-  loadDotEnv();
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help) {
-    usage();
-    return;
-  }
-  if (!args.slug) {
-    usage();
-    process.exit(1);
-  }
+function publicMunicipalitySlugs() {
+  return MUNICIPALITY_OPTIONS.filter((option) => {
+    if (!option.enabled || option.hidden) return false;
+    const config = getMunicipalityConfig(option.slug);
+    if (config?.ui?.printProfile) return false;
+    return true;
+  }).map((option) => option.slug);
+}
 
+async function fetchMunicipality(args) {
   const municipality = getMunicipalityConfig(args.slug);
   if (!municipality || municipality.slug !== args.slug) {
     throw new Error(`Unknown municipality slug: ${args.slug}`);
@@ -618,6 +624,45 @@ async function main() {
   for (const [kind, count] of Object.entries(byKind).sort()) {
     console.log(`  ${kind.padEnd(10)} ${count}`);
   }
+}
+
+async function main() {
+  loadDotEnv();
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    usage();
+    return;
+  }
+  if (!args.slug) {
+    usage();
+    process.exit(1);
+  }
+
+  if (args.slug === "all") {
+    if (args.barangay) {
+      throw new Error("--barangay cannot be used with all municipalities.");
+    }
+    const slugs = publicMunicipalitySlugs();
+    console.log(`Google Places bulk fetch: ${slugs.join(", ")}`);
+    let failures = 0;
+    for (const slug of slugs) {
+      console.log(`\n=== ${slug} ===`);
+      try {
+        await fetchMunicipality({ ...args, slug });
+      } catch (error) {
+        failures += 1;
+        console.error(`${slug} failed: ${error.message || error}`);
+        if (!args.continueOnError) throw error;
+      }
+    }
+    if (failures > 0) {
+      process.exitCode = 1;
+      console.error(`\nFinished with ${failures} failed municipality fetch(es).`);
+    }
+    return;
+  }
+
+  await fetchMunicipality(args);
 }
 
 main().catch((error) => {

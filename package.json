@@ -85,6 +85,7 @@
     "landmarks:natonin": "node scripts/fetch-osm-landmarks.mjs natonin",
     "landmarks:paracelis": "node scripts/fetch-osm-landmarks.mjs paracelis",
     "landmarks:google": "node scripts/fetch-google-places.mjs",
+    "landmarks:google:all": "node scripts/fetch-google-places.mjs all",
     "landmarks:google:bauko": "node scripts/fetch-google-places.mjs bauko",
     "landmarks:google:barlig": "node scripts/fetch-google-places.mjs barlig",
     "landmarks:google:tadian": "node scripts/fetch-google-places.mjs tadian",

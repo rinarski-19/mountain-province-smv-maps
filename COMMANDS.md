@@ -191,17 +191,23 @@ npm run landmarks:google -- besao
 npm run landmarks:google -- besao --barangay "Kin-iway"
 npm run landmarks:google -- besao --text-sweep
 npm run landmarks:google:bontoc
+npm run landmarks:google:all -- --text-sweep
 ```
 
 The Google command needs `GOOGLE_MAPS_API_KEY` or
-`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` with Places API (New) enabled. Use
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` with Places API (New) enabled.
 `--text-sweep` adds extra Text Search requests for small stores, eateries,
 water refilling stations, government offices, schools, churches, etc. Use
 `--dry-run` to see the planned request count before spending API calls:
 
 ```bash
 npm run landmarks:google -- besao --text-sweep --dry-run
+npm run landmarks:google:all -- --text-sweep --dry-run
 ```
+
+`landmarks:google:all` refreshes the public municipality slugs only
+(no DXF previews and no Bauko print profile). Add `--continue-on-error`
+if you want it to keep going when one municipality hits a network/API error.
 
 Fetch Overture building footprints. Barlig uses the safer per-barangay mode
 because the whole-municipality download can be too large/slow:
