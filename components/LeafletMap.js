@@ -842,8 +842,12 @@ export default function LeafletMap({
   // the print SVG. Used so the editor view is WYSIWYG with the
   // printed map — what you draw is what you print.
   const useVectorBasemap = printMode || isVectorBasemapMode;
+  const providerPoisEnabled = Boolean(layers?.providerPois ?? layers?.landmarks);
   const usesGooglePoiTileOverlay =
-    hasTransparentGoogleOverlay && Boolean(googleOverlayTileUrl) && !useVectorBasemap;
+    hasTransparentGoogleOverlay &&
+    Boolean(googleOverlayTileUrl) &&
+    !useVectorBasemap &&
+    !providerPoisEnabled;
   const showLabelsOverlay =
     !municipality?.ui?.hideMapLabels &&
     tileMode !== "offline" &&
@@ -1304,7 +1308,7 @@ export default function LeafletMap({
             names are rendered here as our own POI overlay above roads but
             below SMV class labels. User custom landmarks render later on
             the annotation pane. */}
-        {(layers?.providerPois ?? layers?.landmarks) && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
+        {providerPoisEnabled && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
           <GeoJSON
             key={`osm-landmarks-${municipality?.slug ?? "bauko"}-${data.landmarks.features.length}`}
             data={data.landmarks}
