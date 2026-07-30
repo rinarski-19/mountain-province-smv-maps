@@ -246,7 +246,18 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 const GOOGLE_NATIVE_MAX_ZOOM = 22;
 const GOOGLE_DISPLAY_MAX_ZOOM = 24;
-const BUILDING_FOOTPRINT_MIN_ZOOM = 16;
+const GOOGLE_TILE_SUBDOMAINS = ["0", "1", "2", "3"];
+const GOOGLE_STREET_FALLBACK_URL =
+  "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
+const GOOGLE_SATELLITE_FALLBACK_URL =
+  "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}";
+const GOOGLE_HYBRID_CONTEXT_FALLBACK_URL =
+  "https://mt{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}";
+const BUILDING_FOOTPRINT_MIN_ZOOM = 17;
+const PROVIDER_POI_MIN_ZOOM = 15;
+const VIEWPORT_PAD_RATIO = 0.35;
+const MAX_VISIBLE_BUILDING_FOOTPRINTS = 3500;
+const MAX_VISIBLE_PROVIDER_POIS = 450;
 
 // Basemap providers. The "settings" menu in TopNav lets the user
 // switch between the public-safe options. Online OSM is the default;
@@ -278,22 +289,22 @@ const TILE_SOURCES = {
         },
       }
     : {}),
-  ...(GOOGLE_MAPS_API_KEY
-      ? {
-        google_street: {
-          provider: "google",
-          attribution: "&copy; Google",
-          maxNativeZoom: GOOGLE_NATIVE_MAX_ZOOM,
-          maxZoom: GOOGLE_DISPLAY_MAX_ZOOM,
-        },
-        google_hybrid: {
-          provider: "google",
-          attribution: "&copy; Google",
-          maxNativeZoom: GOOGLE_NATIVE_MAX_ZOOM,
-          maxZoom: GOOGLE_DISPLAY_MAX_ZOOM,
-        },
-      }
-    : {}),
+  google_street: {
+    provider: "google",
+    url: GOOGLE_STREET_FALLBACK_URL,
+    subdomains: GOOGLE_TILE_SUBDOMAINS,
+    attribution: "&copy; Google",
+    maxNativeZoom: GOOGLE_NATIVE_MAX_ZOOM,
+    maxZoom: GOOGLE_DISPLAY_MAX_ZOOM,
+  },
+  google_hybrid: {
+    provider: "google",
+    url: GOOGLE_SATELLITE_FALLBACK_URL,
+    subdomains: GOOGLE_TILE_SUBDOMAINS,
+    attribution: "&copy; Google",
+    maxNativeZoom: GOOGLE_NATIVE_MAX_ZOOM,
+    maxZoom: GOOGLE_DISPLAY_MAX_ZOOM,
+  },
   offline: {
     url: "/tiles/{z}/{x}/{y}.png",
     attribution:
@@ -347,6 +358,38 @@ const freshJson = (url) =>
     return r.json();
   });
 
+function paddedBoundsObject(bounds, padRatio = VIEWPORT_PAD_RATIO) {
+  if (!bounds) return null;
+  const west = bounds.getWest?.();
+  const south = bounds.getSouth?.();
+  const east = bounds.getEast?.();
+  const north = bounds.getNorth?.();
+  if (![west, south, east, north].every(Number.isFinite)) return null;
+  const padLng = Math.max(0.0005, (east - west) * padRatio);
+  const padLat = Math.max(0.0005, (north - south) * padRatio);
+  return {
+    west: west - padLng,
+    south: south - padLat,
+    east: east + padLng,
+    north: north + padLat,
+  };
+}
+
+function bboxIntersectsBounds(bbox, bounds) {
+  if (!bbox || !bounds) return true;
+  return !(
+    bbox.east < bounds.west ||
+    bbox.west > bounds.east ||
+    bbox.north < bounds.south ||
+    bbox.south > bounds.north
+  );
+}
+
+function featureIntersectsBounds(feature, bounds) {
+  if (!bounds) return true;
+  return bboxIntersectsBounds(featureBboxObject(feature), bounds);
+}
+
 export default function LeafletMap({
   drawMode,
   printMode = false,
@@ -366,6 +409,7 @@ export default function LeafletMap({
   const editableZonesSaveRef = useRef(null);
   const [tilesAvailable, setTilesAvailable] = useState(true);
   const [mapZoom, setMapZoom] = useState(null);
+  const [mapBounds, setMapBounds] = useState(null);
   const [googleTileSession, setGoogleTileSession] = useState(null);
   const [googleOverlayTileSession, setGoogleOverlayTileSession] = useState(null);
   const [googleTileError, setGoogleTileError] = useState(null);
@@ -494,9 +538,12 @@ export default function LeafletMap({
         if (active) {
           setGoogleTileSession(null);
           setGoogleOverlayTileSession(null);
-          setGoogleTileError(
-            "Google Maps could not start. Check the API key and Map Tiles API."
-          );
+          // Do not block the client map if the official Map Tiles API
+          // session fails (for example a key/project restriction or API
+          // not enabled yet). The render path below falls back to the
+          // regular Google raster tile endpoints so the public map still
+          // opens on Google Streets/Hybrid.
+          setGoogleTileError(null);
         }
       }
     })();
@@ -817,12 +864,13 @@ export default function LeafletMap({
   const tile = TILE_SOURCES[tileMode] ?? TILE_SOURCES.online;
   const isGoogleTileMode =
     tileMode === "google_street" || tileMode === "google_hybrid";
-  // Only Hybrid's overlay tile is genuinely transparent (satellite +
-  // layerRoadmap). Streets stays as a base tile because Google's own
-  // POIs/labels are baked into the roadmap raster and cannot be
-  // separately z-indexed by Leaflet.
-  const hasTransparentGoogleOverlay = tileMode === "google_hybrid";
-  const googleContextAboveSmv = hasTransparentGoogleOverlay;
+  const googleFallbackContextUrl =
+    tileMode === "google_hybrid"
+      ? GOOGLE_HYBRID_CONTEXT_FALLBACK_URL
+      : tileMode === "google_street"
+        ? GOOGLE_STREET_FALLBACK_URL
+        : null;
+  const googleContextAboveSmv = isGoogleTileMode;
   const tileUrl =
     isGoogleTileMode && googleTileSession && GOOGLE_MAPS_API_KEY
       ? `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(
@@ -834,9 +882,8 @@ export default function LeafletMap({
       ? `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(
           googleOverlayTileSession
         )}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`
-      : null;
-  const hasRasterTileUrl =
-    !isGoogleTileMode || Boolean(googleTileSession && tileUrl);
+      : googleFallbackContextUrl;
+  const hasRasterTileUrl = Boolean(tileUrl);
   // Vector-basemap mode: no raster tiles at all, OSM data renders as
   // SVG (water / buildings / roads / place labels) styled to match
   // the print SVG. Used so the editor view is WYSIWYG with the
@@ -844,7 +891,7 @@ export default function LeafletMap({
   const useVectorBasemap = printMode || isVectorBasemapMode;
   const providerPoisEnabled = Boolean(layers?.providerPois ?? layers?.landmarks);
   const usesGooglePoiTileOverlay =
-    hasTransparentGoogleOverlay &&
+    isGoogleTileMode &&
     Boolean(googleOverlayTileUrl) &&
     !useVectorBasemap &&
     !providerPoisEnabled;
@@ -858,14 +905,47 @@ export default function LeafletMap({
     shouldLoadBuildingFootprints &&
     data.osmBuildingsSlug === (municipality?.slug ?? "bauko") &&
     (data.osmBuildings?.features?.length ?? 0) > 0;
+  const center = municipality?.map?.center ?? DEFAULT_CENTER;
+  const defaultZoom = municipality?.map?.defaultZoom ?? DEFAULT_ZOOM;
+  const slugForNameResolver = municipality?.schedule?.slugForName;
+  const paddedViewportBounds = useMemo(
+    () => paddedBoundsObject(mapBounds),
+    [mapBounds]
+  );
+  const visibleProviderLandmarks = useMemo(() => {
+    const zoom = Number.isFinite(mapZoom) ? mapZoom : defaultZoom;
+    if (
+      !providerPoisEnabled ||
+      drawMode ||
+      zoom < PROVIDER_POI_MIN_ZOOM ||
+      !paddedViewportBounds
+    ) {
+      return EMPTY_FC;
+    }
+    const features = (data.landmarks?.features ?? [])
+      .filter((feature) => featureIntersectsBounds(feature, paddedViewportBounds))
+      .slice(0, MAX_VISIBLE_PROVIDER_POIS);
+    return { type: "FeatureCollection", features };
+  }, [
+    data.landmarks,
+    defaultZoom,
+    drawMode,
+    mapZoom,
+    paddedViewportBounds,
+    providerPoisEnabled,
+  ]);
+  const visibleBuildingFootprints = useMemo(() => {
+    if (!showBuildingFootprintsOverlay || !paddedViewportBounds) return EMPTY_FC;
+    const features = (data.osmBuildings?.features ?? [])
+      .filter((feature) => featureIntersectsBounds(feature, paddedViewportBounds))
+      .slice(0, MAX_VISIBLE_BUILDING_FOOTPRINTS);
+    return { type: "FeatureCollection", features };
+  }, [data.osmBuildings, paddedViewportBounds, showBuildingFootprintsOverlay]);
   const baukoFeature = data.bauko?.features?.[0] ?? null;
   const printMaskFeature = useMemo(
     () => (printMode && baukoFeature ? buildOutsideMaskFeature(baukoFeature) : null),
     [printMode, baukoFeature]
   );
-  const center = municipality?.map?.center ?? DEFAULT_CENTER;
-  const defaultZoom = municipality?.map?.defaultZoom ?? DEFAULT_ZOOM;
-  const slugForNameResolver = municipality?.schedule?.slugForName;
 
   // Editor and normal print both render zones at their on-disk geometry —
   // no render-time buffer. The print route still has an explicit
@@ -1018,7 +1098,10 @@ export default function LeafletMap({
           onMapReady={onMapReady}
           editableZonesSaveRef={editableZonesSaveRef}
         />
-        <MapZoomBridge onZoomChange={setMapZoom} />
+        <MapViewportBridge
+          onZoomChange={setMapZoom}
+          onBoundsChange={setMapBounds}
+        />
         <ZoomTier />
         <CommercialHatchDefs
           enabled={!drawMode && layers.zones}
@@ -1029,12 +1112,13 @@ export default function LeafletMap({
             OSM-derived SVG layers so what you see on screen matches
             what you'll print. */}
         {!useVectorBasemap && hasRasterTileUrl && (
-          <TileLayer
+        <TileLayer
             key={`${tileMode}-${googleTileSession ?? "default"}`}
             url={tileUrl}
             attribution={tile.attribution}
             maxZoom={tile.maxZoom}
             maxNativeZoom={tile.maxNativeZoom}
+            subdomains={tile.subdomains}
           />
         )}
         {/* Vector basemap panes. Water + buildings sit below SMV so
@@ -1103,16 +1187,16 @@ export default function LeafletMap({
           name="label-tiles-pane"
           style={{ zIndex: googleContextAboveSmv ? 650 : 390, pointerEvents: "none" }}
         />
-        {/* Google label/POI overlay. Hybrid gets a genuinely transparent
-            layerRoadmap tile here (satellite + overlay:true). Streets has
-            no transparent equivalent, so it does not render this overlay. */}
+        {/* Google label/POI overlay. Official Map Tiles sessions are used
+            when available; otherwise Google raster tiles keep the public
+            client on Streets/Hybrid instead of blocking the map. */}
         <Pane
-          key={`google-labels-pane-${googleContextAboveSmv}-${hasTransparentGoogleOverlay}`}
+          key={`google-labels-pane-${googleContextAboveSmv}-${tileMode}`}
           name="google-labels-pane"
           style={{
             zIndex: googleContextAboveSmv ? 650 : 390,
             pointerEvents: "none",
-            mixBlendMode: "normal",
+            mixBlendMode: tileMode === "google_street" ? "multiply" : "normal",
           }}
         />
         <Pane
@@ -1138,6 +1222,7 @@ export default function LeafletMap({
               attribution={passIndex === 0 ? tile.attribution : ""}
               maxZoom={tile.maxZoom}
               maxNativeZoom={tile.maxNativeZoom}
+              subdomains={tile.subdomains}
               pane="google-labels-pane"
               opacity={GOOGLE_CONTEXT_OPACITY}
             />
@@ -1308,10 +1393,10 @@ export default function LeafletMap({
             names are rendered here as our own POI overlay above roads but
             below SMV class labels. User custom landmarks render later on
             the annotation pane. */}
-        {providerPoisEnabled && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
+        {visibleProviderLandmarks.features.length > 0 && (
           <GeoJSON
-            key={`osm-landmarks-${municipality?.slug ?? "bauko"}-${data.landmarks.features.length}`}
-            data={data.landmarks}
+            key={`osm-landmarks-${municipality?.slug ?? "bauko"}-${visibleProviderLandmarks.features.length}-${mapZoom ?? "z"}`}
+            data={visibleProviderLandmarks}
             pane="basemap-pois-pane"
             pointToLayer={(feature, latlng) =>
               landmarkLabelMarker(feature, latlng, {
@@ -1614,10 +1699,10 @@ export default function LeafletMap({
             }}
           />
         )}
-        {showBuildingFootprintsOverlay && (
+        {visibleBuildingFootprints.features.length > 0 && (
           <GeoJSON
-            key={`building-footprints-${municipality?.slug ?? "bauko"}-${data.osmBuildings.features.length}`}
-            data={data.osmBuildings}
+            key={`building-footprints-${municipality?.slug ?? "bauko"}-${visibleBuildingFootprints.features.length}-${mapZoom ?? "z"}`}
+            data={visibleBuildingFootprints}
             pane="building-footprints-pane"
             interactive={false}
             style={buildingFootprintOverlayStyle}
@@ -2388,15 +2473,20 @@ function SavedViewportLabel({ name, savedView, visible }) {
   );
 }
 
-function MapZoomBridge({ onZoomChange }) {
+function MapViewportBridge({ onZoomChange, onBoundsChange }) {
   const map = useMap();
 
   useEffect(() => {
-    const emit = () => onZoomChange?.(map.getZoom());
+    const emit = () => {
+      onZoomChange?.(map.getZoom());
+      onBoundsChange?.(map.getBounds());
+    };
     emit();
-    map.on("zoomend", emit);
-    return () => map.off("zoomend", emit);
-  }, [map, onZoomChange]);
+    map.on("zoomend moveend resize", emit);
+    return () => {
+      map.off("zoomend moveend resize", emit);
+    };
+  }, [map, onBoundsChange, onZoomChange]);
 
   return null;
 }

@@ -40,22 +40,19 @@ function featureCollectionBbox(featureCollection) {
 
 const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 const HAS_GOOGLE_MAPS_API_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
+const GOOGLE_TILE_MODES = ["google_street", "google_hybrid"];
 const SELECTABLE_TILE_MODES = new Set(
   IS_CLIENT_FACING
-    ? HAS_GOOGLE_MAPS_API_KEY
-      ? ["google_street", "google_hybrid"]
-      : ["online"]
+    ? GOOGLE_TILE_MODES
     : [
         "online",
         "vector_basemap",
-        ...(HAS_GOOGLE_MAPS_API_KEY ? ["google_street", "google_hybrid"] : []),
+        ...(HAS_GOOGLE_MAPS_API_KEY ? GOOGLE_TILE_MODES : []),
         ...(HAS_MAPBOX_TOKEN ? ["mapbox_hybrid"] : []),
       ]
 );
 
-const CLIENT_FACING_DEFAULT_TILE_MODE = HAS_GOOGLE_MAPS_API_KEY
-  ? "google_street"
-  : "online";
+const CLIENT_FACING_DEFAULT_TILE_MODE = "google_street";
 const WORKSPACE_DEFAULT_TILE_MODE = "online";
 
 function getProjectDefaultTileMode() {

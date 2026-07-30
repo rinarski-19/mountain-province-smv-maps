@@ -6,23 +6,19 @@ import { IS_CLIENT_FACING } from "@/lib/runtime-mode";
 
 const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 const HAS_GOOGLE_MAPS_API_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
-const GOOGLE_TILE_MODE_OPTIONS = HAS_GOOGLE_MAPS_API_KEY
-  ? [
-      ["google_street", "Google Streets"],
-      ["google_hybrid", "Google Hybrid"],
-    ]
-  : [];
+const GOOGLE_TILE_MODE_OPTIONS = [
+  ["google_street", "Google Streets"],
+  ["google_hybrid", "Google Hybrid"],
+];
 const WORKSPACE_TILE_MODE_OPTIONS = [
   ["online", "Online OSM"],
   ["vector_basemap", "Vector Map"],
 ];
 const TILE_MODE_OPTIONS = IS_CLIENT_FACING
-  ? GOOGLE_TILE_MODE_OPTIONS.length
-    ? GOOGLE_TILE_MODE_OPTIONS
-    : [["online", "Online OSM"]]
+  ? GOOGLE_TILE_MODE_OPTIONS
   : [
       ...WORKSPACE_TILE_MODE_OPTIONS,
-      ...GOOGLE_TILE_MODE_OPTIONS,
+      ...(HAS_GOOGLE_MAPS_API_KEY ? GOOGLE_TILE_MODE_OPTIONS : []),
       ...(HAS_MAPBOX_TOKEN ? [["mapbox_hybrid", "Mapbox Hybrid"]] : []),
     ];
 
