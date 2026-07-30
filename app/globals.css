@@ -927,24 +927,42 @@ code {
 }
 
 .custom-landmark--osm {
-  opacity: 0.92;
+  opacity: 1;
+  gap: 3px;
 }
 
 .custom-landmark--osm .custom-pin {
-  width: 22px;
-  height: 22px;
-  border-width: 1.5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  transform: none;
+  border-width: 2px;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.28),
+    0 1px 2px rgba(15, 23, 42, 0.28);
 }
 
 .custom-landmark--osm .custom-pin-symbol {
-  width: 14px;
-  height: 14px;
+  width: 9px;
+  height: 9px;
+  transform: none;
 }
 
 .custom-landmark--osm .custom-pin-name {
-  font-size: 11px;
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.88);
+  font-size: 10px;
+  line-height: 1.05;
+  padding: 0;
+  color: #ffffff;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow:
+    -1px -1px 0 rgba(15, 23, 42, 0.82),
+    1px -1px 0 rgba(15, 23, 42, 0.82),
+    -1px 1px 0 rgba(15, 23, 42, 0.82),
+    1px 1px 0 rgba(15, 23, 42, 0.82),
+    0 1px 2px rgba(15, 23, 42, 0.65);
 }
 
 /* When a landmark's stretch_key matches the active sidebar stretch
