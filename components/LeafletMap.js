@@ -1334,7 +1334,7 @@ export default function LeafletMap({
           // The custom landmark toggle is separate from provider POIs.
           // If the flag is missing (older state shape), keep custom
           // landmarks visible so existing editor behaviour is preserved.
-          if ((layers?.customLandmarks ?? true) === false && !isMovingLandmarks) {
+          if ((layers?.customLandmarks ?? true) === false) {
             return null;
           }
           // Merge file-based custom landmarks with locally-added ones
@@ -1373,7 +1373,7 @@ export default function LeafletMap({
             mapZoom == null || mapZoom >= CUSTOM_LANDMARK_LABEL_MIN_ZOOM;
           return (
             <GeoJSON
-              key={`custom-landmarks-${municipality?.slug ?? "bauko"}-${activeStretchKey ?? ""}-${localLandmarkRenderKey}-${isMovingLandmarks ? "drag" : "static"}-${showWideCustomLandmarkLabels ? "labels" : "pins"}`}
+              key={`custom-landmarks-${municipality?.slug ?? "bauko"}-${layers?.customLandmarks ? "on" : "off"}-${activeStretchKey ?? ""}-${localLandmarkRenderKey}-${isMovingLandmarks ? "drag" : "static"}-${showWideCustomLandmarkLabels ? "labels" : "pins"}`}
               data={{ type: "FeatureCollection", features: merged }}
             pane="pois-pane"
             pointToLayer={(feature, latlng) => {
