@@ -182,6 +182,27 @@ npm run places:fetch:bontoc
 npm run water:fetch:bontoc
 ```
 
+Fetch Google Places POIs into the app's visible landmark overlay
+(`public/data/<slug>_landmarks.geojson`). This gives denser Google-like POI
+coverage than OSM. It does not touch `*_custom_landmarks.geojson`.
+
+```bash
+npm run landmarks:google -- besao
+npm run landmarks:google -- besao --barangay "Kin-iway"
+npm run landmarks:google -- besao --text-sweep
+npm run landmarks:google:bontoc
+```
+
+The Google command needs `GOOGLE_MAPS_API_KEY` or
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` with Places API (New) enabled. Use
+`--text-sweep` adds extra Text Search requests for small stores, eateries,
+water refilling stations, government offices, schools, churches, etc. Use
+`--dry-run` to see the planned request count before spending API calls:
+
+```bash
+npm run landmarks:google -- besao --text-sweep --dry-run
+```
+
 Fetch Overture building footprints. Barlig uses the safer per-barangay mode
 because the whole-municipality download can be too large/slow:
 

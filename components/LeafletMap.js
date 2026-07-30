@@ -1297,12 +1297,13 @@ export default function LeafletMap({
           />
         )}
 
-        {/* OSM POI labels fetched into public/data/<slug>_landmarks.geojson.
-            Basemap tile labels are baked into PNG/JPEG imagery, so we
-            cannot force missing business names to appear there. This
-            optional overlay is treated as POI context, so keep it above
-            roads but below SMV class labels. User custom landmarks render
-            later on the annotation pane. */}
+        {/* Basemap POI labels fetched into public/data/<slug>_landmarks.geojson.
+            This file can come from OSM (`npm run landmarks:<slug>`) or
+            Google Places (`npm run landmarks:google -- <slug>`). Basemap
+            tile labels are baked into PNG/JPEG imagery, so missing business
+            names are rendered here as our own POI overlay above roads but
+            below SMV class labels. User custom landmarks render later on
+            the annotation pane. */}
         {layers?.landmarks && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
           <GeoJSON
             key={`osm-landmarks-${municipality?.slug ?? "bauko"}-${data.landmarks.features.length}`}
