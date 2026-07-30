@@ -114,8 +114,9 @@ export default function Home() {
     // public/data/<slug>_landmarks.geojson.
     providerPois: true,
     // LGU/editor-authored pins from public/data/<slug>_custom_landmarks.geojson
-    // and local in-app landmark edits.
-    customLandmarks: true,
+    // and local in-app landmark edits. Off by default because these are the
+    // larger callout-style landmarks; enable from the map panel when needed.
+    customLandmarks: false,
   });
   const [savedBarangayViews, setSavedBarangayViews] = useState({});
   const [savedStretchViews, setSavedStretchViews] = useState({});
@@ -298,7 +299,7 @@ export default function Home() {
       ...current,
       frontageBands: Boolean(municipality?.ui?.defaultFrontageBands),
       providerPois: true,
-      customLandmarks: true,
+      customLandmarks: false,
     }));
   }, [
     municipalitySlug,
