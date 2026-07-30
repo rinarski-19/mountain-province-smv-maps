@@ -10,7 +10,7 @@ const LAYERS = [
   ["parcels", "Land parcels"],
   ["buildings", "Building footprints (zoom 16+)"],
   ["frontageBands", "Frontage bands (0–30 / 30–60 m)"],
-  ["landmarks", "Landmarks (OSM + custom pins)"],
+  ["landmarks", "Provider POIs (Google/OSM)"],
 ];
 
 const PANEL_COLLAPSED_KEY = "map-panel-collapsed-v1";

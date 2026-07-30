@@ -110,9 +110,10 @@ export default function Home() {
     // Off by default — it's a guide for editors, not a consultation
     // overlay. Editors flip it on from the Layers panel while drawing.
     frontageBands: false,
-    // Off by default — landmark pinpoints are a manual/OSM overlay.
-    // Google basemaps use Google's own POI/label tile overlay instead.
-    landmarks: false,
+    // On by default — this is the provider POI overlay generated from
+    // Google Places / OSM into public/data/<slug>_landmarks.geojson.
+    // Custom LGU landmarks render separately and are always visible.
+    landmarks: true,
   });
   const [savedBarangayViews, setSavedBarangayViews] = useState({});
   const [savedStretchViews, setSavedStretchViews] = useState({});
@@ -294,6 +295,7 @@ export default function Home() {
     setLayers((current) => ({
       ...current,
       frontageBands: Boolean(municipality?.ui?.defaultFrontageBands),
+      landmarks: true,
     }));
   }, [
     municipalitySlug,
