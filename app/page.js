@@ -110,10 +110,12 @@ export default function Home() {
     // Off by default — it's a guide for editors, not a consultation
     // overlay. Editors flip it on from the Layers panel while drawing.
     frontageBands: false,
-    // On by default — this is the provider POI overlay generated from
-    // Google Places / OSM into public/data/<slug>_landmarks.geojson.
-    // Custom LGU landmarks render separately and are always visible.
-    landmarks: true,
+    // Provider POIs generated from Google Places / OSM into
+    // public/data/<slug>_landmarks.geojson.
+    providerPois: true,
+    // LGU/editor-authored pins from public/data/<slug>_custom_landmarks.geojson
+    // and local in-app landmark edits.
+    customLandmarks: true,
   });
   const [savedBarangayViews, setSavedBarangayViews] = useState({});
   const [savedStretchViews, setSavedStretchViews] = useState({});
@@ -295,7 +297,8 @@ export default function Home() {
     setLayers((current) => ({
       ...current,
       frontageBands: Boolean(municipality?.ui?.defaultFrontageBands),
-      landmarks: true,
+      providerPois: true,
+      customLandmarks: true,
     }));
   }, [
     municipalitySlug,

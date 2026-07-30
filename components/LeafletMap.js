@@ -1304,7 +1304,7 @@ export default function LeafletMap({
             names are rendered here as our own POI overlay above roads but
             below SMV class labels. User custom landmarks render later on
             the annotation pane. */}
-        {layers?.landmarks && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
+        {(layers?.providerPois ?? layers?.landmarks) && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
           <GeoJSON
             key={`osm-landmarks-${municipality?.slug ?? "bauko"}-${data.landmarks.features.length}`}
             data={data.landmarks}
@@ -1324,19 +1324,19 @@ export default function LeafletMap({
             public/data/<slug>_custom_landmarks.geojson. Each Feature
             becomes a Leaflet divIcon marker with a kind-coloured teardrop
             pin + a white pill carrying the name, on the top POI pane.
-            Always rendered — no UI toggle.
+            Controlled separately from provider POIs so Google/OSM context
+            and LGU-authored custom pins can be inspected independently.
             If a feature carries a `stretch_key` matching the currently
             active sidebar stretch (e.g. "c-1|poblacion|0"), the pin
             gets an extra "is-active-stretch" class so it visually
             pops while that schedule entry is the focus. */}
         {(() => {
-          // Hidden by default. The "Landmarks (OSM + custom pins)"
-          // toggle in MapPanel controls whether these render. Even
-          // when off, the data still loads and the editor's
-          // + Landmark / Move pin tools still work — the user just
-          // can't see the pins on the consultation surface unless
-          // they flip the toggle.
-          if (!layers?.landmarks) return null;
+          // The custom landmark toggle is separate from provider POIs.
+          // If the flag is missing (older state shape), keep custom
+          // landmarks visible so existing editor behaviour is preserved.
+          if ((layers?.customLandmarks ?? true) === false && !isMovingLandmarks) {
+            return null;
+          }
           // Merge file-based custom landmarks with locally-added ones
           // from the in-app "+ Landmark" tool. Local entries are
           // tagged with `source: "in-app"` so they're distinguishable
