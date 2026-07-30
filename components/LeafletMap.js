@@ -1304,7 +1304,7 @@ export default function LeafletMap({
             names are rendered here as our own POI overlay above roads but
             below SMV class labels. User custom landmarks render later on
             the annotation pane. */}
-        {(layers?.providerPois ?? layers?.landmarks) && !usesGooglePoiTileOverlay && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
+        {(layers?.providerPois ?? layers?.landmarks) && !drawMode && (mapZoom == null || mapZoom >= 16) && data.landmarks?.features?.length > 0 && (
           <GeoJSON
             key={`osm-landmarks-${municipality?.slug ?? "bauko"}-${data.landmarks.features.length}`}
             data={data.landmarks}
