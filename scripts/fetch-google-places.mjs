@@ -27,6 +27,12 @@ import {
   MUNICIPALITY_OPTIONS,
   getMunicipalityConfig,
 } from "../lib/municipalities.js";
+import {
+  EXCLUDED_PROVIDER_POI_IDS,
+  isExcludedSchoolName,
+  isMainGovernmentName,
+  PROVIDER_POI_KINDS,
+} from "../lib/landmark-icons.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DATA = path.join(ROOT, "public", "data");
@@ -54,9 +60,6 @@ const CATEGORY_QUERIES = [
     label: "public-services",
     types: [
       "hospital",
-      "doctor",
-      "dentist",
-      "pharmacy",
       "school",
       "primary_school",
       "secondary_school",
@@ -70,85 +73,17 @@ const CATEGORY_QUERIES = [
       "post_office",
       "library",
       "courthouse",
-    ],
-  },
-  {
-    label: "food",
-    types: [
-      "restaurant",
-      "cafe",
-      "bakery",
-      "bar",
-      "meal_takeaway",
-      "meal_delivery",
-    ],
-  },
-  {
-    label: "shops",
-    types: [
-      "store",
-      "convenience_store",
-      "food_store",
-      "general_store",
-      "grocery_store",
-      "supermarket",
-      "shopping_mall",
-      "department_store",
-      "hardware_store",
-      "electronics_store",
-      "clothing_store",
-      "home_goods_store",
-      "furniture_store",
-      "shoe_store",
-      "book_store",
-      "drugstore",
-    ],
-  },
-  {
-    label: "services",
-    types: [
-      "bank",
-      "atm",
-      "gas_station",
-      "parking",
-      "bus_station",
-      "transit_station",
-      "taxi_stand",
-      "lodging",
-      "hotel",
-      "travel_agency",
-      "real_estate_agency",
-      "insurance_agency",
-    ],
-  },
-  {
-    label: "recreation-tourism",
-    types: [
-      "tourist_attraction",
-      "museum",
-      "park",
-      "campground",
-      "sports_activity_location",
-      "sports_club",
-      "stadium",
-      "gym",
       "cemetery",
     ],
   },
 ];
 
 const TEXT_SWEEP_QUERIES = [
-  "water refilling station",
-  "studio",
-  "store",
-  "restaurant",
-  "eatery",
   "government office",
-  "police station",
-  "fire station",
-  "basketball court",
   "school",
   "church",
+  "hospital",
+  "cemetery",
 ];
 
 const KIND_BY_TYPE = {
@@ -170,6 +105,7 @@ const KIND_BY_TYPE = {
   post_office: "govt",
   library: "govt",
   courthouse: "govt",
+  cemetery: "cemetery",
   supermarket: "market",
   food_store: "market",
   general_store: "market",
@@ -200,6 +136,7 @@ const KIND_LABELS = {
   market: "Market",
   tourism: "Tourism",
   transport: "Transport",
+  cemetery: "Cemetery",
 };
 
 function loadDotEnv() {
@@ -512,11 +449,15 @@ async function fetchMunicipality(args) {
     const point = turf.point([location.longitude, location.latitude]);
     if (!turf.booleanPointInPolygon(point, outline)) return;
     const barangay = barangayForPoint(point, barangays);
-    const kind = kindForPlace(place);
     const primaryTypeLabel =
       place.primaryTypeDisplayName?.text || place.primaryType || null;
     const name = place.displayName?.text?.trim();
     if (!name) return;
+    const kind = kindForPlace(place);
+    if (!PROVIDER_POI_KINDS.has(kind)) return;
+    if (kind === "govt" && !isMainGovernmentName(name)) return;
+    if (kind === "school" && isExcludedSchoolName(name)) return;
+    if (EXCLUDED_PROVIDER_POI_IDS.has(place.id)) return;
     const id =
       place.id ||
       `${name}:${location.longitude.toFixed(6)},${location.latitude.toFixed(6)}`;

@@ -113,25 +113,6 @@
     {
       "type": "Feature",
       "properties": {
-        "id": "lm-1784668227972-4192az",
-        "name": "Bontoc\nGeneral\nHospital",
-        "kind": "hospital",
-        "label_placement": "inside-smv",
-        "label_size": "large",
-        "source": "in-app",
-        "added_at": "2026-07-21T21:10:27.972Z"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          120.97653150558473,
-          17.093751991156015
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "id": "lm-1784669287271-hrnhe8",
         "name": "The Bontoc Museum",
         "kind": "tourism",
@@ -175,10 +156,11 @@
         "id": "lm-1784681917426-s6i7cx",
         "name": "Pingew Restaurant",
         "kind": "business",
-        "label_placement": "inside-smv",
+        "label_placement": "callout-top",
         "label_size": "large",
         "source": "in-app",
-        "added_at": "2026-07-22T00:58:37.426Z"
+        "added_at": "2026-07-22T00:58:37.426Z",
+        "updated_at": "2026-08-03T05:43:25.377Z"
       },
       "geometry": {
         "type": "Point",
@@ -765,6 +747,46 @@
         "coordinates": [
           120.97676754013979,
           17.0863783839504
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785735734757-hmw0rt",
+        "name": "Bontoc\nGeneral\nHospital",
+        "kind": "hospital",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-08-03T05:42:14.757Z",
+        "updated_at": "2026-08-03T05:42:18.352Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97649379647459,
+          17.093590049107206
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "lm-1785735767735-ba6hnv",
+        "name": "Municipal Cementary",
+        "kind": "cemetery",
+        "label_placement": "callout-right",
+        "label_size": "large",
+        "source": "in-app",
+        "added_at": "2026-08-03T05:42:47.735Z",
+        "updated_at": "2026-08-03T05:42:51.298Z"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          120.97664398141183,
+          17.095423373269337
         ]
       }
     }

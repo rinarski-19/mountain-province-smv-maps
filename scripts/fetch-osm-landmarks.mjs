@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Fetch named landmarks (hospitals, schools, churches, town halls,
 // markets, etc.) from OpenStreetMap inside a municipality and write
-// them as a Point FeatureCollection at public/data/<m>_landmarks.geojson.
+// them as a Point FeatureCollection at public/data/<m>_osm_landmarks.geojson.
 //
 // Each output Feature is a Point with:
 //   - name           : OSM name tag (always present — we filter unnamed)
@@ -23,6 +23,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as turf from "@turf/turf";
+import {
+  isExcludedSchoolName,
+  isMainGovernmentName,
+  PROVIDER_POI_KINDS,
+} from "../lib/landmark-icons.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DATA = path.join(ROOT, "public", "data");
@@ -58,12 +63,14 @@ const MUNICIPALITY_CONFIG = {
 const KIND_BY_TAG = {
   // amenity=*
   hospital: { kind: "hospital", label: "Hospital" },
+  healthcare: { kind: "hospital", label: "Hospital" },
   clinic: { kind: "clinic", label: "Clinic" },
   school: { kind: "school", label: "School" },
   university: { kind: "school", label: "University" },
   college: { kind: "school", label: "College" },
   kindergarten: { kind: "school", label: "Kindergarten" },
   place_of_worship: { kind: "worship", label: "Church" },
+  cemetery: { kind: "cemetery", label: "Cemetery" },
   townhall: { kind: "govt", label: "Town hall" },
   fire_station: { kind: "govt", label: "Fire station" },
   police: { kind: "govt", label: "Police" },
@@ -121,18 +128,22 @@ const KIND_BY_TAG = {
 
 // Allow-list of which OSM tags carry which keys we look for.
 const QUERY_TAGS = [
-  ["amenity", ["hospital", "clinic", "school", "university", "college",
-    "kindergarten", "place_of_worship", "townhall", "fire_station", "police",
-    "library", "post_office", "marketplace", "community_centre", "restaurant",
-    "cafe", "fast_food", "bar", "pub", "bank", "atm", "pharmacy", "fuel"]],
-  ["shop", ["supermarket", "convenience", "general", "grocery", "bakery",
-    "butcher", "hardware", "doityourself", "clothes", "department_store",
-    "mall", "chemist", "car_repair", "motorcycle", "mobile_phone",
-    "electronics", "variety_store", "furniture", "copyshop", "hairdresser"]],
-  ["tourism", ["museum", "attraction", "hotel", "guest_house", "hostel", "motel"]],
-  ["historic", ["monument", "memorial"]],
+  [
+    "amenity",
+    [
+      "hospital",
+      "school",
+      "university",
+      "college",
+      "kindergarten",
+      "place_of_worship",
+      "townhall",
+    ],
+  ],
+  ["healthcare", ["hospital"]],
   ["building", ["government"]],
-  ["office", ["company", "government", "ngo"]],
+  ["office", ["government"]],
+  ["landuse", ["cemetery"]],
 ];
 
 async function main() {
@@ -228,6 +239,18 @@ async function main() {
       dropUnclassified += 1;
       continue;
     }
+    if (!PROVIDER_POI_KINDS.has(kindRow.kind)) {
+      dropUnclassified += 1;
+      continue;
+    }
+    if (kindRow.kind === "govt" && !isMainGovernmentName(tags.name)) {
+      dropUnclassified += 1;
+      continue;
+    }
+    if (kindRow.kind === "school" && isExcludedSchoolName(tags.name)) {
+      dropUnclassified += 1;
+      continue;
+    }
     // Get a representative point. Nodes have lat/lon directly; ways/
     // relations have a `center` from `out center` we can use.
     let lat, lon;
@@ -260,7 +283,9 @@ async function main() {
         name: tags.name,
         kind: kindRow.kind,
         kind_label: kindRow.label,
+        source: "openstreetmap",
         osm_id: `${el.type}/${el.id}`,
+        osm_tags: tags,
         barangay_slug: brgy?.slug ?? null,
         barangay_name: brgy?.name ?? null,
       },
@@ -290,7 +315,7 @@ async function main() {
   const deduped = [...byKey.values()];
 
   const fc = { type: "FeatureCollection", features: deduped };
-  const outPath = path.join(PUBLIC_DATA, `${slug}_landmarks.geojson`);
+  const outPath = path.join(PUBLIC_DATA, `${slug}_osm_landmarks.geojson`);
   fs.writeFileSync(outPath, JSON.stringify(fc) + "\n", "utf8");
 
   // Summary by kind.

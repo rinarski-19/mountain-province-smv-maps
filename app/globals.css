@@ -891,6 +891,7 @@ code {
 .custom-pin--school { --landmark-color: #1a73e8; }
 .custom-pin--worship,
 .custom-pin--church { --landmark-color: #607d8b; }
+.custom-pin--cemetery { --landmark-color: #795548; }
 .custom-pin--market,
 .custom-pin--fuel { --landmark-color: #1a73e8; }
 .custom-pin--tourism,
@@ -931,6 +932,45 @@ code {
   gap: 3px;
 }
 
+/* Provider labels follow the quiet OSM treatment with compact category
+   icons. Curated landmarks keep the larger colored pins and pills above. */
+.custom-landmark--osm .custom-pin-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.05;
+  padding: 0;
+  color: rgba(69, 53, 89, 0.92);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow:
+    -1px -1px 0 rgba(255, 255, 255, 0.88),
+    1px -1px 0 rgba(255, 255, 255, 0.88),
+    -1px 1px 0 rgba(255, 255, 255, 0.88),
+    1px 1px 0 rgba(255, 255, 255, 0.88),
+    0 1px 3px rgba(255, 255, 255, 0.72);
+}
+.custom-landmark--osm.custom-landmark--kind-school .custom-pin-name {
+  color: rgba(42, 91, 126, 0.94);
+}
+.custom-landmark--osm.custom-landmark--kind-hospital .custom-pin-name {
+  color: rgba(145, 62, 62, 0.94);
+}
+.custom-landmark--osm.custom-landmark--kind-govt .custom-pin-name {
+  color: rgba(84, 84, 84, 0.94);
+}
+.custom-landmark--osm.custom-landmark--kind-worship .custom-pin-name {
+  color: rgba(99, 72, 116, 0.94);
+}
+.custom-landmark--osm.custom-landmark--kind-cemetery .custom-pin-name {
+  color: rgba(73, 104, 76, 0.94);
+}
+
 .custom-landmark--osm .custom-pin {
   width: 15px;
   height: 15px;
@@ -948,21 +988,8 @@ code {
   transform: none;
 }
 
-.custom-landmark--osm .custom-pin-name {
-  font-size: 10px;
-  line-height: 1.05;
-  padding: 0;
-  color: #ffffff;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  text-shadow:
-    -1px -1px 0 rgba(15, 23, 42, 0.82),
-    1px -1px 0 rgba(15, 23, 42, 0.82),
-    -1px 1px 0 rgba(15, 23, 42, 0.82),
-    1px 1px 0 rgba(15, 23, 42, 0.82),
-    0 1px 2px rgba(15, 23, 42, 0.65);
+.custom-landmark--no-label .custom-pin-name {
+  display: none;
 }
 
 /* When a landmark's stretch_key matches the active sidebar stretch
@@ -1744,6 +1771,36 @@ body.draw-mode-off .leaflet-pm-toolbar {
     1px 1px 0 #ffffff,
     0 0 3px rgba(255, 255, 255, 0.95);
   white-space: nowrap;
+}
+
+.smv-zone-class-label--custom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 220px;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.12;
+  white-space: pre-wrap;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.16);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.smv-zone-class-label__icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+.smv-zone-class-label__icon .landmark-icon {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
 }
 
 .zoom-tier-low .smv-zone-class-label {

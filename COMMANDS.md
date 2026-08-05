@@ -133,6 +133,22 @@ npm run buildings:overture -- tadian --by-barangay --retries=8 --skip-failed
 The generated files are written under `public/print/` and are ignored by
 Git. Use a browser, Inkscape, or Illustrator to preview the SVG.
 
+To make an Illustrator-safe raster image, install Inkscape and run:
+
+```bash
+npm run print:svg:bontoc
+npm run print:png -- bontoc exports/bontoc_print.png --dpi=600
+```
+
+The SVG remains the editable source. The PNG contains the final rendered
+labels as pixels, so Illustrator will not reinterpret the fonts or SVG text.
+Use `INKSCAPE_BIN` when Inkscape is not available on the system PATH:
+
+```powershell
+$env:INKSCAPE_BIN = "C:\Program Files\Inkscape\bin\inkscape.exe"
+npm run print:png -- bontoc exports\bontoc_print.png --dpi=600
+```
+
 ## DXF export
 
 Export the current GeoJSON map data to an editable AutoCAD DXF. The default
@@ -151,10 +167,35 @@ or labels:
 npm run export:dxf -- bontoc exports/bontoc_lines_only.dxf --no-hatches --no-labels
 ```
 
+To export only parcels that have a lot-number label or a `C-1` / `C-2` label
+inside them, first create a filtered parcel file, then pass it to the DXF
+exporter:
+
+```bash
+python3 scripts/filter-parcels-by-dxf-labels.py \
+  public/data/bauko_parcels.geojson \
+  "/Users/rinar/Downloads/Bauko projection map 2023.dxf" \
+  exports/bauko_labelled_parcels.geojson
+
+npm run export:dxf -- bauko exports/bauko_labelled_parcels.dxf \
+  --parcels-file exports/bauko_labelled_parcels.geojson \
+  --no-labels
+```
+
 The exporter requires the same Python GIS tools used by the DXF importer:
 
 ```bash
 pip install ezdxf pyproj shapely
+```
+
+Remove river lines from a source DXF without changing the original file:
+
+```bash
+python3 scripts/remove-dxf-layers.py \
+  "/Users/rinar/Downloads/Bauko projection map 2023.dxf" \
+  exports/bauko_projection_map_2023_no_rivers.dxf \
+  --layer creek \
+  --layer RIVER
 ```
 
 ## Bontoc parcel import
@@ -171,6 +212,67 @@ python3 scripts/dxf-parcels-to-geojson.py \
   --clip-to public/data/bontoc.geojson
 ```
 
+For Barlig, the 2023 projection stores parcel linework across three layers.
+The command below selects all three layers while ignoring text and labels:
+
+```bash
+python3 scripts/dxf-parcels-to-geojson.py \
+  "/Users/rinar/Downloads/barlig map projection 2023.dxf" \
+  public/data/barlig_parcels.geojson \
+  --layer "MPV LOTS" \
+  --layer "DECLARED  PROPERTY" \
+  --layer "declared property" \
+  --closed-only \
+  --clip-to public/data/barlig.geojson
+```
+
+For Bauko, the parcel drawing uses several layers, including the misspelled
+`declcared property` layer:
+
+```bash
+python3 scripts/dxf-parcels-to-geojson.py \
+  "/Users/rinar/Downloads/Bauko projection map 2023.dxf" \
+  public/data/bauko_parcels.geojson \
+  --layer "MPV LOTS" \
+  --layer "declared property" \
+  --layer "UNDECLARED" \
+  --layer "FLOT" \
+  --layer "FORPROJECTION" \
+  --layer "0" \
+  --layer "200" \
+  --layer "LOT Lines" \
+  --layer "bdry" \
+  --polygonize-layer "declcared property" \
+  --polygonize-layer "0" \
+  --polygonize-layer "200" \
+  --polygonize-layer "LOT Lines" \
+  --polygonize-layer "FLOT" \
+  --line-layer "0" \
+  --line-layer "declared property" \
+  --closed-only \
+  --clip-to public/data/bauko_dxf_municipality.geojson  # DXF MBM clip used for parcels
+```
+
+To keep Bauko parcel data synchronized while editing the DXF in AutoCAD:
+
+```bash
+npm run parcels:watch:bauko
+```
+
+The watcher uses `/Users/rinar/Documents/shared/projection/Bauko projection
+map 2023.dxf` on macOS and `Z:\projection\Bauko projection map 2023.dxf` on
+Windows by default. You can also pass the Windows path explicitly:
+
+```powershell
+node scripts/watch-dxf-parcels.mjs bauko --dxf "Z:\projection\Bauko projection map 2023.dxf"
+```
+
+The watcher uses the selected parcel-layer profile shown above. It preserves
+the green `bdry` lot shapes and open linework from Layer `0` and `declared
+property`. BBM, MBM, river, text, and administrative boundary layers are not
+selected. It updates `public/data/bauko_parcels.geojson` and the labelled
+parcel export after each save. It does not create a final DXF automatically.
+
 ## Map data refresh commands
 
 Fetch OSM roads, landmarks, places, water, or buildings:
@@ -178,9 +280,15 @@ Fetch OSM roads, landmarks, places, water, or buildings:
 ```bash
 npm run roads:fetch:bontoc
 npm run landmarks:bontoc
+npm run landmarks:osm -- bontoc
 npm run places:fetch:bontoc
 npm run water:fetch:bontoc
 ```
+
+`landmarks:bontoc` and `landmarks:osm -- bontoc` fetch the filtered OSM
+landmark snapshot to `public/data/bontoc_osm_landmarks.geojson`. The app and
+print builder prefer this OSM snapshot; the older Google file remains as a
+fallback until an OSM snapshot is fetched.
 
 Fetch Google Places POIs into the app's visible landmark overlay
 (`public/data/<slug>_landmarks.geojson`). This gives denser Google-like POI

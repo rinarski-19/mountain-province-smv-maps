@@ -21,8 +21,10 @@ the coordinate system used by the Bontoc parcel drawing.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
+import os
 import shutil
 import subprocess
 import tempfile
@@ -65,6 +67,11 @@ def is_closed_linestring(feature) -> bool:
     )
 
 
+def feature_layer_name(feature) -> str:
+    properties = feature.get("properties") or {}
+    return str(properties.get("Layer") or properties.get("layer") or "")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("input_dxf", type=Path)
@@ -88,72 +95,177 @@ def main() -> None:
         help="Write closed polygons instead of preserving source linework",
     )
     parser.add_argument(
+        "--polygonize-layer",
+        dest="polygonize_layers",
+        action="append",
+        default=[],
+        help="Polygonize one selected DXF layer while other layers use --closed-only; repeatable",
+    )
+    parser.add_argument(
         "--closed-only",
         action="store_true",
         help="Preserve closed CAD parcel polylines as polygons; ignore open linework",
     )
+    parser.add_argument(
+        "--line-layer",
+        dest="line_layers",
+        action="append",
+        default=[],
+        help="Also preserve open linework from this layer; repeatable",
+    )
+    parser.add_argument(
+        "--all-layers",
+        action="store_true",
+        help="Read every DXF layer instead of using --layer selections",
+    )
+    parser.add_argument(
+        "--all-linework",
+        action="store_true",
+        help="Preserve open linework from every accepted layer",
+    )
+    parser.add_argument(
+        "--exclude-layer",
+        dest="excluded_layers",
+        action="append",
+        default=[],
+        help="Exclude this DXF layer; repeatable",
+    )
+    parser.add_argument(
+        "--exclude-noncontinuous",
+        action="store_true",
+        help="Exclude layers whose linetype is not Continuous or ByLayer",
+    )
     args = parser.parse_args()
-    layers = args.layers or ["PARCELS"]
+    polygonize_layers = set(args.polygonize_layers)
+    line_layers = set(args.line_layers)
+    layers = list(args.layers or [])
+    for layer in args.polygonize_layers:
+        if layer not in layers:
+            layers.append(layer)
+    if not layers:
+        layers = ["PARCELS"]
 
     ogr2ogr = find_ogr2ogr()
+    ogr_environment = os.environ.copy()
+    # Large AutoCAD drawings can store parcel linework inside blocks. GDAL's
+    # default block limit silently drops entities after 10,000 per block.
+    ogr_environment["DXF_FEATURE_LIMIT_PER_BLOCK"] = "-1"
     with tempfile.TemporaryDirectory(prefix="dxf-parcels-") as temp_dir:
         lines_path = Path(temp_dir) / "parcel-lines.geojson"
-        subprocess.run(
-            [
+        ogr_args = [
                 ogr2ogr,
                 "-f",
                 "GeoJSON",
                 "-a_srs",
                 args.source_crs,
-                "-where",
-                " OR ".join(f"Layer = '{layer}'" for layer in layers),
                 str(lines_path),
                 str(args.input_dxf),
                 "entities",
                 "-nln",
                 "parcel_lines",
                 "-skipfailures",
-            ],
+            ]
+        if not args.all_layers:
+            ogr_args[5:5] = [
+                "-where",
+                " OR ".join(f"Layer = '{layer}'" for layer in layers),
+            ]
+        subprocess.run(
+            ogr_args,
             check=True,
+            env=ogr_environment,
         )
         source = json.loads(lines_path.read_text(encoding="utf-8"))
 
     source_features = source.get("features", [])
+    excluded_layers = {layer.casefold() for layer in args.excluded_layers}
+
+    def accepted_feature(feature) -> bool:
+        layer = feature_layer_name(feature)
+        if layer.casefold() in excluded_layers:
+            return False
+        if args.exclude_noncontinuous:
+            linetype = str((feature.get("properties") or {}).get("Linetype") or "")
+            if linetype.upper() not in {"", "CONTINUOUS", "BYLAYER"}:
+                return False
+        return True
+
+    source_features = [feature for feature in source_features if accepted_feature(feature)]
     if args.closed_only:
         source_features = [
-            feature for feature in source_features if is_closed_linestring(feature)
+            feature
+            for feature in source_features
+            if args.all_linework
+            or feature_layer_name(feature) in polygonize_layers
+            or feature_layer_name(feature) in line_layers
+            or is_closed_linestring(feature)
         ]
 
-    lines = [
-        transform(
-            lambda x, y, *rest: (x, y),
-            shape(feature["geometry"]),
+    line_records = []
+    for feature in source_features:
+        geometry = feature.get("geometry") or {}
+        if (
+            geometry.get("type") not in {"LineString", "MultiLineString"}
+            or not finite_coordinates(geometry.get("coordinates"))
+        ):
+            continue
+        line_records.append(
+            (
+                feature_layer_name(feature),
+                transform(lambda x, y, *rest: (x, y), shape(geometry)),
+            )
         )
-        for feature in source_features
-        if feature.get("geometry")
-        and feature["geometry"].get("type") in {"LineString", "MultiLineString"}
-        and finite_coordinates(feature["geometry"].get("coordinates"))
-    ]
+    lines = [geometry for _, geometry in line_records]
     if not lines:
         raise RuntimeError(
             f'No linework found on DXF layer(s): {", ".join(layers)}.'
         )
 
-    merged = unary_union(lines)
     to_wgs84 = Transformer.from_crs(
         args.source_crs, "EPSG:4326", always_xy=True
     ).transform
-    if args.closed_only:
+    if polygonize_layers:
+        geometries = []
+        for layer in polygonize_layers:
+            layer_lines = [
+                geometry for source_layer, geometry in line_records if source_layer == layer
+            ]
+            if not layer_lines:
+                continue
+            merged = unary_union(layer_lines)
+            geometries.extend(
+                polygon
+                for polygon in polygonize(merged)
+                if polygon.is_valid and polygon.area >= args.min_area_m2
+            )
+        for layer, line in line_records:
+            if layer in polygonize_layers:
+                continue
+            if line.geom_type != "LineString" or not line.is_valid:
+                continue
+            coordinates = list(remove_repeated_points(line).coords)
+            if len(coordinates) < 4 or coordinates[0] != coordinates[-1]:
+                continue
+            polygon = Polygon(coordinates)
+            if polygon.is_valid and polygon.area >= args.min_area_m2:
+                geometries.append(polygon)
+        if not geometries:
+            raise RuntimeError("No valid parcel polygons were found.")
+    elif args.closed_only:
         geometries = []
         for line in lines:
             if line.geom_type != "LineString" or not line.is_valid:
                 continue
-            polygon = Polygon(remove_repeated_points(line).coords)
+            coordinates = list(remove_repeated_points(line).coords)
+            if len(coordinates) < 4 or coordinates[0] != coordinates[-1]:
+                continue
+            polygon = Polygon(coordinates)
             if polygon.is_valid and polygon.area >= args.min_area_m2:
                 geometries.append(polygon)
         if not geometries:
             raise RuntimeError("No valid closed parcel polylines were found.")
     elif args.polygonize:
+        merged = unary_union(lines)
         geometries = [
             polygon
             for polygon in polygonize(merged)
@@ -165,6 +277,19 @@ def main() -> None:
             )
     else:
         geometries = lines
+
+    # Some cadastral layers contain useful open boundaries that cannot be
+    # converted into polygons yet. Keep those lines in the GeoJSON so they
+    # still appear on the map. They are intentionally not treated as parcels.
+    open_linework = [
+        geometry
+        for layer, geometry in line_records
+        if args.all_linework or layer in line_layers
+        and geometry.geom_type in {"LineString", "MultiLineString"}
+        and not (geometry.geom_type == "LineString" and geometry.is_ring)
+    ]
+    geometry_records = [(geometry, "polygon") for geometry in geometries]
+    geometry_records.extend((geometry, "line") for geometry in open_linework)
 
     output = {
         "type": "FeatureCollection",
@@ -181,17 +306,27 @@ def main() -> None:
                 if feature.get("geometry")
             ]
         )
-    for index, geometry in enumerate(geometries):
-        area_m2 = geometry.area
+    seen_geometries = set()
+    for index, (geometry, geometry_type) in enumerate(geometry_records):
+        area_m2 = geometry.area if geometry_type == "polygon" else None
         geometry = transform(to_wgs84, geometry)
         if clip_boundary is not None and not geometry.intersects(clip_boundary):
             continue
+        # Several DXF layers can contain the same parcel boundary. Keep the
+        # first copy so adding another source layer does not duplicate parcels
+        # on the map.
+        geometry_key = geometry.wkb
+        if geometry_key in seen_geometries:
+            continue
+        seen_geometries.add(geometry_key)
         properties = {
             "source": args.input_dxf.name,
             "layer": ",".join(layers),
-            "parcel_id": index + 1,
+            "parcel_id": len(output["features"]) + 1,
+            "geometry_type": geometry_type,
+            "parcel_key": hashlib.sha1(geometry_key).hexdigest()[:20],
         }
-        if args.polygonize or args.closed_only:
+        if area_m2 is not None:
             properties["area_m2"] = round(area_m2, 2)
         output["features"].append(
             {

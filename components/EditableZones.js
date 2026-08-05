@@ -65,6 +65,13 @@ function compactCustomLandmarkList(list) {
     .filter(Boolean);
 }
 
+function editableZoneFeatureIdentity(feature) {
+  if (!feature) return "";
+  if (feature.id != null) return `id:${feature.id}`;
+  if (feature.properties?.id != null) return `id:${feature.properties.id}`;
+  return `geometry:${JSON.stringify(feature.geometry ?? null)}`;
+}
+
 function localStorageFailureMessage(error) {
   const name = error?.name || "StorageError";
   if (name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED") {
@@ -822,6 +829,7 @@ export default function EditableZones({
   showFrontageBands = false,
   barangaysUrl = null,
   customLandmarksUrl = null,
+  providerLandmarks = null,
   onRegisterSaveHandler = null,
   // OSM building polygons for per-building override mode. Currently
   // only Sadanga sets this in its municipality config; other LGUs
@@ -831,6 +839,8 @@ export default function EditableZones({
   stretchCatalog = [],
   municipalitySlug = "bauko",
   classKeys = null,
+  selectedParcel = null,
+  onParcelAssigned = null,
 }) {
   const map = useMap();
   const groupRef = useRef(null);
@@ -1206,6 +1216,7 @@ export default function EditableZones({
   // landmark inherits that key so it lights up alongside the stretch.
   const [placingLandmark, setPlacingLandmark] = useState(false);
   const [pendingLandmark, setPendingLandmark] = useState(null);
+  const [fetchedLabelChoice, setFetchedLabelChoice] = useState("");
   // When `movingLandmark` is on, every in-app pin becomes drag-enabled.
   // Dropping a pin in this mode fires a `${slug}:landmark-move` event
   // that this component listens for to persist the new lat/lng.
@@ -1995,6 +2006,7 @@ export default function EditableZones({
     // — selections don't carry across polygons.
     setSelectedLayerVersion((v) => v + 1);
     setSelectedVertexKeys(new Set());
+    setFetchedLabelChoice("");
     syncEditorState();
   };
 
@@ -2134,6 +2146,69 @@ export default function EditableZones({
       // scheduleAutoSave();
     }
     syncEditorState();
+  };
+
+  // Turn one imported cadastral parcel into an editable SMV assignment.
+  // The parcel geometry remains in the DXF/parcel overlay; this creates one
+  // classified zone record that can be saved with the normal zone workflow.
+  const assignParcelToClass = (klass) => {
+    const group = groupRef.current;
+    const parcelFeature = selectedParcel?.feature;
+    const parcelProps = parcelFeature?.properties || {};
+    const parcelKey = String(
+      selectedParcel?.key || parcelProps.parcel_key || parcelProps.parcel_id || ""
+    );
+    if (!group || !parcelFeature?.geometry || !parcelKey) return false;
+
+    const matches = [];
+    group.eachLayer((layer) => {
+      const props = layer.feature?.properties || {};
+      if (String(props.parcel_key || "") === parcelKey) matches.push(layer);
+    });
+
+    const assignmentProps = {
+      ...parcelProps,
+      classification: klass,
+      source: "dxf-parcel-assignment",
+      parcel_key: parcelKey,
+      parcel_id: parcelProps.parcel_id ?? null,
+    };
+    let target = matches[0] || null;
+
+    // Repair duplicates from earlier experiments: one assignment per parcel.
+    for (const duplicate of matches.slice(1)) {
+      if (duplicate === selectedLayerRef.current) selectedLayerRef.current = null;
+      group.removeLayer(duplicate);
+    }
+
+    if (target) {
+      target.feature = target.feature || { type: "Feature", properties: {} };
+      target.feature.properties = assignmentProps;
+      applyFeatureStyle(target, klass);
+      selectLayer(target);
+    } else {
+      const wrap = L.geoJSON(
+        { type: "Feature", properties: assignmentProps, geometry: parcelFeature.geometry },
+        { style: () => ({}) }
+      );
+      wrap.eachLayer((layer) => {
+        layer.feature = layer.feature || { type: "Feature", properties: {} };
+        layer.feature.properties = assignmentProps;
+        applyFeatureStyle(layer, klass);
+        prepareLayer(layer);
+        group.addLayer(layer);
+        target = layer;
+      });
+      if (target) selectLayer(target);
+    }
+    if (!target) return false;
+
+    pushHistory();
+    refresh();
+    setBakeNotice(`Assigned parcel ${parcelKey} to ${klass}. Press Save to keep it.`);
+    setTimeout(() => setBakeNotice(""), 5000);
+    onParcelAssigned?.(parcelKey, klass);
+    return true;
   };
 
   const restoreHistory = (nextIndex) => {
@@ -4710,6 +4785,7 @@ export default function EditableZones({
     };
     const onEdit = () => pushHistory();
     const onMapClick = (e) => {
+      if (e?.originalEvent?.__parcelSelectionClick) return;
       // If the user has the "+ Landmark" placing tool active, this
       // click drops a pending pin. Otherwise (default behaviour), the
       // click clears any layer selection.
@@ -5544,12 +5620,127 @@ export default function EditableZones({
   const selectedLabel = selectedPrimaryClass
     ? CLASSIFICATION_INFO[selectedPrimaryClass]?.label ?? selectedPrimaryClass
     : null;
+  const selectedParcelLabel = selectedParcel
+    ? String(
+        selectedParcel.feature?.properties?.lot_number ||
+          selectedParcel.feature?.properties?.lot_no ||
+          selectedParcel.key ||
+          selectedParcel.feature?.properties?.parcel_id ||
+          "selected"
+      )
+    : null;
+  const selectedInsideLabel = String(
+    selectedLayer?.feature?.properties?.label_text ?? ""
+  ).trim();
+  const selectedZoneFeature = (() => {
+    if (!selectedLayer) return null;
+    try {
+      return selectedLayer.toGeoJSON?.() ?? selectedLayer.feature ?? null;
+    } catch {
+      return selectedLayer.feature ?? null;
+    }
+  })();
+  const fetchedLabelCandidates = (providerLandmarks?.features ?? [])
+    .filter((feature) => {
+      if (feature?.geometry?.type !== "Point" || !selectedZoneFeature?.geometry) {
+        return false;
+      }
+      try {
+        return turf.booleanPointInPolygon(
+          turf.point(feature.geometry.coordinates),
+          selectedZoneFeature
+        );
+      } catch {
+        return false;
+      }
+    })
+    .map((feature) => {
+      const props = feature.properties || {};
+      const coords = feature.geometry.coordinates || [];
+      return {
+        key: `${props.osm_id || props.google_place_id || props.name}:${coords.join(",")}`,
+        name: String(props.name || "").trim(),
+        kind: props.kind || "school",
+        feature,
+      };
+    })
+    .filter((candidate) => candidate.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const applyFetchedLabel = (key) => {
+    const candidate = fetchedLabelCandidates.find((item) => item.key === key);
+    if (!candidate) return;
+    const selected = selectedLayerRef.current;
+    if (!selected) return;
+    selected.feature = selected.feature || { type: "Feature", properties: {} };
+    selected.feature.properties = {
+      ...(selected.feature.properties || {}),
+      label_text: candidate.name,
+      label_kind: candidate.kind,
+      label_source: candidate.feature.properties?.source || "openstreetmap",
+      label_source_id:
+        candidate.feature.properties?.osm_id ||
+        candidate.feature.properties?.google_place_id ||
+        null,
+    };
+    setFetchedLabelChoice(key);
+    pushHistory();
+    refresh();
+    syncEditorState();
+    window.dispatchEvent(
+      new CustomEvent(`${saveEventName}:local-label-updated`, {
+        detail: {
+          featureKey: editableZoneFeatureIdentity(selected.feature),
+          labelText: candidate.name,
+          labelKind: candidate.kind,
+        },
+      })
+    );
+  };
+  const editSelectedInsideLabel = () => {
+    const selected = selectedLayerRef.current;
+    if (!selected) return;
+    const current = String(selected.feature?.properties?.label_text ?? "").trim();
+    const next = window.prompt(
+      "Label text inside this polygon. Leave blank to remove the label:",
+      current
+    );
+    if (next == null) return;
+    const labelText = next.trim();
+    selected.feature = selected.feature || { type: "Feature", properties: {} };
+    selected.feature.properties = { ...(selected.feature.properties || {}) };
+    if (labelText) selected.feature.properties.label_text = labelText;
+    else {
+      delete selected.feature.properties.label_text;
+      delete selected.feature.properties.label_kind;
+      delete selected.feature.properties.label_source;
+      delete selected.feature.properties.label_source_id;
+    }
+    if (labelText) {
+      delete selected.feature.properties.label_kind;
+      delete selected.feature.properties.label_source;
+      delete selected.feature.properties.label_source_id;
+    }
+    pushHistory();
+    refresh();
+    syncEditorState();
+    window.dispatchEvent(
+      new CustomEvent(`${saveEventName}:local-label-updated`, {
+        detail: {
+          featureKey: editableZoneFeatureIdentity(selected.feature),
+          labelText,
+          labelKind: null,
+        },
+      })
+    );
+  };
   // Build a friendly pre-bake summary when roads and/or bands are
   // selected. Distinguishes the three combinations so the user knows
   // exactly what'll happen on a chip click.
   const pickPlural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const headerTitle = bakeNotice
     ? bakeNotice
+    : selectedParcel
+      ? `Parcel ${selectedParcelLabel} selected — click a chip to assign`
     : selectedPrintRoadCount > 0
       ? `${pickPlural(selectedPrintRoadCount, "print road")} selected — delete or click to deselect`
     : selectedRoadKeys.size > 0 && selectedBandKeys.size > 0
@@ -5651,6 +5842,22 @@ export default function EditableZones({
       </div>
       {!panelCollapsed && (
         <div style={{ padding: 10 }}>
+      {selectedParcel && (
+        <div
+          style={{
+            marginBottom: 8,
+            padding: "6px 7px",
+            borderRadius: 5,
+            background: "#eff6ff",
+            color: "#1e3a8a",
+            fontSize: 11,
+            lineHeight: 1.35,
+          }}
+        >
+          Parcel <strong>{selectedParcelLabel}</strong> selected. Click an SMV
+          chip to assign it.
+        </div>
+      )}
       {selectedRoadKeys.size > 0 && (
         <button
           type="button"
@@ -5725,6 +5932,7 @@ export default function EditableZones({
                 // If a shape is currently selected, reassign its
                 // classification on the spot — same chip click that picks
                 // the next-draw class also retags the active selection.
+                if (selectedParcel && assignParcelToClass(k)) return;
                 const selected = selectedLayerRef.current;
                 if (selected) {
                   const existingSecondary = normaliseClassKey(
@@ -5803,6 +6011,58 @@ export default function EditableZones({
           );
         })}
       </div>
+      {editorState.hasSelection && (
+        <button
+          type="button"
+          onClick={editSelectedInsideLabel}
+          style={{
+            ...smallBtn,
+            marginBottom: 8,
+            color: selectedInsideLabel ? "#475569" : "#1d4ed8",
+            borderColor: selectedInsideLabel ? "#94a3b8" : "#93c5fd",
+            background: selectedInsideLabel ? "#f8fafc" : "#eff6ff",
+            fontWeight: 600,
+          }}
+          title="Add or edit a label stored on the selected polygon and rendered at an interior label point"
+        >
+          {selectedInsideLabel ? "Edit inside label" : "Add inside label"}
+        </button>
+      )}
+      {editorState.hasSelection && (
+        <select
+          value={fetchedLabelChoice}
+          disabled={fetchedLabelCandidates.length === 0}
+          onChange={(event) => {
+            const key = event.target.value;
+            setFetchedLabelChoice(key);
+            if (key) applyFetchedLabel(key);
+          }}
+          style={{
+            ...smallBtn,
+            display: "block",
+            width: "100%",
+            maxWidth: 264,
+            marginBottom: 8,
+            color: "#166534",
+            borderColor: "#86efac",
+            background: "#f0fdf4",
+            fontWeight: 600,
+            opacity: fetchedLabelCandidates.length ? 1 : 0.65,
+          }}
+          title="Choose an OSM landmark inside the selected polygon and use its name and icon as the polygon label"
+        >
+          <option value="">
+            {fetchedLabelCandidates.length
+              ? "Use fetched label inside…"
+              : "No fetched labels inside selected polygon"}
+          </option>
+          {fetchedLabelCandidates.map((candidate) => (
+            <option key={candidate.key} value={candidate.key}>
+              {candidate.name}
+            </option>
+          ))}
+        </select>
+      )}
       {roadsUrl && (
         <div
           style={{

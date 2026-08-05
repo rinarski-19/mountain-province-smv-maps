@@ -13,6 +13,7 @@ out/
 # defaults to Online mode, so missing tiles never break the app.
 public/tiles/
 public/tiles-mapbox-hidpi/
+public/data/*.watch.json
 
 # Generated print map exports. `npm run build` regenerates these via prebuild.
 public/print/**/*.svg

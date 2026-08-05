@@ -26,6 +26,7 @@ import {
   styleForClass,
 } from "@/lib/classifications";
 import {
+  filterProviderPoiFeatureCollection,
   landmarkIconMarkup,
   normalizeLandmarkKind,
 } from "@/lib/landmark-icons";
@@ -120,6 +121,51 @@ function isParcelZoneFeature(feature) {
   );
 }
 
+function zoneFeatureIdentity(feature) {
+  if (!feature) return "";
+  if (feature.id != null) return `id:${feature.id}`;
+  if (feature.properties?.id != null) return `id:${feature.properties.id}`;
+  return `geometry:${JSON.stringify(feature.geometry ?? null)}`;
+}
+
+// A fetched landmark can appear in two places: as its normal POI marker and
+// as a label copied into an SMV polygon. These keys let us recognize the same
+// source feature across both renderers without comparing display names.
+function providerLandmarkSourceKeys(feature) {
+  const props = feature?.properties || {};
+  const keys = [];
+  const add = (source, id) => {
+    if (id == null || String(id).trim() === "") return;
+    const value = String(id).trim();
+    keys.push(`${String(source || "").trim().toLowerCase()}:${value}`);
+  };
+  if (props.osm_id != null) {
+    add("openstreetmap", props.osm_id);
+    add("osm", props.osm_id);
+  }
+  if (props.google_place_id != null) {
+    add("google", props.google_place_id);
+    add("google_places", props.google_place_id);
+  }
+  return keys;
+}
+
+function assignedProviderLandmarkSourceKeys(zones) {
+  const keys = new Set();
+  for (const feature of zones?.features ?? []) {
+    const props = feature?.properties || {};
+    if (!String(props.label_text || props.map_label || "").trim()) continue;
+    if (props.label_source_id == null) continue;
+    const source = String(props.label_source || "").trim().toLowerCase();
+    const id = String(props.label_source_id).trim();
+    if (!id) continue;
+    keys.add(`${source}:${id}`);
+    if (source === "openstreetmap") keys.add(`osm:${id}`);
+    if (source === "google") keys.add(`google_places:${id}`);
+  }
+  return keys;
+}
+
 function zoneLabelCandidatePoint(feature) {
   const candidates = [];
   const add = (point) => {
@@ -183,13 +229,20 @@ function zoneLabelCandidatePoint(feature) {
 
 function zoneClassLabelMarker(feature, latlng) {
   const label = feature?.properties?.label ?? "";
+  const isCustomLabel = Boolean(feature?.properties?.customLabel);
+  const labelKind = isCustomLabel
+    ? normalizeLandmarkKind(feature?.properties?.labelKind)
+    : null;
+  const labelIcon = labelKind
+    ? `<span class="smv-zone-class-label__icon">${landmarkIconMarkup(labelKind)}</span>`
+    : "";
   const classKey = String(feature?.properties?.classKey || "")
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "-");
   return L.marker(latlng, {
     icon: L.divIcon({
       className: "smv-zone-class-label-anchor",
-      html: `<span class="smv-zone-class-label smv-zone-class-label--${escapeHtml(classKey)}">${escapeHtml(label)}</span>`,
+      html: `<span class="smv-zone-class-label smv-zone-class-label--${escapeHtml(classKey)}${isCustomLabel ? " smv-zone-class-label--custom" : ""}">${labelIcon}${escapeHtml(label)}</span>`,
       iconSize: [1, 1],
       iconAnchor: [0, 0],
     }),
@@ -255,6 +308,7 @@ const GOOGLE_HYBRID_CONTEXT_FALLBACK_URL =
   "https://mt{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}";
 const BUILDING_FOOTPRINT_MIN_ZOOM = 17;
 const PROVIDER_POI_MIN_ZOOM = 15;
+const PROVIDER_POI_LABEL_MIN_ZOOM = 17;
 const VIEWPORT_PAD_RATIO = 0.35;
 const MAX_VISIBLE_BUILDING_FOOTPRINTS = 3500;
 const MAX_VISIBLE_PROVIDER_POIS = 450;
@@ -410,6 +464,8 @@ export default function LeafletMap({
   const [tilesAvailable, setTilesAvailable] = useState(true);
   const [mapZoom, setMapZoom] = useState(null);
   const [mapBounds, setMapBounds] = useState(null);
+  const [parcelsRevision, setParcelsRevision] = useState(0);
+  const [selectedParcel, setSelectedParcel] = useState(null);
   const [googleTileSession, setGoogleTileSession] = useState(null);
   const [googleOverlayTileSession, setGoogleOverlayTileSession] = useState(null);
   const [googleTileError, setGoogleTileError] = useState(null);
@@ -534,7 +590,14 @@ export default function LeafletMap({
           setGoogleTileSession(session.session);
         }
       } catch (error) {
-        console.error(error);
+        // A restricted key or a project without Map Tiles API access returns
+        // 403 here. The regular Google raster URLs below are already the
+        // supported fallback, so keep this informational instead of surfacing
+        // a red console error or blocking the map.
+        console.info(
+          "Google Map Tiles session unavailable; using the raster fallback.",
+          error?.message || error
+        );
         if (active) {
           setGoogleTileSession(null);
           setGoogleOverlayTileSession(null);
@@ -573,6 +636,7 @@ export default function LeafletMap({
         const slug = municipality?.slug ?? "bauko";
         const landmarksFile =
           municipality?.dataFiles?.landmarks ?? `/data/${slug}_landmarks.geojson`;
+        const osmLandmarksFile = `/data/${slug}_osm_landmarks.geojson`;
         const customLandmarksFile =
           municipality?.dataFiles?.customLandmarks ??
           `/data/${slug}_custom_landmarks.geojson`;
@@ -636,10 +700,14 @@ export default function LeafletMap({
           frontageBandsFile
             ? freshJson(frontageBandsFile).catch(() => EMPTY_FC)
             : Promise.resolve(EMPTY_FC),
-          // Same optionality for landmarks (`npm run landmarks:<slug>`).
-          landmarksFile
-            ? freshJson(landmarksFile).catch(() => EMPTY_FC)
-            : Promise.resolve(EMPTY_FC),
+          // Prefer the OSM snapshot (`npm run landmarks:osm -- <slug>`),
+          // falling back to the older Google/legacy file when an OSM
+          // snapshot has not been fetched yet.
+          freshJson(osmLandmarksFile).catch(() =>
+            landmarksFile
+              ? freshJson(landmarksFile).catch(() => EMPTY_FC)
+              : EMPTY_FC
+          ),
           // LGU-curated POIs (hand-edited GeoJSON, e.g. Kalangeg Bldg).
           customLandmarksFile
             ? freshJson(customLandmarksFile).catch(() => EMPTY_FC)
@@ -670,7 +738,7 @@ export default function LeafletMap({
           monamonSurRoads,
           monamonNorteRoads,
           frontageBands,
-          landmarks,
+          landmarks: filterProviderPoiFeatureCollection(landmarks),
           customLandmarks,
           osmRoads,
           osmWater,
@@ -685,6 +753,86 @@ export default function LeafletMap({
     return () => {
       active = false;
     };
+  }, [municipality]);
+
+  // The DXF watcher writes a tiny revision file after regenerating parcels.
+  // Polling that file lets the browser replace only the parcel layer; the
+  // user does not need to reload the whole map after saving in AutoCAD.
+  useEffect(() => {
+    const revisionFile = municipality?.dataFiles?.parcelsRevision;
+    const parcelsFile = municipality?.dataFiles?.parcels;
+    if (!revisionFile || !parcelsFile || typeof window === "undefined") return;
+    let active = true;
+    let signature = null;
+    const checkForParcelUpdate = async () => {
+      try {
+        const response = await fetch(`${revisionFile}?t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const nextSignature = await response.text();
+        if (signature === null) {
+          signature = nextSignature;
+          return;
+        }
+        if (nextSignature === signature) return;
+        signature = nextSignature;
+        const nextParcels = await freshJson(`${parcelsFile}?t=${Date.now()}`);
+        if (!active) return;
+        setData((current) => ({ ...current, parcels: nextParcels }));
+        setParcelsRevision((value) => value + 1);
+      } catch {
+        // The revision file is optional. A missing watcher must not affect
+        // normal map loading.
+      }
+    };
+    checkForParcelUpdate();
+    const interval = window.setInterval(checkForParcelUpdate, 1500);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [municipality?.dataFiles?.parcels, municipality?.dataFiles?.parcelsRevision]);
+
+  // EditableZones keeps its own Leaflet layer instance while editing. Mirror
+  // an inside-label change into this read-only map layer immediately, before
+  // the user presses the project Save button.
+  useEffect(() => {
+    const eventName = `${municipality?.zones?.eventName ?? "bauko:zones-saved"}:local-label-updated`;
+    const onLocalLabelUpdated = (event) => {
+      const detail = event?.detail;
+      const targetKey = detail?.featureKey;
+      if (!targetKey) return;
+      setData((prev) => {
+        if (!prev.zones?.features) return prev;
+        return {
+          ...prev,
+          zones: {
+            ...prev.zones,
+            features: prev.zones.features.map((feature) => {
+              if (zoneFeatureIdentity(feature) !== targetKey) return feature;
+              const properties = { ...(feature.properties || {}) };
+              if (detail.labelText) properties.label_text = detail.labelText;
+              else {
+                delete properties.label_text;
+                delete properties.label_kind;
+                delete properties.label_source;
+                delete properties.label_source_id;
+              }
+              if (detail.labelKind) properties.label_kind = detail.labelKind;
+              else {
+                delete properties.label_kind;
+                delete properties.label_source;
+                delete properties.label_source_id;
+              }
+              return { ...feature, properties };
+            }),
+          },
+        };
+      });
+    };
+    window.addEventListener(eventName, onLocalLabelUpdated);
+    return () => window.removeEventListener(eventName, onLocalLabelUpdated);
   }, [municipality]);
 
   useEffect(() => {
@@ -862,6 +1010,12 @@ export default function LeafletMap({
   }, [data.bauko, tileMode]);
 
   const tile = TILE_SOURCES[tileMode] ?? TILE_SOURCES.online;
+  // Leaflet's own default is "abc", but that default only applies when
+  // `subdomains` is omitted entirely — passing `subdomains: undefined`
+  // through as a TileLayer prop still overwrites it (react-leaflet spreads
+  // every prop key, defined or not, into the Leaflet layer options), which
+  // crashes _getSubdomain's `.length` read for every non-Google tile mode.
+  const tileSubdomains = tile.subdomains ?? "abc";
   const isGoogleTileMode =
     tileMode === "google_street" || tileMode === "google_hybrid";
   const googleFallbackContextUrl =
@@ -922,12 +1076,28 @@ export default function LeafletMap({
     ) {
       return EMPTY_FC;
     }
+    const assignedSourceKeys = assignedProviderLandmarkSourceKeys(data.zones);
+    const renderedSourceKeys = new Set();
     const features = (data.landmarks?.features ?? [])
-      .filter((feature) => featureIntersectsBounds(feature, paddedViewportBounds))
+      .filter((feature) => {
+        if (!featureIntersectsBounds(feature, paddedViewportBounds)) return false;
+        const sourceKeys = providerLandmarkSourceKeys(feature);
+
+        // Once a fetched POI is used as an inside-polygon label, the polygon
+        // becomes the authoritative renderer for that place. Hide the
+        // standalone marker so the name/icon is not painted twice.
+        if (sourceKeys.some((key) => assignedSourceKeys.has(key))) return false;
+
+        // Also guard against duplicate records in the provider snapshot.
+        if (sourceKeys.some((key) => renderedSourceKeys.has(key))) return false;
+        sourceKeys.forEach((key) => renderedSourceKeys.add(key));
+        return true;
+      })
       .slice(0, MAX_VISIBLE_PROVIDER_POIS);
     return { type: "FeatureCollection", features };
   }, [
     data.landmarks,
+    data.zones,
     defaultZoom,
     drawMode,
     mapZoom,
@@ -1009,20 +1179,24 @@ export default function LeafletMap({
   const zoneClassLabelFeatures = useMemo(() => {
     const activeKey = normaliseClassKey(isClassActive ? activeClass?.subClass : null);
     const zoom = Number.isFinite(mapZoom) ? mapZoom : defaultZoom;
-    if (!activeKey && zoom < SMV_CLASS_LABEL_MIN_ZOOM) {
-      return { type: "FeatureCollection", features: [] };
-    }
     const features = (displayedZones?.features ?? [])
       .map((feature, index) => {
         if (!feature?.geometry || isParcelZoneFeature(feature)) return null;
+        const customLabel = String(
+          feature.properties?.label_text ?? feature.properties?.map_label ?? ""
+        ).trim();
+        if (!customLabel && !activeKey && zoom < SMV_CLASS_LABEL_MIN_ZOOM) {
+          return null;
+        }
         const classes = classKeysForFeature(feature);
-        if (activeKey && !classes.includes(activeKey)) return null;
+        if (activeKey && !customLabel && !classes.includes(activeKey)) return null;
         const klass = activeKey || solidClassForFeature(feature, activeKey);
         // The long "Institutional" word reads like a place label and
         // dominates dense town centers. The violet fill + legend already
         // communicate this class in the live app.
-        if (klass === "INSTITUTIONAL") return null;
-        const label = CLASSIFICATION_INFO[klass]?.label ?? klass;
+        if (klass === "INSTITUTIONAL" && !customLabel) return null;
+        const label =
+          customLabel || CLASSIFICATION_INFO[klass]?.label || klass;
         if (!label) return null;
         const point = zoneLabelCandidatePoint(feature);
         if (!point?.geometry) return null;
@@ -1032,6 +1206,10 @@ export default function LeafletMap({
           properties: {
             label,
             classKey: klass,
+            customLabel: Boolean(customLabel),
+            labelKind: customLabel
+              ? feature.properties?.label_kind ?? feature.properties?.labelKind
+              : null,
           },
           geometry: point.geometry,
         };
@@ -1044,9 +1222,9 @@ export default function LeafletMap({
       let hash = 0;
       for (const feature of zoneClassLabelFeatures.features) {
         const [lng, lat] = feature.geometry?.coordinates ?? [];
-        const part = `${feature.id}:${feature.properties?.label}:${Number(lng).toFixed(
-          6
-        )},${Number(lat).toFixed(6)}`;
+        const part = `${feature.id}:${JSON.stringify(
+          feature.properties ?? {}
+        )}:${Number(lng).toFixed(6)},${Number(lat).toFixed(6)}`;
         for (let i = 0; i < part.length; i += 1) {
           hash = (hash * 31 + part.charCodeAt(i)) >>> 0;
         }
@@ -1083,6 +1261,29 @@ export default function LeafletMap({
   const registerEditableZonesSaveHandler = useCallback((handler) => {
     editableZonesSaveRef.current = typeof handler === "function" ? handler : null;
   }, []);
+  const handleParcelFeature = useCallback((feature, layer) => {
+    if (!feature?.geometry || !["Polygon", "MultiPolygon"].includes(feature.geometry.type)) {
+      return;
+    }
+    layer.options.interactive = true;
+    layer.options.bubblingMouseEvents = false;
+    layer.on("click", (event) => {
+      if (event?.originalEvent) {
+        event.originalEvent.__parcelSelectionClick = true;
+        L.DomEvent.stop(event.originalEvent);
+      }
+      const props = feature.properties || {};
+      const key = String(props.parcel_key || props.parcel_id || "");
+      if (!key) return;
+      setSelectedParcel((current) =>
+        current?.key === key ? null : { key, feature }
+      );
+    });
+  }, []);
+  const parcelStyle = useCallback(
+    (feature) => parcelOverlayStyle(feature, selectedParcel?.key ?? null),
+    [selectedParcel?.key]
+  );
 
   return (
     <div className="leaflet-shell">
@@ -1118,7 +1319,7 @@ export default function LeafletMap({
             attribution={tile.attribution}
             maxZoom={tile.maxZoom}
             maxNativeZoom={tile.maxNativeZoom}
-            subdomains={tile.subdomains}
+            subdomains={tileSubdomains}
           />
         )}
         {/* Vector basemap panes. Water + buildings sit below SMV so
@@ -1162,7 +1363,7 @@ export default function LeafletMap({
           name="parcels-pane"
           style={{
             zIndex: 422,
-            pointerEvents: "none",
+            pointerEvents: "auto",
           }}
         />
         <Pane
@@ -1222,7 +1423,7 @@ export default function LeafletMap({
               attribution={passIndex === 0 ? tile.attribution : ""}
               maxZoom={tile.maxZoom}
               maxNativeZoom={tile.maxNativeZoom}
-              subdomains={tile.subdomains}
+              subdomains={tileSubdomains}
               pane="google-labels-pane"
               opacity={GOOGLE_CONTEXT_OPACITY}
             />
@@ -1358,11 +1559,12 @@ export default function LeafletMap({
             parcels → roads. */}
         {layers?.parcels && data.parcels?.features?.length > 0 && (
           <GeoJSON
-            key={`parcels-${municipality?.slug ?? "bauko"}-${data.parcels.features.length}`}
+            key={`parcels-${municipality?.slug ?? "bauko"}-${data.parcels.features.length}-${parcelsRevision}-${selectedParcel?.key ?? "none"}`}
             data={data.parcels}
             pane="parcels-pane"
-            interactive={false}
-            style={parcelOverlayStyle}
+            interactive={true}
+            onEachFeature={handleParcelFeature}
+            style={parcelStyle}
           />
         )}
 
@@ -1386,9 +1588,9 @@ export default function LeafletMap({
           />
         )}
 
-        {/* Basemap POI labels fetched into public/data/<slug>_landmarks.geojson.
-            This file can come from OSM (`npm run landmarks:<slug>`) or
-            Google Places (`npm run landmarks:google -- <slug>`). Basemap
+        {/* Basemap POI labels fetched into public/data/<slug>_osm_landmarks.geojson.
+            OSM snapshots are preferred; the legacy Google Places file is a
+            fallback. Basemap
             tile labels are baked into PNG/JPEG imagery, so missing business
             names are rendered here as our own POI overlay above roads but
             below SMV class labels. User custom landmarks render later on
@@ -1403,6 +1605,9 @@ export default function LeafletMap({
                 className: "custom-landmark custom-landmark--osm",
                 interactive: false,
                 pane: "basemap-pois-pane",
+                showName:
+                  (Number.isFinite(mapZoom) ? mapZoom : defaultZoom) >=
+                  PROVIDER_POI_LABEL_MIN_ZOOM,
               })
             }
           />
@@ -1822,10 +2027,10 @@ export default function LeafletMap({
           )}
         */}
 
-        {drawMode && (
+        {(drawMode || selectedParcel) && (
           <EditableZones
             key={`editable-zones-${municipality?.slug ?? "bauko"}`}
-            visible={drawMode}
+            visible={drawMode || Boolean(selectedParcel)}
             storageKey={municipality?.zones?.storageKey}
             bundledZonesUrl={municipality?.dataFiles?.zones}
             exportFilename={municipality?.zones?.exportFilename}
@@ -1842,10 +2047,13 @@ export default function LeafletMap({
               municipality?.dataFiles?.customLandmarks ??
               `/data/${municipality?.slug ?? "bauko"}_custom_landmarks.geojson`
             }
+            providerLandmarks={data.landmarks}
             activeStretchKey={activeStretchKey}
             stretchCatalog={stretchCatalog}
             municipalitySlug={municipality?.slug}
             classKeys={municipality?.schedule?.classifications?.map((row) => row?.subClass)}
+            selectedParcel={selectedParcel}
+            onParcelAssigned={() => setSelectedParcel(null)}
             onRegisterSaveHandler={registerEditableZonesSaveHandler}
           />
         )}
@@ -1919,13 +2127,21 @@ function buildingFootprintOverlayStyle() {
     lineJoin: "round",
   };
 }
-function parcelOverlayStyle() {
+function parcelOverlayStyle(feature, selectedParcelKey = null) {
+  const featureKey = String(
+    feature?.properties?.parcel_key || feature?.properties?.parcel_id || ""
+  );
+  const selected = Boolean(selectedParcelKey && featureKey === selectedParcelKey);
+  const isPolygon = ["Polygon", "MultiPolygon"].includes(feature?.geometry?.type);
   return {
-    color: "#111827",
-    weight: 1,
-    opacity: 0.88,
-    fill: false,
-    fillOpacity: 0,
+    color: selected ? "#2563eb" : "#111827",
+    weight: selected ? 3 : 1,
+    opacity: selected ? 1 : 0.88,
+    // Keep polygon interiors transparent but hit-testable. With fill:false,
+    // Leaflet only receives clicks on the parcel outline, not inside it.
+    fill: isPolygon,
+    fillColor: "#93c5fd",
+    fillOpacity: selected ? 0.18 : 0,
     lineCap: "round",
     lineJoin: "round",
   };
@@ -2566,12 +2782,23 @@ function landmarkLabelMarker(feature, latlng, options = {}) {
   const props = feature?.properties || {};
   const kind = normalizeLandmarkKind(props.kind);
   const name = escapeHtml(props.name || "");
+  const className = [
+    options.className || "custom-landmark",
+    `custom-landmark--kind-${kind}`,
+    options.showName === false ? "custom-landmark--no-label" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const pinMarkup =
+    options.showPin === false
+      ? ""
+      : `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkIconMarkup(kind)}</span></span>`;
   return L.marker(latlng, {
     icon: L.divIcon({
       html:
-        `<span class="custom-pin custom-pin--${kind}"><span class="custom-pin-symbol">${landmarkIconMarkup(kind)}</span></span>` +
+        pinMarkup +
         `<span class="custom-pin-name">${name}</span>`,
-      className: options.className || "custom-landmark",
+      className,
       iconSize: [0, 0],
       iconAnchor: [9, 9],
     }),

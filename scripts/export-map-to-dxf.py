@@ -254,6 +254,11 @@ def main():
         default=DEFAULT_TARGET_CRS,
         help=f"Projected output CRS (default: {DEFAULT_TARGET_CRS})",
     )
+    parser.add_argument(
+        "--parcels-file",
+        type=Path,
+        help="Use a specific filtered parcel GeoJSON instead of <slug>_parcels.geojson",
+    )
     parser.add_argument("--no-hatches", action="store_true", help="Export SMV boundaries without filled hatches")
     parser.add_argument("--no-labels", action="store_true", help="Skip SMV, barangay, road, and landmark labels")
     args = parser.parse_args()
@@ -265,9 +270,12 @@ def main():
     municipality = load_json(data_dir / f"{slug}.geojson")
     barangays = load_json(data_dir / f"{slug}_barangays.geojson")
     zones = load_json(data_dir / f"{slug}_zones.geojson")
-    parcels = load_json(data_dir / f"{slug}_parcels.geojson")
+    parcels = load_json(args.parcels_file or data_dir / f"{slug}_parcels.geojson")
     roads = load_json(data_dir / f"{slug}_osm_roads.geojson")
-    landmarks = load_json(data_dir / f"{slug}_landmarks.geojson")
+    osm_landmarks_path = data_dir / f"{slug}_osm_landmarks.geojson"
+    landmarks = load_json(
+        osm_landmarks_path if osm_landmarks_path.exists() else data_dir / f"{slug}_landmarks.geojson"
+    )
     custom_landmarks = load_json(data_dir / f"{slug}_custom_landmarks.geojson")
     places = load_json(data_dir / f"{slug}_osm_places.geojson")
 
