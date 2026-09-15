@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import SearchBar from "./SearchBar";
+import { useAccess } from "./AccessContext";
 import { IS_CLIENT_FACING } from "@/lib/runtime-mode";
 
 const HAS_MAPBOX_TOKEN = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
@@ -14,6 +15,10 @@ const WORKSPACE_TILE_MODE_OPTIONS = [
   ["online", "Online OSM"],
   ["vector_basemap", "Vector Map"],
 ];
+
+// Basemap choices follow the BUILD mode, not the lock: a client-facing
+// deployment shows the Google basemaps it is licensed for whether or not
+// someone has unlocked the editing tools.
 const TILE_MODE_OPTIONS = IS_CLIENT_FACING
   ? GOOGLE_TILE_MODE_OPTIONS
   : [
@@ -47,7 +52,9 @@ export default function TopNav({
   onSearchFlyToPoint,
   onPrint,
   isPrintPreparing = false,
+  onRequestUnlock,
 }) {
+  const { canEdit, required, apiAvailable, lock } = useAccess();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -178,7 +185,7 @@ export default function TopNav({
       </div>
 
       <div className="top-nav__controls">
-        {!IS_CLIENT_FACING && (
+        {canEdit && (
           <div className="top-nav__edit-wrap" ref={editRef}>
             <button
               type="button"
@@ -256,7 +263,7 @@ export default function TopNav({
             )}
           </div>
         )}
-        {!IS_CLIENT_FACING && (
+        {canEdit && (
           <button
             type="button"
             className={`icon-button icon-button--compact ${
@@ -265,12 +272,12 @@ export default function TopNav({
             aria-label={
               isPrintPreparing
                 ? "Preparing A3 land value print sheet"
-                : "Open A3 land value print sheet"
+                : "Print sheet options"
             }
             title={
               isPrintPreparing
                 ? "Saving current edits before opening print"
-                : "Open A3 land value print sheet"
+                : "Print sheet — per municipality or barangay, values and field names"
             }
             disabled={isPrintPreparing}
             onClick={() => {
@@ -298,6 +305,18 @@ export default function TopNav({
               />
             </svg>
           </button>
+        )}
+        {apiAvailable && required && (
+          <LockButton
+            unlocked={canEdit}
+            onClick={() => {
+              setMenuOpen(false);
+              setEditOpen(false);
+              setSettingsOpen(false);
+              if (canEdit) lock();
+              else onRequestUnlock?.();
+            }}
+          />
         )}
         <FullscreenButton
           isFullscreen={isFullscreen}
@@ -359,6 +378,43 @@ export default function TopNav({
         </div>
       </div>
     </nav>
+  );
+}
+
+function LockButton({ unlocked, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`icon-button icon-button--compact ${unlocked ? "is-active" : ""}`}
+      onClick={onClick}
+      aria-label={unlocked ? "Lock editing tools" : "Unlock editing tools"}
+      title={
+        unlocked
+          ? "Editing unlocked — click to lock"
+          : "Unlock editing and print tools with the team password"
+      }
+      aria-pressed={unlocked}
+    >
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <rect
+          x="4"
+          y="10.5"
+          width="16"
+          height="10.5"
+          rx="2"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        />
+        {/* Closed shackle when locked; swung open when unlocked. */}
+        <path
+          d={unlocked ? "M8 10.5V7a4 4 0 0 1 7.5-1.9" : "M8 10.5V7a4 4 0 0 1 8 0v3.5"}
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+        <circle cx="12" cy="15.6" r="1.4" fill="currentColor" />
+      </svg>
+    </button>
   );
 }
 

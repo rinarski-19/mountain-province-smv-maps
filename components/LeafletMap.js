@@ -446,6 +446,11 @@ function featureIntersectsBounds(feature, bounds) {
 
 export default function LeafletMap({
   drawMode,
+  // The password lock. drawMode alone is not enough: selecting a parcel
+  // also mounts the authoring UI, so every path into EditableZones has
+  // to check this. Defaults to false so a caller that forgets to pass
+  // it gets the safe, read-only behaviour.
+  canEdit = false,
   printMode = false,
   tileMode,
   activeClass,
@@ -1261,8 +1266,18 @@ export default function LeafletMap({
   const registerEditableZonesSaveHandler = useCallback((handler) => {
     editableZonesSaveRef.current = typeof handler === "function" ? handler : null;
   }, []);
+  useEffect(() => {
+    if (!canEdit) setSelectedParcel(null);
+  }, [canEdit]);
+
   const handleParcelFeature = useCallback((feature, layer) => {
     if (!feature?.geometry || !["Polygon", "MultiPolygon"].includes(feature.geometry.type)) {
+      return;
+    }
+    // Locked viewers get parcels as pure cartography — no selection, so
+    // no route into the editor.
+    if (!canEdit) {
+      layer.options.interactive = false;
       return;
     }
     layer.options.interactive = true;
@@ -1279,7 +1294,7 @@ export default function LeafletMap({
         current?.key === key ? null : { key, feature }
       );
     });
-  }, []);
+  }, [canEdit]);
   const parcelStyle = useCallback(
     (feature) => parcelOverlayStyle(feature, selectedParcel?.key ?? null),
     [selectedParcel?.key]
@@ -1559,10 +1574,10 @@ export default function LeafletMap({
             parcels → roads. */}
         {layers?.parcels && data.parcels?.features?.length > 0 && (
           <GeoJSON
-            key={`parcels-${municipality?.slug ?? "bauko"}-${data.parcels.features.length}-${parcelsRevision}-${selectedParcel?.key ?? "none"}`}
+            key={`parcels-${municipality?.slug ?? "bauko"}-${data.parcels.features.length}-${parcelsRevision}-${canEdit ? "edit" : "view"}-${selectedParcel?.key ?? "none"}`}
             data={data.parcels}
             pane="parcels-pane"
-            interactive={true}
+            interactive={canEdit}
             onEachFeature={handleParcelFeature}
             style={parcelStyle}
           />
@@ -2027,10 +2042,10 @@ export default function LeafletMap({
           )}
         */}
 
-        {(drawMode || selectedParcel) && (
+        {canEdit && (drawMode || selectedParcel) && (
           <EditableZones
             key={`editable-zones-${municipality?.slug ?? "bauko"}`}
-            visible={drawMode || Boolean(selectedParcel)}
+            visible={canEdit && (drawMode || Boolean(selectedParcel))}
             storageKey={municipality?.zones?.storageKey}
             bundledZonesUrl={municipality?.dataFiles?.zones}
             exportFilename={municipality?.zones?.exportFilename}

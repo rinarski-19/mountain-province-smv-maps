@@ -15,7 +15,7 @@
 //   4. Commits & pushes the new public/data/<slug>_zones_dxf.geojson
 // Vercel re-deploys; every browser sees the refreshed DXF preview.
 //
-// Auth: same as /api/zones/save — SAVE_PASSWORD must match if set.
+// Auth: same as /api/zones/save — see lib/server-auth.js.
 // On localhost without SAVE_PASSWORD configured, writes are allowed
 // without a token so first-time setup isn't blocked.
 
@@ -23,6 +23,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
+import { writeGuard } from "../../../../lib/server-auth.js";
 
 // Which file each slug's DXF upload should land in. Mirrors the
 // TARGETS_BY_SLUG map in /api/zones/save — anything saveable should
@@ -43,15 +44,6 @@ const TARGETS_BY_SLUG = {
   "sabangan-dxf": "sabangan_zones_dxf.geojson",
 };
 
-function authorize(request) {
-  const expected = process.env.SAVE_PASSWORD;
-  if (!expected) return process.env.NODE_ENV === "development";
-  const header = request.headers.get("authorization") || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) return false;
-  return match[1] === expected;
-}
-
 export async function POST(request) {
   // Hard gate: DXF conversion needs Python; that doesn't exist on
   // serverless runtimes. Coworkers run this locally, then commit.
@@ -69,12 +61,8 @@ export async function POST(request) {
     );
   }
 
-  if (!authorize(request)) {
-    return Response.json(
-      { ok: false, error: "Unauthorized — set Authorization: Bearer <password>." },
-      { status: 401 }
-    );
-  }
+  const denied = writeGuard(request);
+  if (denied) return denied;
 
   const { searchParams } = new URL(request.url);
   const slug = (searchParams.get("slug") || "").toLowerCase();

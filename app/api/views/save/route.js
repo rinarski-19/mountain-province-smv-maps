@@ -21,6 +21,8 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { writeGuard } from "../../../../lib/server-auth.js";
+import { commitToGithub } from "../../../../lib/save-backend.js";
 
 // Same slug set as /api/zones/save plus the DXF previews so the
 // authoring views can publish their saved viewports.
@@ -58,10 +60,19 @@ function isValidView(value) {
 function isValidPayload(value) {
   if (!value || typeof value !== "object") return false;
   const { barangays, stretches } = value;
-  if (barangays && typeof barangays !== "object") return false;
-  if (stretches && typeof stretches !== "object") return false;
-  // Both can be empty objects (that's how you'd clear all views).
-  // But every entry that IS present must be a valid view.
+  // A bare `{}` is rejected: it is indistinguishable from an empty or
+  // malformed request, and accepting it truncates the saved-views file.
+  // Clearing views is still possible, but has to be said explicitly —
+  // `{ barangays: {}, stretches: {} }`.
+  if (barangays === undefined && stretches === undefined) return false;
+  if (barangays !== undefined && (!barangays || typeof barangays !== "object")) {
+    return false;
+  }
+  if (stretches !== undefined && (!stretches || typeof stretches !== "object")) {
+    return false;
+  }
+  // Each map may be empty, but every entry that IS present must be a
+  // valid view.
   for (const key of Object.keys(barangays || {})) {
     if (!isValidView(barangays[key])) return false;
   }
@@ -71,27 +82,9 @@ function isValidPayload(value) {
   return true;
 }
 
-function authorize(request) {
-  const expected = process.env.SAVE_PASSWORD;
-  if (!expected) {
-    return process.env.NODE_ENV === "development";
-  }
-  const header = request.headers.get("authorization") || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) return false;
-  return match[1] === expected;
-}
-
 export async function POST(request) {
-  if (process.env.NEXT_PUBLIC_READ_ONLY === "true") {
-    return Response.json({ ok: false, error: "Read-only deployment." }, { status: 403 });
-  }
-  if (!authorize(request)) {
-    return Response.json(
-      { ok: false, error: "Unauthorized, set Authorization: Bearer <password>." },
-      { status: 401 }
-    );
-  }
+  const denied = writeGuard(request);
+  if (denied) return denied;
 
   const { searchParams } = new URL(request.url);
   const slug = (searchParams.get("slug") || "bauko").toLowerCase();
@@ -118,7 +111,8 @@ export async function POST(request) {
       {
         ok: false,
         error:
-          "Expected { barangays: {...}, stretches: {...} } where each entry is { lat, lng, zoom }.",
+          "Expected { barangays: {...}, stretches: {...} } — at least one key " +
+          "must be present, and each entry must be { lat, lng, zoom }.",
       },
       { status: 400 }
     );
@@ -195,46 +189,4 @@ export async function POST(request) {
       { status: 502 }
     );
   }
-}
-
-async function commitToGithub({ token, owner, repo, branch, path, content, message }) {
-  const base = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
-  const headers = {
-    Accept: "application/vnd.github+json",
-    Authorization: `Bearer ${token}`,
-    "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "mountain-province-smv-maps",
-  };
-
-  let existingSha;
-  const getRes = await fetch(`${base}?ref=${encodeURIComponent(branch)}`, {
-    headers,
-    cache: "no-store",
-  });
-  if (getRes.ok) {
-    const meta = await getRes.json();
-    existingSha = meta.sha;
-  } else if (getRes.status !== 404) {
-    const text = await getRes.text();
-    throw new Error(`GET ${path} returned ${getRes.status}: ${text}`);
-  }
-
-  const encoded = Buffer.from(content, "utf8").toString("base64");
-  const putBody = { message, content: encoded, branch };
-  if (existingSha) putBody.sha = existingSha;
-
-  const putRes = await fetch(base, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify(putBody),
-  });
-  if (!putRes.ok) {
-    const text = await putRes.text();
-    throw new Error(`PUT ${path} returned ${putRes.status}: ${text}`);
-  }
-  const result = await putRes.json();
-  return {
-    commitSha: result.commit?.sha,
-    htmlUrl: result.content?.html_url,
-  };
 }

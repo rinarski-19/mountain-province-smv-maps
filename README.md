@@ -40,6 +40,156 @@ back to online OSM whenever those tiles are absent.
   (no more global-edit perf hit)
 - The Cut tool only operates on the currently-selected polygon
 
+## Password-protected editing and printing
+
+The app ships **locked**. A visitor gets the read-only consultation map:
+search, layers, basemaps, the barangay/class sidebar. The editing and
+printing tools are hidden behind one shared team password.
+
+Set it once in the environment:
+
+```bash
+SAVE_PASSWORD=your-team-password
+```
+
+Then click the **padlock** in the top-right nav, type the password, and
+the drawing tools and the print button appear. The password is checked
+on the server and never stored in the page — a successful unlock sets an
+httpOnly cookie that lasts 12 hours, and clicking the padlock again locks
+the browser immediately.
+
+The same secret still works as `Authorization: Bearer <SAVE_PASSWORD>`
+on the write routes, so any existing script keeps working.
+
+Two things worth knowing:
+
+- **Local development with no `SAVE_PASSWORD` set stays wide open**, as it
+  always has. The padlock hides itself because there is nothing to unlock.
+- `SMV_LOCKDOWN=true` is the hard kill switch: nothing can be unlocked and
+  no write succeeds, whatever password is presented. Reading and printing
+  still work.
+
+Failed unlock attempts are rate-limited per client and, because the
+`X-Forwarded-For` header a client sends cannot be trusted behind a plain
+`next start`, against an instance-wide budget of 60 failures per minute.
+Only failures count, and a correct password clears the client's own
+tally, so ordinary use never approaches either limit.
+
+`NEXT_PUBLIC_READ_ONLY` no longer decides who may edit — it only picks the
+presentation defaults (which basemaps are offered, whether building
+footprints start on). The padlock is what gates editing now.
+
+### The print workbench
+
+With the tools unlocked, the printer icon opens a panel with three tabs:
+
+**Sheet** — what to print.
+
+- Whole municipality, or any single barangay in the current LGU
+- A3 portrait (297 × 420 mm) or landscape (420 × 297 mm)
+- Extra SMV band width in metres (render-time only — the saved geometry
+  stays at the ordinance-true 30 m depth of frontage)
+- Building footprints on/off, and the per-class `LOCATIONS` panel
+
+**Values** — the ₱/m² unit value printed beside each SMV class in the
+legend. These *overlay* `public/data/<slug>_valuations.json`; the
+transcribed official schedule is never rewritten, so a correction shows
+up as a small, reviewable diff.
+
+**Field names** — every fixed caption on the sheet: the title, the
+`MUNICIPALITY:` / `PROVINCE OF:` / `ISLAND OF:` captions and their values,
+the `LEGEND:` caption, the four legend column headers, the road-tier
+names, the currency symbol, the `LOCATIONS` heading, and the prepared-by
+block. Defaults live in `lib/print-labels.js`.
+
+Edits are a **local draft** first: they autosave to this browser only, a
+dot marks the tabs that hold them, and **Preview draft** renders a real
+sheet from them without affecting anyone. **Publish** is the deliberate
+step that writes `public/data/<slug>_print_settings.json` for everyone —
+straight to the file in local development, as a GitHub commit (which
+redeploys the site) in production. **Clear all published overrides** puts
+the sheet back to the valuations file and the stock wording.
+
+Overrides apply everywhere a sheet is produced, including the CLI batch
+build (`npm run print:svg:all`), so paper from the button and paper from
+the script always agree. Captions are capped at 60 characters and values
+at ₱100,000,000/m² — past those the legend overruns the page. If someone
+else publishes while your panel is open, your publish is refused with a
+conflict rather than silently dropping their changes; reopen and publish
+again.
+
+Three of the 146 scheduled barangays (two Barlig sitios and Besao's
+Padangaan) have no matching feature in `<slug>_barangays.geojson`, so
+they cannot be printed as their own sheet and the panel leaves them out
+of the coverage list. Fixing that means adding the boundary or a
+`slugForName()` alias in `lib/<slug>.js`.
+
+Print URLs, if you'd rather link straight to a sheet:
+
+```
+/api/print/svg/<slug>                          # portrait, whole LGU
+/api/print/svg/<slug>/<barangay>               # portrait, one barangay
+/api/print/svg/portrait/<slug>[/<barangay>]
+/api/print/svg/landscape/<slug>[/<barangay>]
+```
+
+All of them accept `?smvBuffer=<metres>`, `?buildings=0` and
+`?locations=1`.
+
+## Tests
+
+```bash
+npm test              # unit only, ~5s, no server
+npm run test:integration   # real API routes against a dev server
+npm run test:e2e           # browser tests (runs a production build first)
+npm run test:all           # everything
+```
+
+Node's built-in `node:test` runner — no test framework dependency. The only
+devDependency the suite adds is `playwright-core`, which drives the Chrome
+already installed on the machine rather than downloading its own; if no
+Chromium is found the e2e suite skips instead of failing.
+
+Three layers:
+
+- **`tests/unit/`** — pure logic, no server. Label/value normalization and
+  clamps, unlock-token signing and expiry, the write guards across every
+  deployment posture, the GitHub commit protocol (stubbed `fetch`), and the
+  print SVG's label plumbing and XML escaping.
+- **`tests/integration/`** — boots a real `next dev` server and exercises
+  the routes over HTTP: the unlock lifecycle and cookie, all five write
+  guards, `views/save` payload validation, the publish/conflict cycle, and
+  the brute-force throttle. `SMV_LOCKDOWN=true` and the no-password build
+  get their own server instances.
+- **`tests/e2e/`** — Playwright against a production build: the locked
+  public experience, the unlock dialog, and the print workbench's draft
+  lifecycle.
+
+### Things worth knowing before editing the suite
+
+- **Suites that boot a server must run serially.** Next allows only one
+  `next dev` per project directory; a second exits with "Another next dev
+  server is already running". Every test script therefore passes
+  `--test-concurrency=1`. The helper kills the whole process group on
+  teardown, because `npx next dev` spawns a `next-server` grandchild that
+  does not die with its parent.
+- **Never wait on `networkidle`.** This is a map app that keeps pulling
+  basemap tiles, so the network is never idle. `gotoApp()` waits for React
+  to hydrate instead — an un-hydrated page still renders the full server
+  markup, so DOM-only assertions would otherwise pass against a page where
+  nothing is interactive. `assertInteractive()` makes that explicit before
+  any test asserts that something is *absent*.
+- **Integration tests must not leave data changed.** `public/data/` holds
+  106 MB of real, version-controlled LGU data — an early manual test run
+  truncated `bauko_saved_views.json` by POSTing an empty body. Wrap
+  anything that writes in `guardFiles([...])`, which snapshots and restores
+  the exact files it names.
+- **e2e runs against `next start`, integration against `next dev`.** The
+  save backend branches on `NODE_ENV`, so only a dev server exercises the
+  local-filesystem write path; a production server would try to commit to
+  GitHub. Browser tests want the production build because it has no HMR
+  websocket and no on-demand compilation.
+
 ## Quick start (offline-first, optional)
 
 If you want the basemap to work without internet (field consultations,

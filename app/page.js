@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map from "@/components/Map";
 import MapPanel from "@/components/MapPanel";
 import PrintLegend from "@/components/PrintLegend";
+import PrintPanel from "@/components/PrintPanel";
+import UnlockDialog from "@/components/UnlockDialog";
+import { useAccess } from "@/components/AccessContext";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
 import { getMunicipalityConfig, MUNICIPALITY_OPTIONS } from "@/lib/municipalities";
@@ -75,6 +78,12 @@ export default function Home() {
   const [autoPrintRequested, setAutoPrintRequested] = useState(false);
   const [printMode, setPrintMode] = useState(false);
   const [printPreparing, setPrintPreparing] = useState(false);
+  const [printPanelOpen, setPrintPanelOpen] = useState(false);
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  // canEdit is the password lock, not the build mode: an unlocked user
+  // gets the drawing tools and the print workbench even on the public
+  // read-only deployment. See components/AccessContext.js.
+  const { canEdit } = useAccess();
   // Client-facing read-only maps open on Google Streets when configured.
   // The editing/workspace version stays on Online OSM unless an LGU profile
   // overrides the default (for example the Bauko print/vector profile).
@@ -315,6 +324,11 @@ export default function Home() {
   // the file is the canonical record. When the user saves a new
   // view, we write to localStorage immediately AND push to the file
   // via /api/views/save (debounced).
+  // What we last sent to (or loaded from) the server, per LGU. Seeded by
+  // the loader below so that merely LOADING views — or unlocking, which
+  // re-runs the publish effect — never counts as a change to publish.
+  // Only a genuine local edit produces a payload that differs from this.
+  const lastPublishedViewsRef = useRef({});
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -349,8 +363,14 @@ export default function Home() {
       if (cancelled) return;
       // File wins on overlap, localStorage fills in everything the
       // file doesn't have yet.
-      setSavedBarangayViews({ ...fromLocal.barangays, ...fromFile.barangays });
-      setSavedStretchViews({ ...fromLocal.stretches, ...fromFile.stretches });
+      const barangays = { ...fromLocal.barangays, ...fromFile.barangays };
+      const stretches = { ...fromLocal.stretches, ...fromFile.stretches };
+      lastPublishedViewsRef.current[viewSlug] = JSON.stringify({
+        barangays,
+        stretches,
+      });
+      setSavedBarangayViews(barangays);
+      setSavedStretchViews(stretches);
     })();
     return () => {
       cancelled = true;
@@ -373,10 +393,11 @@ export default function Home() {
     } catch {}
   }, [savedStretchViews, stretchViewPresetsKey]);
 
-  // Debounced push to /api/views/save so the static export picks
-  // up the published views. We skip the first effect-run on mount
-  // (there's nothing to publish before the user has done anything
-  // in this session) and skip when both maps are empty.
+  // Debounced push to /api/views/save so the static export picks up the
+  // published views. Skips the first effect-run on mount (nothing to
+  // publish before the user has done anything this session) and skips
+  // any run whose payload matches what was last sent — so unlocking,
+  // re-rendering, or switching away and back never triggers a write.
   const viewsPublishTimerRef = useRef(null);
   const viewsPublishMountedRef = useRef(false);
   useEffect(() => {
@@ -385,22 +406,32 @@ export default function Home() {
       return;
     }
     if (typeof window === "undefined") return;
+    // A locked visitor has no business publishing views — without this
+    // every public page load fired a POST that could only ever 401.
+    if (!canEdit) return;
     if (viewsPublishTimerRef.current) {
       clearTimeout(viewsPublishTimerRef.current);
     }
+    const payload = JSON.stringify({
+      barangays: savedBarangayViews,
+      stretches: savedStretchViews,
+    });
+    if (lastPublishedViewsRef.current[viewSlug] === payload) return;
+
     viewsPublishTimerRef.current = setTimeout(() => {
-      const password = localStorage.getItem("smv-save-password") || "";
+      lastPublishedViewsRef.current[viewSlug] = payload;
+      // No Authorization header: the unlock cookie carries the
+      // credential now. (This used to read a "smv-save-password"
+      // localStorage key that nothing ever wrote, so the push silently
+      // 401'd on any deployment with a password set.)
       fetch(`/api/views/save?slug=${encodeURIComponent(viewSlug)}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(password ? { Authorization: `Bearer ${password}` } : {}),
-        },
-        body: JSON.stringify({
-          barangays: savedBarangayViews,
-          stretches: savedStretchViews,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: payload,
       }).catch(() => {
+        // Let the next change retry rather than treating a failed push
+        // as published.
+        delete lastPublishedViewsRef.current[viewSlug];
         // Best-effort. If the endpoint is unavailable (e.g. static
         // export, no network), the localStorage copy still works
         // for the current browser. Next online edit will retry.
@@ -411,7 +442,7 @@ export default function Home() {
         clearTimeout(viewsPublishTimerRef.current);
       }
     };
-  }, [savedBarangayViews, savedStretchViews, viewSlug]);
+  }, [canEdit, savedBarangayViews, savedStretchViews, viewSlug]);
 
   // Reset the active stretch whenever the user moves to a different
   // class or barangay — stretch indices are scoped to a (class,
@@ -523,65 +554,42 @@ export default function Home() {
     mapApiRef.current?.flyToView?.({ lat, lng, zoom: 17 });
   }, []);
 
-  // Open the server-rendered print SVG in a new tab. The /api/print/svg
-  // route re-reads public/data/<slug>_zones.geojson at request time,
-  // so whatever the user has saved (via /api/zones/save) is what they
-  // print — no drift between the editor and the paper.
-  //
-  // Replaces the older window.print() flow that piped the live Leaflet
-  // view through @media print CSS. That path mixed raster tiles with
-  // SVG overlays and produced pixelated output; this one returns a
-  // pure vector SVG so Cmd+P on the new tab yields a fully vector PDF.
-  const handlePrint = useCallback(async () => {
-    if (!municipalitySlug || printPreparing) return;
-    const printSlug = municipality?.zones?.saveSlug ?? municipalitySlug;
-    const url = `/api/print/svg/${encodeURIComponent(printSlug)}`;
-    // Open in a new tab so the user keeps the editor open behind it.
-    // They Cmd+P (or Ctrl+P) on the SVG tab to get the vector PDF.
-    //
-    // Keep the blank tab creation synchronous (before any await), otherwise
-    // popup blockers can treat the finished save as a non-user-initiated open.
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      alert("Could not open the print tab. Please allow popups for this site.");
-      return;
-    }
-    try {
-      printWindow.document.write(
-        '<!doctype html><title>Preparing print…</title><body style="font-family:system-ui,sans-serif;padding:24px;color:#111827">Saving current edits before opening print…</body>'
-      );
-      printWindow.document.close();
-    } catch {}
-
+  // Flush any unsaved zone geometry to disk before a print tab opens.
+  // The /api/print/svg/* routes re-read public/data/<slug>_*.geojson at
+  // request time, so whatever is still only in the browser would be
+  // missing from the paper. Returns { cancelled } when the user backs
+  // out of the save password prompt.
+  const prepareForPrint = useCallback(async () => {
+    if (printPreparing) return { ok: true };
     setPrintPreparing(true);
     try {
       const saveEditableZones = mapApiRef.current?.saveEditableZones;
-      if (!IS_CLIENT_FACING && typeof saveEditableZones === "function") {
+      if (canEdit && typeof saveEditableZones === "function") {
         const result = await saveEditableZones({ alertOnError: false });
-        if (result?.cancelled) {
-          printWindow.close();
-          return;
-        }
+        if (result?.cancelled) return { cancelled: true };
         if (!result?.ok) {
           throw new Error(result?.error || "Could not save current zone edits.");
         }
       }
-      printWindow.location.href = url;
-    } catch (e) {
-      try {
-        printWindow.close();
-      } catch {}
-      alert(
-        "Could not prepare the print sheet because the current zone edits were not saved.\n" +
-          (e?.message ?? e)
-      );
+      return { ok: true };
     } finally {
       setPrintPreparing(false);
     }
-  }, [municipality, municipalitySlug, printPreparing]);
+  }, [canEdit, printPreparing]);
+
+  // The printer button opens the print workbench (coverage, orientation,
+  // values, field names) rather than firing a single fixed sheet.
+  const handlePrint = useCallback(() => {
+    setPrintPanelOpen(true);
+  }, []);
 
   useEffect(() => {
-    if (!autoPrintRequested || municipalitySlug !== "bauko" || !mapApiRef.current) {
+    if (
+      !autoPrintRequested ||
+      !canEdit ||
+      municipalitySlug !== "bauko" ||
+      !mapApiRef.current
+    ) {
       return;
     }
     setAutoPrintRequested(false);
@@ -589,7 +597,7 @@ export default function Home() {
       handlePrint();
     }, 500);
     return () => window.clearTimeout(timeout);
-  }, [autoPrintRequested, municipalitySlug, handlePrint]);
+  }, [autoPrintRequested, canEdit, municipalitySlug, handlePrint]);
 
   const handleMapReady = useCallback((api) => {
     mapApiRef.current = api;
@@ -719,8 +727,8 @@ export default function Home() {
   return (
     <main className="consultation-page">
       <TopNav
-        drawMode={IS_CLIENT_FACING ? false : drawMode}
-        setDrawMode={IS_CLIENT_FACING ? () => {} : setDrawMode}
+        drawMode={canEdit ? drawMode : false}
+        setDrawMode={canEdit ? setDrawMode : () => {}}
         tileMode={tileMode}
         setTileMode={setTileMode}
         municipalitySlug={municipalitySlug}
@@ -745,12 +753,25 @@ export default function Home() {
         onSearchFlyToPoint={handleSearchFlyToPoint}
         onPrint={handlePrint}
         isPrintPreparing={printPreparing}
+        onRequestUnlock={() => setUnlockOpen(true)}
       />
+      <UnlockDialog open={unlockOpen} onClose={() => setUnlockOpen(false)} />
+      {canEdit && (
+        <PrintPanel
+          open={printPanelOpen}
+          onClose={() => setPrintPanelOpen(false)}
+          municipalitySlug={municipalitySlug}
+          municipalityName={municipality.name}
+          barangays={schedule.barangays ?? []}
+          onBeforePrint={prepareForPrint}
+        />
+      )}
       <div className="page-body">
         <div className="map-wrapper">
           <Map
             key={`map-${municipality.slug}`}
-            drawMode={IS_CLIENT_FACING ? false : drawMode}
+            drawMode={canEdit ? drawMode : false}
+            canEdit={canEdit}
             printMode={printMode}
             tileMode={tileMode}
             activeClass={active}
@@ -768,7 +789,7 @@ export default function Home() {
           <MapPanel
             layers={layers}
             setLayers={setLayers}
-            drawMode={IS_CLIENT_FACING ? false : drawMode}
+            drawMode={canEdit ? drawMode : false}
             outlineLabel={municipality.ui?.outlineLabel ?? "Municipality outline"}
           />
           {/* Print-only legend. display:none on screen via inline

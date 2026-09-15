@@ -2,9 +2,20 @@
   "name": "leaflet-test-app",
   "version": "0.1.0",
   "private": true,
+  "description": "Schedule of Market Values (SMV) land valuation map for Mountain Province — public consultation viewer and LGU editing workspace.",
+  "author": "Rinar M. Dengwas <rinardengwas21@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rinarski-19/mountain-province-smv-maps.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "test": "node --test --test-concurrency=1 tests/unit/",
+    "test:integration": "node --test --test-concurrency=1 --test-timeout=300000 tests/integration/",
+    "test:e2e": "npm run build && node --test --test-concurrency=1 --test-timeout=300000 tests/e2e/",
+    "test:all": "npm run test && npm run test:integration && npm run test:e2e",
     "prebuild": "npm run print:svg:all",
     "build": "next build",
     "build:static": "node scripts/build-static.mjs",
@@ -172,6 +183,7 @@
   "devDependencies": {
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.2.6",
+    "playwright-core": "^1.63.0",
     "shapefile": "^0.6.6"
   },
   "overrides": {

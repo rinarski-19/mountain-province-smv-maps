@@ -6,6 +6,8 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { writeGuard } from "../../../../lib/server-auth.js";
+import { commitToGithub } from "../../../../lib/save-backend.js";
 
 const KNOWN_SLUGS = new Set([
   "bauko",
@@ -20,15 +22,6 @@ const KNOWN_SLUGS = new Set([
   "tadian",
 ]);
 
-function authorize(request) {
-  const expected = process.env.SAVE_PASSWORD;
-  if (!expected) return process.env.NODE_ENV === "development";
-  const match = (request.headers.get("authorization") || "").match(
-    /^Bearer\s+(.+)$/i
-  );
-  return Boolean(match && match[1] === expected);
-}
-
 function isFeatureCollection(value) {
   return (
     value &&
@@ -39,12 +32,8 @@ function isFeatureCollection(value) {
 }
 
 export async function POST(request) {
-  if (process.env.NEXT_PUBLIC_READ_ONLY === "true") {
-    return Response.json({ ok: false, error: "Read-only deployment." }, { status: 403 });
-  }
-  if (!authorize(request)) {
-    return Response.json({ ok: false, error: "Unauthorized — set Authorization: Bearer <password>." }, { status: 401 });
-  }
+  const denied = writeGuard(request);
+  if (denied) return denied;
 
   const slug = (new URL(request.url).searchParams.get("slug") || "").toLowerCase();
   if (!KNOWN_SLUGS.has(slug)) {
@@ -106,32 +95,4 @@ export async function POST(request) {
   } catch (e) {
     return Response.json({ ok: false, error: `GitHub commit failed: ${e.message}` }, { status: 502 });
   }
-}
-
-async function commitToGithub({ token, owner, repo, branch, path: filePath, content, message }) {
-  const base = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}`;
-  const headers = {
-    Accept: "application/vnd.github+json",
-    Authorization: `Bearer ${token}`,
-    "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "mountain-province-smv-maps",
-  };
-  let sha;
-  const getRes = await fetch(`${base}?ref=${encodeURIComponent(branch)}`, { headers, cache: "no-store" });
-  if (getRes.ok) sha = (await getRes.json()).sha;
-  else if (getRes.status !== 404) throw new Error(`GET ${filePath} returned ${getRes.status}: ${await getRes.text()}`);
-
-  const putRes = await fetch(base, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify({
-      message,
-      content: Buffer.from(content, "utf8").toString("base64"),
-      branch,
-      ...(sha ? { sha } : {}),
-    }),
-  });
-  if (!putRes.ok) throw new Error(`PUT ${filePath} returned ${putRes.status}: ${await putRes.text()}`);
-  const result = await putRes.json();
-  return { commitSha: result.commit?.sha, htmlUrl: result.content?.html_url };
 }

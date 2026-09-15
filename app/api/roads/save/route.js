@@ -6,6 +6,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { writeGuard } from "../../../../lib/server-auth.js";
 
 const BASE_SLUGS = new Set([
   "bauko",
@@ -24,15 +25,6 @@ function baseSlug(value) {
   return String(value || "bauko")
     .toLowerCase()
     .replace(/-(?:dxf|print|hybrid)$/, "");
-}
-
-function authorize(request) {
-  const expected = process.env.SAVE_PASSWORD;
-  if (!expected) return process.env.NODE_ENV === "development";
-  const match = (request.headers.get("authorization") || "").match(
-    /^Bearer\s+(.+)$/i
-  );
-  return Boolean(match && match[1] === expected);
 }
 
 function cleanRoad(feature) {
@@ -93,9 +85,8 @@ function removeRoad(collection, manualId) {
 }
 
 export async function POST(request) {
-  if (!authorize(request)) {
-    return Response.json({ ok: false, error: "Unauthorized." }, { status: 401 });
-  }
+  const denied = writeGuard(request);
+  if (denied) return denied;
 
   const slug = baseSlug(new URL(request.url).searchParams.get("slug"));
   if (!BASE_SLUGS.has(slug)) {
@@ -182,9 +173,8 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
-  if (!authorize(request)) {
-    return Response.json({ ok: false, error: "Unauthorized." }, { status: 401 });
-  }
+  const denied = writeGuard(request);
+  if (denied) return denied;
 
   const url = new URL(request.url);
   const slug = baseSlug(url.searchParams.get("slug"));

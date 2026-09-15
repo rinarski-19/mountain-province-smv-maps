@@ -1,4 +1,16 @@
 /* ===========================================================
+   Mountain Province Land Value Map — application stylesheet
+
+   Schedule of Market Values land valuation map.
+   Author:    Rinar M. Dengwas
+   Copyright: (c) 2026 Rinar M. Dengwas. MIT licensed — see LICENSE.
+
+   Layer order, top to bottom:
+     modals (3000) > top nav (2000) > print drawer (1900)
+     > map panel (1100) > Leaflet panes (400s)
+   =========================================================== */
+
+/* ===========================================================
    Type system + design tokens
    =========================================================== */
 :root {
@@ -33,6 +45,9 @@
 
   /* Tabular numerals — apply to anything showing peso amounts */
   --num-feature: "tnum" 1, "lnum" 1;
+  /* The print drawer is positioned against this, so the two must agree.
+     Overridden alongside .top-nav in the narrow-viewport block below. */
+  --top-nav-h: 72px;
 }
 
 /* ===========================================================
@@ -1381,7 +1396,7 @@ body.moving-landmarks .leaflet-container .leaflet-overlay-pane {
   position: sticky;
   top: 0;
   z-index: 2000;
-  min-height: 72px;
+  min-height: var(--top-nav-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1991,8 +2006,12 @@ body.draw-mode-off .leaflet-pm-toolbar {
    Responsive
    =========================================================== */
 @media (max-width: 760px) {
+  :root {
+    --top-nav-h: 64px;
+  }
+
   .top-nav {
-    min-height: 64px;
+    min-height: var(--top-nav-h);
     padding-inline: 14px;
   }
 
@@ -2145,6 +2164,538 @@ body.is-printing .page-body,
 body.is-printing .map-wrapper {
   position: static !important;
   display: block !important;
+}
+
+/* ---------------------------------------------------------------
+   Unlock dialog + print workbench
+
+   Both must clear .top-nav (z-index 2000) and its dropdowns (2100).
+   Below that, the nav punched through the scrim: it stayed clickable
+   behind the dialog, and it covered the print drawer's header, hiding
+   the title and the × button entirely.
+
+   They clear it differently on purpose:
+
+   - The unlock dialog is a true modal. It is a credential prompt, so
+     nothing else should be reachable while it is up.
+   - The print drawer is a working surface, not a confirmation. It
+     starts BELOW the nav so the municipality switcher stays usable —
+     picking an LGU and printing it is one task — while its own header
+     is never covered.
+   --------------------------------------------------------------- */
+
+.unlock-backdrop,
+.print-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+}
+
+.print-panel-backdrop {
+  /* `top` is set inline by PrintPanel from the nav's measured height —
+     the nav's size changes with the breakpoint and wraps on phones, so a
+     CSS constant here would drift out of sync. This is the fallback for
+     the first paint before that measurement lands. */
+  top: var(--top-nav-h);
+  z-index: 1900;
+}
+
+.unlock-backdrop {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.unlock-dialog {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border-radius: 18px;
+  border: 1px solid var(--divider);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.unlock-dialog__title {
+  margin: 0;
+  font: var(--t-headline);
+  color: var(--text-strong);
+}
+
+.unlock-dialog__blurb {
+  margin: 0;
+  font: var(--t-caption);
+  color: var(--text-muted);
+}
+
+.unlock-dialog__warning {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font: var(--t-caption);
+}
+
+.unlock-dialog__label {
+  margin-top: 6px;
+  font: var(--t-label-caps);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.unlock-dialog__input {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--divider);
+  background: var(--surface-soft);
+  font: var(--t-body);
+  color: var(--text-strong);
+}
+
+.unlock-dialog__input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.unlock-dialog__error {
+  margin: 0;
+  font: var(--t-caption);
+  color: #b91c1c;
+}
+
+.unlock-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.unlock-dialog__button {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 2px solid var(--divider);
+  background: var(--surface);
+  color: var(--text);
+  font: var(--t-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.unlock-dialog__button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.unlock-dialog__button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.unlock-dialog__button--primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.unlock-dialog__button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.unlock-dialog__button--primary:disabled {
+  background: var(--surface);
+  border-color: var(--divider);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.unlock-dialog__input[aria-invalid="true"] {
+  border-color: #b91c1c;
+}
+
+/* ---- Print workbench drawer ---- */
+
+.print-panel-backdrop {
+  justify-content: flex-end;
+}
+
+.print-panel {
+  width: min(440px, 100%);
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--divider);
+  box-shadow: -18px 0 50px rgba(15, 23, 42, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.print-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.print-panel__title {
+  margin: 0;
+  font: var(--t-display-s);
+  color: var(--text-strong);
+}
+
+.print-panel__subtitle {
+  margin: 2px 0 0;
+  font: var(--t-caption);
+  color: var(--text-muted);
+}
+
+.print-panel__close {
+  border: none;
+  background: transparent;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.print-panel__close:hover {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.print-panel__tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 16px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.print-panel__tab {
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 9px 12px;
+  border-radius: 10px 10px 0 0;
+  font: var(--t-caption);
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+
+.print-panel__tab:hover {
+  color: var(--text-strong);
+}
+
+.print-panel__tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Unpublished-draft marker on the tabs that can hold edits. */
+.print-panel__tab-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.print-panel__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.print-panel__group {
+  border: 1px solid var(--divider);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.print-panel__group legend {
+  padding: 0 6px;
+  font: var(--t-label-caps);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.print-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font: var(--t-caption);
+  color: var(--text);
+}
+
+.print-panel__field select,
+.print-panel__field input,
+.print-panel__row input {
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 2px solid var(--divider);
+  background: var(--surface-soft);
+  font: var(--t-caption);
+  color: var(--text-strong);
+  min-width: 0;
+}
+
+.print-panel__field select:focus-visible,
+.print-panel__field input:focus-visible,
+.print-panel__row input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.print-panel__field small {
+  color: var(--text-subtle);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.print-panel__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: var(--t-caption);
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Label on the left, editable value on the right — reads like the
+   legend rows it controls. */
+.print-panel__row {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  align-items: center;
+  gap: 10px;
+  font: var(--t-caption);
+  color: var(--text);
+}
+
+.print-panel__row-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The placeholder carries the current effective value, so it must not
+   silently truncate ("UNIT LAND VALUE" for "UNIT LAND VALUE MAP"). Give
+   text rows the wider half of the grid and let them wrap. */
+.print-panel__row--text {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+}
+
+.print-panel__row--text input {
+  text-overflow: ellipsis;
+}
+
+.print-panel__row input {
+  font-variant-numeric: tabular-nums;
+}
+
+.print-panel__badge {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.print-panel__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-subtle);
+}
+
+.print-panel__message {
+  margin: 0;
+  padding: 10px 20px;
+  font: var(--t-caption);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.print-panel__foot {
+  border-top: 1px solid var(--divider);
+  padding: 14px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface-soft);
+}
+
+.print-panel__foot-row {
+  display: flex;
+  gap: 8px;
+}
+
+.print-panel__button {
+  flex: 1 1 0;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 2px solid var(--divider);
+  background: var(--surface);
+  color: var(--text);
+  font: var(--t-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.print-panel__button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.print-panel__button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.print-panel__button--primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.print-panel__button--publish {
+  border-color: #15803d;
+  background: #15803d;
+  color: var(--text-inverse);
+}
+
+.print-panel__button--publish:hover:not(:disabled) {
+  background: #166534;
+}
+
+.print-panel__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Filled buttons keep enough contrast at opacity .5 to still look
+   clickable, so strip the fill when they are inert. */
+.print-panel__button--primary:disabled,
+.print-panel__button--publish:disabled {
+  background: var(--surface);
+  border-color: var(--divider);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.print-panel__link {
+  border: none;
+  background: transparent;
+  padding: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.print-panel__link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.print-panel__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-subtle);
+}
+
+@media (max-width: 640px) {
+  .print-panel {
+    width: 100%;
+  }
+  .print-panel__row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Narrow viewports (phones)
+
+   Two things broke below ~560px, and the lock button made the first
+   one worse by adding another 52 px to the control cluster:
+
+   1. .top-nav laid out brand + search + controls on one non-wrapping
+      row, so the row measured ~690 px inside a 400 px viewport and the
+      right-hand controls — search, lock, fullscreen, basemap — sat off
+      screen with nothing to scroll them into view.
+   2. .page-body pins a 400 px legend column next to the map, so at
+      400 px the map got ~175 px and the legend was still clipped.
+
+   Fix: let the nav wrap onto a second row, and stack the legend under
+   the map instead of beside it.
+   --------------------------------------------------------------- */
+@media (max-width: 560px) {
+  .top-nav {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* Brand and controls share row 1; the search bar takes row 2 whole. */
+  .top-nav__brand-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .top-nav > div:nth-child(2) {
+    order: 3;
+    flex: 1 1 100% !important;
+    padding: 0 !important;
+  }
+
+  .top-nav__controls {
+    flex: 0 0 auto;
+  }
+
+  .page-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(200px, 1fr) auto;
+  }
+
+  .page-body:has(.smv-sidebar.is-collapsed) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .smv-sidebar {
+    border-left: none;
+    border-top: 1px solid var(--divider);
+    max-height: 45vh;
+  }
+
 }
 
 @media print {

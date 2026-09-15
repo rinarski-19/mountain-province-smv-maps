@@ -13,12 +13,16 @@
 //       site rebuilds in ~90s, and every browser refreshing sees the
 //       new zones. Coworkers running locally can `git pull` to sync.
 //
-// Auth: all writes require an Authorization: Bearer <SAVE_PASSWORD>
-// header that matches the SAVE_PASSWORD env var. Without this, anyone
-// hitting the deployed URL could nuke the canonical zones file.
+// Auth: see lib/server-auth.js. Either an
+// `Authorization: Bearer <SAVE_PASSWORD>` header or the httpOnly
+// `smv_unlock` cookie set by POST /api/auth/unlock. Without one of
+// those, anyone hitting the deployed URL could nuke the canonical
+// zones file.
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { writeGuard } from "../../../../lib/server-auth.js";
+import { commitToGithub } from "../../../../lib/save-backend.js";
 
 const TARGETS_BY_SLUG = {
   bauko: "bauko_zones.geojson",
@@ -49,31 +53,9 @@ function isFeatureCollection(value) {
   );
 }
 
-function authorize(request) {
-  const expected = process.env.SAVE_PASSWORD;
-  // No password configured at all → dev mode behaves as before (anyone
-  // on localhost can save). Prod requires it explicitly; the absence
-  // is itself a 403 there, so a misconfigured deploy doesn't silently
-  // open up writes.
-  if (!expected) {
-    return process.env.NODE_ENV === "development";
-  }
-  const header = request.headers.get("authorization") || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) return false;
-  return match[1] === expected;
-}
-
 export async function POST(request) {
-  if (process.env.NEXT_PUBLIC_READ_ONLY === "true") {
-    return Response.json({ ok: false, error: "Read-only deployment." }, { status: 403 });
-  }
-  if (!authorize(request)) {
-    return Response.json(
-      { ok: false, error: "Unauthorized — set Authorization: Bearer <password>." },
-      { status: 401 }
-    );
-  }
+  const denied = writeGuard(request);
+  if (denied) return denied;
 
   const { searchParams } = new URL(request.url);
   const slug = (searchParams.get("slug") || "bauko").toLowerCase();
@@ -179,56 +161,4 @@ export async function POST(request) {
       { status: 502 }
     );
   }
-}
-
-// Fetch the current SHA (so the API treats this as an update, not a
-// create-if-missing), then PUT the new content with that SHA.
-async function commitToGithub({ token, owner, repo, branch, path, content, message }) {
-  const base = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
-  const headers = {
-    Accept: "application/vnd.github+json",
-    Authorization: `Bearer ${token}`,
-    "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "mountain-province-smv-maps",
-  };
-
-  // Look up the existing file's SHA. 404 means "doesn't exist yet" —
-  // that's fine, we just create it.
-  let existingSha;
-  const getRes = await fetch(`${base}?ref=${encodeURIComponent(branch)}`, {
-    headers,
-    cache: "no-store",
-  });
-  if (getRes.ok) {
-    const meta = await getRes.json();
-    existingSha = meta.sha;
-  } else if (getRes.status !== 404) {
-    const text = await getRes.text();
-    throw new Error(`GET ${path} returned ${getRes.status}: ${text}`);
-  }
-
-  // Base64-encode the new content (GitHub requires it).
-  const encoded = Buffer.from(content, "utf8").toString("base64");
-
-  const putBody = {
-    message,
-    content: encoded,
-    branch,
-  };
-  if (existingSha) putBody.sha = existingSha;
-
-  const putRes = await fetch(base, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify(putBody),
-  });
-  if (!putRes.ok) {
-    const text = await putRes.text();
-    throw new Error(`PUT ${path} returned ${putRes.status}: ${text}`);
-  }
-  const result = await putRes.json();
-  return {
-    commitSha: result.commit?.sha,
-    htmlUrl: result.content?.html_url,
-  };
 }
