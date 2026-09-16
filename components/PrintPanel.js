@@ -368,6 +368,21 @@ export default function PrintPanel({
   const paletteDraftCount =
     Object.keys(paletteDraft).length + Object.keys(themeDraft).length;
 
+  // Preview the draft on the live map.
+  //
+  // Picking a colour used to change nothing until Publish — and Publish
+  // commits to the repo and redeploys, so seeing a colour meant making it
+  // permanent for everyone first. The draft now paints immediately;
+  // Publish is still what shares it. Nothing is written until then, and a
+  // reload drops the draft and returns to the published palette.
+  useEffect(() => {
+    if (!paletteLoaded) return;
+    onPaletteChange?.({
+      colors: { ...palette, ...paletteDraft },
+      theme: { ...theme, ...themeDraft },
+    });
+  }, [paletteDraft, themeDraft, palette, theme, paletteLoaded, onPaletteChange]);
+
   // Only the classes this LGU actually uses, so the list is short and
   // relevant instead of all 29 province-wide classes.
   const colorKeys = useMemo(() => {
@@ -1309,6 +1324,13 @@ export default function PrintPanel({
                 the same colour on every sheet. Publishing here changes the
                 map and the printed legend everywhere.
               </p>
+              {paletteDraftCount > 0 && (
+                <p className="print-panel__warning">
+                  The map is previewing your {paletteDraftCount} unpublished
+                  colour{paletteDraftCount === 1 ? "" : "s"}. Nothing is saved
+                  until you publish; a reload returns to the published palette.
+                </p>
+              )}
               {loading && <p className="print-panel__note">Loading…</p>}
               {!loading && !paletteLoaded && (
                 <p className="print-panel__inline-warning">
