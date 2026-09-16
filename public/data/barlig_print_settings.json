@@ -1,7 +1,7 @@
 {
   "_comment": "Print overrides for the A3 SMV sheet. Written by /api/print-settings/<slug>. classValues overlay <slug>_valuations.json; labels overlay PRINT_LABEL_DEFAULTS in lib/print-labels.js.",
   "slug": "barlig",
-  "updated_at": "2026-09-16T06:37:22.395Z",
+  "updated_at": "2026-09-16T06:40:31.280Z",
   "classValues": {
     "C-1": 1860,
     "R-1": 1860,
