@@ -252,8 +252,11 @@ function zoneClassLabelMarker(feature, latlng) {
   });
 }
 
+// Getters so an edited boundary colour reaches the screen, not only the
+// printed sheet. The hybrid variants below stay literal: they are
+// Google-basemap overlay colours, not part of the print theme.
 const BARANGAY_STROKE = {
-  color: "#1f2937",
+  get color() { return themeColor("barangayStroke"); },
   weight: 1.8,
   opacity: 0.95,
   fillOpacity: 0,
@@ -277,7 +280,7 @@ const HYBRID_BARANGAY_STROKE = {
   fillOpacity: 0,
 };
 const MUNICIPALITY_STROKE = {
-  color: "#000000",
+  get color() { return themeColor("municipalityStroke"); },
   weight: 4,
   opacity: 1,
   fillOpacity: 0,
@@ -2138,7 +2141,7 @@ function printWaterStyle(feature) {
     const sub = feature?.properties?.subtype;
     const weight = sub === "river" ? 1.6 : sub === "stream" ? 1.0 : 0.8;
     return {
-      color: "#9ec5e8",
+      color: themeColor("waterLine"),
       weight,
       opacity: 1,
       fillOpacity: 0,
@@ -2316,7 +2319,7 @@ function publicOsmRoadCasingStyle(feature, zoom) {
   const tier = tierForHighway(feature?.properties?.highway);
   const width = publicOsmRoadWidth(feature, zoom);
   return {
-    color: ROAD_TIER_CASING[tier] ?? "#bababa",
+    color: ROAD_TIER_CASING[tier] ?? themeColor("roadCasingBarangay"),
     weight: width + 1.6,
     opacity: 0.95,
     fillOpacity: 0,

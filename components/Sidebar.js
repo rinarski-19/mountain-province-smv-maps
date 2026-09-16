@@ -10,6 +10,7 @@ import {
   LANDMARK_KIND_OPTIONS,
   landmarkIconMarkup,
 } from "@/lib/landmark-icons";
+import { themeColor } from "@/lib/print-theme";
 
 const SIDEBAR_COLLAPSED_KEY = "smv-sidebar-collapsed-v1";
 
@@ -19,33 +20,39 @@ const SIDEBAR_COLLAPSED_KEY = "smv-sidebar-collapsed-v1";
 // the printed plate does. Reference-only — clicking these doesn't
 // filter the map (yet); they exist to tell the user which corridor
 // color means which DPWH tier.
+// Getters, not literals: the road palette is editable, and these swatches
+// are the legend for what the map draws — a stale swatch here is the
+// legend disagreeing with the map beside it.
 const ROAD_TIERS = [
   {
     id: "road-national",
     label: "National",
     sub: "Trunk + Primary",
-    color: "#fcd34d",
-    casing: "#a16207",
+    get color() { return themeColor("roadFillTrunk"); },
+    get casing() { return themeColor("roadCasingTrunk"); },
   },
   {
     id: "road-provincial",
     label: "Provincial",
     sub: "Secondary",
-    color: "#fb923c",
-    casing: "#9a3412",
+    get color() { return themeColor("roadFillProvincial"); },
+    get casing() { return themeColor("roadCasingProvincial"); },
   },
   {
     id: "road-barangay",
     label: "Barangay / Municipal",
     sub: "Unclassified + Residential",
-    color: "#ffffff",
-    casing: "#bababa",
+    get color() { return themeColor("roadFillBarangay"); },
+    get casing() { return themeColor("roadCasingBarangay"); },
   },
   {
     id: "road-other",
     label: "Other",
     sub: "Tertiary, Track",
-    color: "#a8a39b",
+    get color() { return themeColor("roadFill"); },
+    // Not roadCasing: that key is the map's white casing for minor roads,
+    // which would be invisible as a swatch outline. This grey is the
+    // legend's own, matching the printed sheet.
     casing: "#737373",
   },
 ];

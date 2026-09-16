@@ -83,3 +83,52 @@ describe("resolvePrintTheme", () => {
     );
   });
 });
+
+describe("live theme registry", () => {
+  test("themeColor returns the stock value until an override is set", async () => {
+    const { setPrintThemeOverrides, themeColor } = await mod("lib/print-theme.js");
+    setPrintThemeOverrides({});
+    assert.equal(themeColor("roadFillTrunk"), PRINT_THEME_DEFAULTS.roadFillTrunk);
+    setPrintThemeOverrides({ roadFillTrunk: "#00e5ff" });
+    assert.equal(themeColor("roadFillTrunk"), "#00e5ff");
+    // Untouched keys stay stock.
+    assert.equal(themeColor("waterLine"), PRINT_THEME_DEFAULTS.waterLine);
+    setPrintThemeOverrides({});
+  });
+
+  test("an invalid override never reaches the screen", async () => {
+    const { setPrintThemeOverrides, themeColor } = await mod("lib/print-theme.js");
+    setPrintThemeOverrides({ roadFillTrunk: "not-a-colour" });
+    assert.equal(themeColor("roadFillTrunk"), PRINT_THEME_DEFAULTS.roadFillTrunk);
+    setPrintThemeOverrides({});
+  });
+
+  test("no UI component hardcodes a colour the theme owns", async () => {
+    // Regression: LeafletMap and Sidebar carried byte-identical copies of
+    // the theme defaults, so an edited road, boundary or river colour
+    // changed the printed sheet and left the screen stock — permanently,
+    // even after reload. Any new literal that matches a theme default is
+    // almost certainly another such copy.
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const { REPO_ROOT } = await import("../helpers/paths.mjs");
+    const owned = new Map(
+      Object.entries(PRINT_THEME_DEFAULTS).map(([k, v]) => [v.toLowerCase(), k])
+    );
+    // Colours the map legitimately reuses for a different purpose.
+    const ALLOWED = new Set(["#ffffff", "#000000"]);
+    const offenders = [];
+    for (const file of ["components/LeafletMap.js", "components/Sidebar.js"]) {
+      const src = await fs.readFile(path.join(REPO_ROOT, file), "utf8");
+      for (const line of src.split("\n")) {
+        if (/themeColor|colorForClass|^\s*\/\//.test(line)) continue;
+        for (const m of line.matchAll(/"(#[0-9a-fA-F]{6})"/g)) {
+          const hex = m[1].toLowerCase();
+          if (ALLOWED.has(hex)) continue;
+          if (owned.has(hex)) offenders.push(`${file}: ${hex} duplicates theme key "${owned.get(hex)}"`);
+        }
+      }
+    }
+    assert.deepEqual(offenders, [], offenders.join("\n"));
+  });
+});
