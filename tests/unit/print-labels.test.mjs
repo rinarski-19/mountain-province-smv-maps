@@ -8,6 +8,7 @@ const {
   MAX_LABEL_LENGTH,
   PRINT_LABEL_DEFAULTS,
   PRINT_LABEL_FIELDS,
+  OPTIONAL_LABEL_KEYS,
   compactClassValues,
   compactPrintLabels,
   normalizePrintSettings,
@@ -25,7 +26,11 @@ describe("print label schema", () => {
       assert.ok(field.group, `${field.key} has no group`);
       assert.ok(field.label, `${field.key} has no form label`);
       assert.equal(typeof field.default, "string");
-      assert.ok(field.default.length > 0, `${field.key} default is empty`);
+      // Signature columns 2 and 3 are off unless filled in, so an empty
+      // default is meaningful for them.
+      if (!OPTIONAL_LABEL_KEYS.has(field.key)) {
+        assert.ok(field.default.length > 0, `${field.key} default is empty`);
+      }
     }
   });
 
