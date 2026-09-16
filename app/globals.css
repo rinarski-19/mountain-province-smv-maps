@@ -2927,3 +2927,118 @@ body.is-printing .map-wrapper {
     fill-opacity: 0 !important;
   }
 }
+
+/* Colour rows in the print workbench: swatch, hex readout, per-class reset. */
+.print-panel__row--color {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.print-panel__color-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.print-panel__color-controls input[type="color"] {
+  width: 44px;
+  height: 30px;
+  padding: 2px;
+  border: 2px solid var(--divider);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.print-panel__hex {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  min-width: 62px;
+}
+
+.print-panel__reset-one {
+  border: 1px solid var(--divider);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.print-panel__reset-one:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.print-panel__reset-one:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Class rows in the print workbench. */
+.print-panel__class-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  flex: 0 0 auto;
+}
+
+.print-panel__struck {
+  text-decoration: line-through;
+  color: var(--text-subtle);
+}
+
+/* Reassign-before-remove prompt and zone counts. */
+.print-panel__group--warn {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.print-panel__zone-count {
+  font-size: 11px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+/* Print zoom control. */
+.print-panel__zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.print-panel__zoom input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.print-panel__zoom-num {
+  width: 64px;
+  flex: 0 0 auto;
+}
+
+.print-panel__zoom-unit {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Warnings inside the print workbench. These were referenced by the panel
+   but never styled, so the province-wide colour notice and the "these
+   swatches may not match what prints" warning rendered as plain text. */
+.print-panel__warning {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.print-panel__inline-warning {
+  color: #b45309;
+  font-weight: 600;
+}

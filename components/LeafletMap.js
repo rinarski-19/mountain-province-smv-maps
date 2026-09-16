@@ -10,6 +10,7 @@ import {
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
+import { themeColor } from "@/lib/print-theme";
 import * as turf from "@turf/turf";
 import "leaflet/dist/leaflet.css";
 // Side-effect import: must run before any L.Map is constructed so Geoman's
@@ -451,6 +452,15 @@ export default function LeafletMap({
   // to check this. Defaults to false so a caller that forgets to pass
   // it gets the safe, read-only behaviour.
   canEdit = false,
+  // Bumped when the editable SMV palette changes. Leaflet caches the
+  // style it was constructed with, so the layer keys below include this
+  // to force a repaint rather than leaving stale colours on the map.
+  paletteVersion = 0,
+  // The schedule AFTER added/removed classes are merged in. LeafletMap
+  // must not read municipality.schedule.classifications directly, or the
+  // drawing toolbar offers a different set of classes than the sidebar
+  // and the printed legend.
+  classifications = null,
   printMode = false,
   tileMode,
   activeClass,
@@ -1585,7 +1595,7 @@ export default function LeafletMap({
 
         {layers.zones && !drawMode && displayedZones?.features?.length > 0 && (
           <GeoJSON
-            key={`smv-boundary-halos-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}`}
+            key={`smv-boundary-halos-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}-p${paletteVersion}`}
             data={displayedZones}
             pane="smv-boundary-halo-pane"
             interactive={false}
@@ -1595,7 +1605,7 @@ export default function LeafletMap({
 
         {layers.zones && !drawMode && displayedZones?.features?.length > 0 && (
           <GeoJSON
-            key={`smv-boundaries-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}`}
+            key={`smv-boundaries-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}-p${paletteVersion}`}
             data={displayedZones}
             pane="smv-boundary-pane"
             interactive={false}
@@ -1890,7 +1900,7 @@ export default function LeafletMap({
 
         {layers.zones && !drawMode && displayedZones?.features?.length > 0 && (
           <GeoJSON
-            key={`smv-zones-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}`}
+            key={`smv-zones-${activeClass?.id ?? "all"}-${printMode ? "print" : "screen"}-p${paletteVersion}`}
             data={displayedZones}
             pane="zones-pane"
             // Passive display only. The former hover info card made the map
@@ -1958,7 +1968,12 @@ export default function LeafletMap({
             data={data.monamonSurRoads}
             pane="roads-pane"
             interactive={false}
-            style={() => c3RoadStyle(activeClass?.color, mapZoom)}
+            style={() =>
+              c3RoadStyle(
+                activeClass?.id ? colorForClass(activeClass.id) : activeClass?.color,
+                mapZoom
+              )
+            }
           />
         )}
 
@@ -1968,7 +1983,12 @@ export default function LeafletMap({
             data={data.monamonNorteRoads}
             pane="roads-pane"
             interactive={false}
-            style={() => c3RoadStyle(activeClass?.color, mapZoom)}
+            style={() =>
+              c3RoadStyle(
+                activeClass?.id ? colorForClass(activeClass.id) : activeClass?.color,
+                mapZoom
+              )
+            }
           />
         )}
 
@@ -2044,7 +2064,15 @@ export default function LeafletMap({
 
         {canEdit && (drawMode || selectedParcel) && (
           <EditableZones
-            key={`editable-zones-${municipality?.slug ?? "bauko"}`}
+            // Keyed on the class CODES, not their count: a withdraw plus an
+            // add leaves the length unchanged and would not remount, while
+            // any addition remounted and silently reset the active draw
+            // class. Remount only when the set genuinely differs.
+            key={`editable-zones-${municipality?.slug ?? "bauko"}-p${paletteVersion}-c${(
+              classifications ?? []
+            )
+              .map((row) => row?.subClass)
+              .join(",")}`}
             visible={canEdit && (drawMode || Boolean(selectedParcel))}
             storageKey={municipality?.zones?.storageKey}
             bundledZonesUrl={municipality?.dataFiles?.zones}
@@ -2066,7 +2094,9 @@ export default function LeafletMap({
             activeStretchKey={activeStretchKey}
             stretchCatalog={stretchCatalog}
             municipalitySlug={municipality?.slug}
-            classKeys={municipality?.schedule?.classifications?.map((row) => row?.subClass)}
+            classKeys={(
+              classifications ?? municipality?.schedule?.classifications
+            )?.map((row) => row?.subClass)}
             selectedParcel={selectedParcel}
             onParcelAssigned={() => setSelectedParcel(null)}
             onRegisterSaveHandler={registerEditableZonesSaveHandler}
@@ -2115,19 +2145,21 @@ function printWaterStyle(feature) {
     };
   }
   return {
-    color: "#7eb3dc",
+    // themeColor, not literals: these used to duplicate the print theme
+    // byte for byte, so an edited water colour changed paper only.
+    color: themeColor("waterStroke"),
     weight: 0.6,
     opacity: 1,
-    fillColor: "#d8eaf6",
+    fillColor: themeColor("waterFill"),
     fillOpacity: 1,
   };
 }
 function printBuildingStyle() {
   return {
-    color: "#c8c5bf",
+    color: themeColor("buildingStroke"),
     weight: 0.3,
     opacity: 0.9,
-    fillColor: "#ebe8e2",
+    fillColor: themeColor("buildingFill"),
     fillOpacity: 1,
   };
 }
@@ -2228,17 +2260,20 @@ function tierForHighway(highway) {
       return "other";
   }
 }
+// Read through themeColor() so a published road colour reaches the map
+// as well as the sheet. Functions, not constants: the theme is set after
+// these modules load.
 const ROAD_TIER_FILL = {
-  national: "#fcd34d",
-  provincial: "#fb923c",
-  barangay: "#ffffff",
-  other: "#a8a39b",
+  get national() { return themeColor("roadFillTrunk"); },
+  get provincial() { return themeColor("roadFillProvincial"); },
+  get barangay() { return themeColor("roadFillBarangay"); },
+  get other() { return themeColor("roadFill"); },
 };
 const ROAD_TIER_CASING = {
-  national: "#a16207",
-  provincial: "#9a3412",
-  barangay: "#bababa",
-  other: "#ffffff",
+  get national() { return themeColor("roadCasingTrunk"); },
+  get provincial() { return themeColor("roadCasingProvincial"); },
+  get barangay() { return themeColor("roadCasingBarangay"); },
+  get other() { return themeColor("roadCasing"); },
 };
 function printRoadCasingStyle(feature) {
   const hw = feature?.properties?.highway;
@@ -2892,7 +2927,11 @@ function BarangayFocus({
 // already represented in the sidebar; the polygon stroke here is just
 // spatial wayfinding.
 function barangayHighlightStyle(activeClass) {
-  const color = activeClass?.color ?? "#1d4ed8";
+  // activeClass.color is baked at module import; resolve from the id so
+  // the highlight follows the editable palette.
+  const color = activeClass?.id
+    ? colorForClass(activeClass.id)
+    : activeClass?.color ?? "#1d4ed8";
   return {
     color,
     weight: 4,

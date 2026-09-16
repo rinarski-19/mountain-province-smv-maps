@@ -13,6 +13,7 @@
 // updated.
 
 import { useMemo } from "react";
+import { colorForClass } from "@/lib/classifications";
 
 export default function PrintLegend({
   municipalityName = "",
@@ -61,7 +62,7 @@ export default function PrintLegend({
               <td>
                 <span
                   className="print-legend__swatch"
-                  style={{ background: row.color || "#999" }}
+                  style={{ background: colorForClass(row.subClass) }}
                 />
               </td>
               <td className="print-legend__code">{row.subClass}</td>

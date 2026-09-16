@@ -123,6 +123,39 @@ export async function POST(request) {
     stretches: body.stretches ?? {},
   };
 
+  // Backstop against an automated publish wiping published views. The
+  // client pushes on a debounce, so a bug there (or a browser with empty
+  // localStorage that loaded nothing) can arrive as a legitimate-looking
+  // empty payload. Clearing is still allowed — it just has to be said.
+  const incomingCount =
+    Object.keys(cleaned.barangays).length + Object.keys(cleaned.stretches).length;
+  if (incomingCount === 0 && body?.force !== true) {
+    try {
+      const existing = JSON.parse(
+        await fs.readFile(
+          path.join(process.cwd(), "public", "data", fileName),
+          "utf8"
+        )
+      );
+      const existingCount =
+        Object.keys(existing?.barangays ?? {}).length +
+        Object.keys(existing?.stretches ?? {}).length;
+      if (existingCount > 0) {
+        return Response.json(
+          {
+            ok: false,
+            error:
+              `Refusing to replace ${existingCount} saved view(s) with an empty ` +
+              `set. Send force: true if clearing them is intended.`,
+          },
+          { status: 409 }
+        );
+      }
+    } catch {
+      // No existing file, or unreadable — nothing to protect.
+    }
+  }
+
   const repoPath = `public/data/${fileName}`;
   const serialized = JSON.stringify(cleaned, null, 2) + "\n";
 

@@ -10,6 +10,10 @@ import { useAccess } from "@/components/AccessContext";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
 import { getMunicipalityConfig, MUNICIPALITY_OPTIONS } from "@/lib/municipalities";
+import { basePrintSlug } from "@/lib/print-slugs";
+import { mergeClassifications } from "@/lib/added-classes";
+import { setClassColorOverrides } from "@/lib/classifications";
+import { setPrintThemeOverrides } from "@/lib/print-theme";
 import { IS_CLIENT_FACING } from "@/lib/runtime-mode";
 
 const BARANGAY_VIEW_PRESETS_KEY_PREFIX = "smv-barangay-view-v1:";
@@ -131,6 +135,51 @@ export default function Home() {
   // barangay-level view behaviour.
   const [activeStretchIdx, setActiveStretchIdx] = useState(null);
   const [focusRequestId, setFocusRequestId] = useState(0);
+  // The editable SMV palette is province-wide and lives in one file.
+  // Fetch it once, push it into the shared resolver every surface reads
+  // (lib/classifications.js), then bump the version so the map repaints.
+  const [paletteVersion, setPaletteVersion] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/palette", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data) return;
+        const hasColors = Object.keys(data.colors ?? {}).length > 0;
+        const hasTheme = Object.keys(data.theme ?? {}).length > 0;
+        if (!hasColors && !hasTheme) return;
+        setClassColorOverrides(data.colors ?? {});
+        setPrintThemeOverrides(data.theme ?? {});
+        setPaletteVersion((n) => n + 1);
+      } catch {
+        // Offline or static export — the stock palette is a fine default.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Applied by the print panel the moment a palette is published, so the
+  // map agrees with the sheet without a reload.
+  // Re-fetch the class list after the panel publishes, so a newly added
+  // class becomes drawable without a reload.
+  const handleClassesChange = useCallback((next) => {
+    setClassEdits({
+      classes: next?.classes ?? [],
+      removed: next?.removed ?? [],
+    });
+  }, []);
+
+  const handlePaletteChange = useCallback((next) => {
+    // Accepts { colors, theme }; the theme half used to be dropped here,
+    // so road and basemap edits never reached the screen.
+    setClassColorOverrides(next?.colors ?? {});
+    setPrintThemeOverrides(next?.theme ?? {});
+    setPaletteVersion((n) => n + 1);
+  }, []);
 
   const municipality = useMemo(
     () => getMunicipalityConfig(municipalitySlug),
@@ -140,7 +189,53 @@ export default function Home() {
   const viewSlug = municipality.ui?.viewSlug ?? municipality.slug;
   const viewPresetsKey = `${BARANGAY_VIEW_PRESETS_KEY_PREFIX}${viewSlug}`;
   const stretchViewPresetsKey = `${STRETCH_VIEW_PRESETS_KEY_PREFIX}${viewSlug}`;
-  const classifications = schedule.classifications;
+  // Classes this LGU added, and official ones it has withdrawn. Merged
+  // here so the sidebar, the drawing toolbar and the print legend all see
+  // the same list — see lib/added-classes.js.
+  const [classEdits, setClassEdits] = useState({ classes: [], removed: [] });
+  useEffect(() => {
+    let cancelled = false;
+    setClassEdits({ classes: [], removed: [] });
+    (async () => {
+      try {
+        const res = await fetch(`/api/classes/${basePrintSlug(municipalitySlug)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data?.ok) return;
+        setClassEdits({ classes: data.classes ?? [], removed: data.removed ?? [] });
+      } catch {
+        // Offline or static export — the transcribed schedule stands alone.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [municipalitySlug]);
+
+  // The sidebar's two ladders are `schedule.commercial` /
+  // `schedule.residential` upstream, which are filtered from the raw
+  // transcription — so added classes never appeared there and withdrawn
+  // ones never left. Derive them from the merged list instead, which is
+  // what the toolbar and the printed legend already use.
+  const classifications = useMemo(
+    () =>
+      mergeClassifications(
+        schedule.classifications,
+        classEdits.classes,
+        classEdits.removed
+      ),
+    [schedule.classifications, classEdits]
+  );
+  const sidebarCommercial = useMemo(
+    () => classifications.filter((c) => c.category === "commercial"),
+    [classifications]
+  );
+  const sidebarResidential = useMemo(
+    () => classifications.filter((c) => c.category === "residential"),
+    [classifications]
+  );
   const total = classifications.length;
   const active = classIdx != null ? classifications[classIdx] : null;
   const activeGroup = active
@@ -329,8 +424,17 @@ export default function Home() {
   // re-runs the publish effect — never counts as a change to publish.
   // Only a genuine local edit produces a payload that differs from this.
   const lastPublishedViewsRef = useRef({});
+  // Which LGU the saved-view STATE currently belongs to. The publish
+  // effect below depends on viewSlug, so when the user switches LGU it
+  // runs with the previous LGU's views against the new slug — which
+  // published Bauko's views as Sadanga's, and from a fresh browser
+  // profile published an empty map over good data, truncating three
+  // published files during testing. Publishing waits for the loader to
+  // say the state matches the slug.
+  const loadedViewSlugRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
+    loadedViewSlugRef.current = null;
     (async () => {
       let fromFile = { barangays: {}, stretches: {} };
       try {
@@ -369,6 +473,7 @@ export default function Home() {
         barangays,
         stretches,
       });
+      loadedViewSlugRef.current = viewSlug;
       setSavedBarangayViews(barangays);
       setSavedStretchViews(stretches);
     })();
@@ -409,6 +514,8 @@ export default function Home() {
     // A locked visitor has no business publishing views — without this
     // every public page load fired a POST that could only ever 401.
     if (!canEdit) return;
+    // State still belongs to the previous LGU (or never loaded).
+    if (loadedViewSlugRef.current !== viewSlug) return;
     if (viewsPublishTimerRef.current) {
       clearTimeout(viewsPublishTimerRef.current);
     }
@@ -764,6 +871,8 @@ export default function Home() {
           municipalityName={municipality.name}
           barangays={schedule.barangays ?? []}
           onBeforePrint={prepareForPrint}
+          onPaletteChange={handlePaletteChange}
+          onClassesChange={handleClassesChange}
         />
       )}
       <div className="page-body">
@@ -772,6 +881,8 @@ export default function Home() {
             key={`map-${municipality.slug}`}
             drawMode={canEdit ? drawMode : false}
             canEdit={canEdit}
+            paletteVersion={paletteVersion}
+            classifications={classifications}
             printMode={printMode}
             tileMode={tileMode}
             activeClass={active}
@@ -810,8 +921,8 @@ export default function Home() {
           onSelectClass={selectClass}
           onSelectBarangay={selectClassBarangay}
           onSelectStretch={selectStretch}
-          commercialRows={schedule.commercial}
-          residentialRows={schedule.residential}
+          commercialRows={sidebarCommercial}
+          residentialRows={sidebarResidential}
           getBarangayBySlug={schedule.getBarangayBySlug}
           getUniqueBarangaysForClass={schedule.getUniqueBarangaysForClass}
           savedStretchViews={savedStretchViews}

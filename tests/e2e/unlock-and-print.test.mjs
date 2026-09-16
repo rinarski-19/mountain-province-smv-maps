@@ -180,7 +180,11 @@ describe("print workbench", { skip: skipReason }, () => {
     }
   });
 
-  test("the coverage list omits barangays that have no boundary", async () => {
+  test("the coverage list offers every barangay and flags borrowed outlines", async () => {
+    // Was: barangays without a PSA polygon were omitted. Now all 146 are
+    // offered, and the two Barlig sitios — which PSA maps only as part of
+    // their parent — say so in the option text rather than letting the
+    // user discover it after printing.
     const { ctx, page } = await openPage();
     try {
       await unlockFully(page);
@@ -191,10 +195,17 @@ describe("print workbench", { skip: skipReason }, () => {
       const options = await page.$$eval(".print-panel select >> nth=0 >> option", (o) =>
         o.map((x) => x.textContent)
       );
-      assert.ok(!options.some((t) => t.includes("Lingoy (Lower)")));
       assert.ok(options.some((t) => t.includes("Whole municipality")));
-      assert.ok(
-        await page.locator('.print-panel__field small:has-text("cannot be printed")').count()
+      const sitio = options.find((t) => t.includes("Lingoy (Lower)"));
+      assert.ok(sitio, "Lingoy (Lower) should be offered");
+      assert.match(sitio, /mapped on Lingoy \(Upper\)/);
+      // A barangay with its own boundary must not carry the note.
+      const own = options.find((t) => t.trim().startsWith("Gawana"));
+      assert.ok(own && !own.includes("mapped on"), `unexpected note: ${own}`);
+      // Nothing should now be advertised as unprintable.
+      assert.equal(
+        await page.locator('.print-panel__field small:has-text("cannot be printed")').count(),
+        0
       );
     } finally {
       await ctx.close();

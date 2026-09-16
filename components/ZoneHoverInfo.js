@@ -53,7 +53,9 @@ function prettifySlug(slug) {
 
 function classChip(klass) {
   const info = CLASSIFICATION_INFO[klass];
-  const color = info?.color ?? "#9ca3af";
+  // colorForClass, not info.color: the palette is editable and only the
+  // resolver knows about overrides.
+  const color = info ? colorForClass(klass) : "#9ca3af";
   const label = info?.label ?? klass ?? "?";
   return { color, label, info };
 }

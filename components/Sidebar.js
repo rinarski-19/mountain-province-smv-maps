@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   CLASSIFICATION_INFO,
+  colorForClass,
   textColorForBackground,
 } from "@/lib/classifications";
 import {
@@ -148,7 +149,10 @@ export default function Sidebar({
 // commercial/residential value ladders, plus the shared landmark pictograms
 // used by the add-landmark picker and map pins.
 function OthersLegend() {
-  const institutional = CLASSIFICATION_INFO.INSTITUTIONAL;
+  const institutional = {
+    ...CLASSIFICATION_INFO.INSTITUTIONAL,
+    color: colorForClass("INSTITUTIONAL"),
+  };
   return (
     <div className="smv-section smv-section--legend smv-section--others">
       <header className="smv-section__head">
@@ -258,8 +262,13 @@ function LegendSection({ title, rows }) {
                 <span
                   className="smv-row__chip"
                   style={{
-                    backgroundColor: row.color,
-                    color: textColorForBackground(row.color),
+                    // colorForClass, not row.color: lib/<slug>.js bakes a
+                    // colour into the schedule at module import, which is
+                    // before the editable palette has been applied. Reading
+                    // the baked value left the chip contradicting the map
+                    // and the printed sheet.
+                    backgroundColor: colorForClass(row.subClass),
+                    color: textColorForBackground(colorForClass(row.subClass)),
                   }}
                 >
                   {row.subClass}

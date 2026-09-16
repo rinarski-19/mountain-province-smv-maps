@@ -42,24 +42,38 @@ describe("reading print settings", () => {
     assert.equal(res.status, 400);
   });
 
-  test("printableBarangays excludes barangays with no boundary feature", async () => {
-    // Regression: barlig's two sitios and besao's Padangaan are in the LGU
-    // schedule but absent from the PSA boundary file, and offering them in
-    // the print menu produced a raw 500 in a new tab.
+  test("every scheduled barangay is printable, sitios via a parent outline", async () => {
+    // Was: these three were excluded because they have no PSA polygon,
+    // which meant a raw 500 if anyone reached them. Now:
+    //   - besao/padangaan was only a spelling gap (PSA writes "Padangan")
+    //     and has its own boundary
+    //   - barlig's two sitios genuinely have none — PSA maps Lingoy and
+    //     Lunas as single barangays — so they borrow the parent outline
+    //     and the menu says so via mappedVia
     const { body: barlig } = await client.json("/api/print-settings/barlig");
-    const slugs = barlig.printableBarangays.map((b) => b.slug);
-    assert.ok(!slugs.includes("lingoy-lower"));
-    assert.ok(!slugs.includes("lunas-mog-ao"));
+    const byslug = Object.fromEntries(
+      barlig.printableBarangays.map((b) => [b.slug, b])
+    );
+    assert.ok(byslug["lingoy-lower"], "lingoy-lower should be printable");
+    assert.ok(byslug["lunas-mog-ao"], "lunas-mog-ao should be printable");
+    assert.equal(byslug["lingoy-lower"].mappedVia, "Lingoy (Upper)");
+    assert.equal(byslug["lunas-mog-ao"].mappedVia, "Lunas");
+    // A barangay with its own polygon must NOT claim to borrow one.
+    assert.equal(byslug["gawana"].mappedVia, null);
 
     const { body: besao } = await client.json("/api/print-settings/besao");
-    assert.ok(!besao.printableBarangays.map((b) => b.slug).includes("padangaan"));
+    const padangaan = besao.printableBarangays.find((b) => b.slug === "padangaan");
+    assert.ok(padangaan, "padangaan should be printable");
+    assert.equal(padangaan.mappedVia, null, "padangaan has its own boundary");
 
-    // And every barangay it DOES offer must actually render.
+    // Every barangay offered must actually render, sitios included.
     const anon = makeClient(server.base);
-    for (const b of barlig.printableBarangays.slice(0, 3)) {
-      const res = await anon.fetch(`/api/print/svg/portrait/barlig/${b.slug}`);
-      assert.equal(res.status, 200, `barlig/${b.slug} returned ${res.status}`);
+    for (const slug of ["lingoy-lower", "lunas-mog-ao", "gawana"]) {
+      const res = await anon.fetch(`/api/print/svg/portrait/barlig/${slug}`);
+      assert.equal(res.status, 200, `barlig/${slug} returned ${res.status}`);
     }
+    const res = await anon.fetch("/api/print/svg/portrait/besao/padangaan");
+    assert.equal(res.status, 200, `besao/padangaan returned ${res.status}`);
   });
 });
 

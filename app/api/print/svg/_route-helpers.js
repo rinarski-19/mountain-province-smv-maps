@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { buildSvgForSlug } from "../../../../lib/print-svg-builder.js";
+import {
+  buildSvgForSlug,
+  clampPrintZoom,
+} from "../../../../lib/print-svg-builder.js";
 import { getMunicipalityConfig } from "../../../../lib/municipalities.js";
 
 import { KNOWN_PRINT_SLUGS } from "../../../../lib/print-slugs.js";
@@ -38,6 +41,8 @@ export function parsePrintOptions(request, orientation = null) {
     // unbounded value turns one request into a multi-second CPU burn
     // (1e308 measured at ~22 s) for output that is meaningless anyway.
     smvBufferM: rawBuffer == null ? undefined : clampBufferM(parseFloat(rawBuffer)),
+    // ?zoom=1.4 draws the subject 40% larger; edges fall off the page.
+    zoom: clampPrintZoom(url.searchParams.get("zoom")),
     showBuildingFootprints:
       rawBuildings == null
         ? undefined
@@ -48,6 +53,24 @@ export function parsePrintOptions(request, orientation = null) {
       truthyParam(url.searchParams.get("locationsLegend")),
     orientation: orientation ?? url.searchParams.get("orientation") ?? "portrait",
   };
+}
+
+// Sitios that a valuation schedule lists as their own entry but that PSA
+// maps only as part of a parent barangay.
+//
+// PSA's boundary service publishes barangay-level polygons only — its own
+// metadata calls Barlig's "Lingoy (Upper)" simply "Lingoy" (brgy_code
+// 144401007), and Barlig officially has 11 barangays where the schedule
+// lists 13. There is no polygon to fetch for these, and there will not be
+// one. Rather than refuse to print a tier the LGU genuinely values, the
+// sheet is drawn on the parent barangay's boundary and says so.
+const SITIO_PARENT_BOUNDARY = Object.freeze({
+  "barlig:lingoy-lower": "lingoy-upper",
+  "barlig:lunas-mog-ao": "lunas",
+});
+
+export function sitioParentSlug(slug, barangaySlug) {
+  return SITIO_PARENT_BOUNDARY[`${slug}:${barangaySlug}`] ?? null;
 }
 
 // The barangays that can actually be printed: those whose LGU-schedule
@@ -67,8 +90,19 @@ export function printableBarangays(slug, publicDataDir) {
       .filter(Boolean)
   );
   return (schedule.barangays ?? [])
-    .filter((b) => resolvable.has(b.slug))
-    .map((b) => ({ slug: b.slug, name: b.name }));
+    .filter((b) => resolvable.has(b.slug) || sitioParentSlug(slug, b.slug))
+    .map((b) => {
+      const parent = resolvable.has(b.slug) ? null : sitioParentSlug(slug, b.slug);
+      return {
+        slug: b.slug,
+        name: b.name,
+        // Set when the sheet borrows a parent barangay's outline, so the
+        // print menu can say so instead of implying a boundary exists.
+        mappedVia: parent
+          ? schedule.getBarangayBySlug?.(parent)?.name ?? parent
+          : null,
+      };
+    });
 }
 
 export function resolvePrintBarangay(slug, barangaySlug, publicDataDir) {
@@ -90,9 +124,23 @@ export function resolvePrintBarangay(slug, barangaySlug, publicDataDir) {
   const barangaysGeo = readJsonOptional(
     path.join(publicDataDir, `${slug}_barangays.geojson`)
   );
-  const matchFeature = (barangaysGeo?.features ?? []).find(
+  let matchFeature = (barangaysGeo?.features ?? []).find(
     (f) => schedule.slugForName?.(f.properties?.name) === target.slug
   );
+  // No polygon of its own? Fall back to the parent barangay's, for the
+  // sitios PSA does not map separately.
+  let borrowedFrom = null;
+  if (!matchFeature) {
+    const parent = sitioParentSlug(slug, barangaySlug);
+    if (parent) {
+      matchFeature = (barangaysGeo?.features ?? []).find(
+        (f) => schedule.slugForName?.(f.properties?.name) === parent
+      );
+      if (matchFeature) {
+        borrowedFrom = schedule.getBarangayBySlug?.(parent)?.name ?? parent;
+      }
+    }
+  }
   if (!matchFeature) {
     return {
       error: Response.json(
@@ -108,7 +156,13 @@ export function resolvePrintBarangay(slug, barangaySlug, publicDataDir) {
     };
   }
 
-  return { barangayName: matchFeature.properties.name };
+  return {
+    barangayName: matchFeature.properties.name,
+    // The name to print in the title block: the sitio the user asked for,
+    // not the parent whose outline is being borrowed.
+    displayName: borrowedFrom ? target.name : null,
+    borrowedFrom,
+  };
 }
 
 // `overrides` carries an unpublished draft from the Print panel's
@@ -121,6 +175,10 @@ export function buildPrintSvgResponse({
   barangaySlug = null,
   orientation = null,
   overrides = null,
+  // Unpublished palette from the draft preview; null means use whatever
+  // is published on disk.
+  colors = null,
+  theme = null,
 }) {
   if (!KNOWN_PRINT_SLUGS.has(slug)) {
     return Response.json(
@@ -136,11 +194,15 @@ export function buildPrintSvgResponse({
   // buildSvgForSlug, so every render path picks them up the same way.
   options.classValueOverrides = overrides?.classValues ?? {};
   options.labels = overrides?.labels ?? {};
+  options.classColors = colors;
+  options.theme = theme;
 
   if (barangaySlug) {
     const resolved = resolvePrintBarangay(slug, barangaySlug, publicDataDir);
     if (resolved.error) return resolved.error;
     options.barangayName = resolved.barangayName;
+    options.barangayDisplayName = resolved.displayName;
+    options.barangayBorrowedFrom = resolved.borrowedFrom;
   }
 
   try {

@@ -80,7 +80,11 @@ export async function startServer({
     );
   }
   const port = await freePort();
-  const base = `http://127.0.0.1:${port}`;
+  // localhost, NOT 127.0.0.1: Next 16 treats 127.0.0.1 as a cross-origin
+  // dev request and blocks the HMR/client chunks, so the page renders its
+  // full server markup but never hydrates — and every DOM assertion then
+  // passes against a page where nothing is interactive.
+  const base = `http://localhost:${port}`;
   const child = spawn("npx", ["next", mode === "start" ? "start" : "dev", "-p", String(port)], {
     cwd: REPO_ROOT,
     // Own process group, so stop() can take the grandchild with it.

@@ -6,6 +6,7 @@ import L from "leaflet";
 import * as turf from "@turf/turf";
 import {
   CLASSIFICATION_INFO,
+  colorForClass,
   styleForClass,
   textColorForBackground,
 } from "@/lib/classifications";
@@ -5892,6 +5893,8 @@ export default function EditableZones({
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
         {availableClassKeys.map((k) => {
           const info = CLASSIFICATION_INFO[k];
+          // The palette is editable; only colorForClass knows about it.
+          const infoColor = colorForClass(k);
           const isActive = activeClass === k;
           // Visual reflection of the currently-selected polygon's class
           // ladder. Distinct from `isActive` (the next-draw class):
@@ -5907,11 +5910,11 @@ export default function EditableZones({
           const selectedAsTertiary =
             editorState.hasSelection && selectedTertiaryCurrent === k;
           const selectionRing = selectedAsPrimary
-            ? `0 0 0 2px ${info.color}, 0 0 0 4px white`
+            ? `0 0 0 2px ${infoColor}, 0 0 0 4px white`
             : selectedAsSecondary
-              ? `0 0 0 2px ${info.color}88, 0 0 0 4px white`
+              ? `0 0 0 2px ${infoColor}88, 0 0 0 4px white`
               : selectedAsTertiary
-                ? `0 0 0 1px ${info.color}66, 0 0 0 3px white`
+                ? `0 0 0 1px ${infoColor}66, 0 0 0 3px white`
                 : "none";
           return (
             <button
@@ -5969,11 +5972,11 @@ export default function EditableZones({
                 position: "relative",
                 padding: "3px 7px",
                 borderRadius: 4,
-                border: `1px solid ${info.color}`,
-                background: isActive ? info.color : "white",
+                border: `1px solid ${infoColor}`,
+                background: isActive ? infoColor : "white",
                 color: isActive
                   ? textColorForBackground(info.color)
-                  : info.color,
+                  : infoColor,
                 cursor: "pointer",
                 fontSize: 11,
                 font: "inherit",

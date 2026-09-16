@@ -19,7 +19,9 @@
 // arbitrary label text is a write-shaped operation even though nothing
 // is persisted.
 
+import { sanitizeClassColors } from "../../../../../lib/classifications.js";
 import { normalizePrintSettings } from "../../../../../lib/print-labels.js";
+import { sanitizePrintTheme } from "../../../../../lib/print-theme.js";
 import { writeGuard } from "../../../../../lib/server-auth.js";
 import { buildPrintSvgResponse } from "../_route-helpers.js";
 
@@ -31,7 +33,7 @@ export const revalidate = 0;
 function asGetRequest(request, fields) {
   const url = new URL(request.url);
   url.search = "";
-  for (const key of ["smvBuffer", "buildings", "locations"]) {
+  for (const key of ["smvBuffer", "buildings", "locations", "zoom"]) {
     const value = fields.get(key);
     if (value != null && value !== "") url.searchParams.set(key, String(value));
   }
@@ -67,11 +69,35 @@ export async function POST(request) {
 
   const barangaySlug = String(fields.get("barangay") || "").toLowerCase();
 
+  // Unpublished colours ride along with the draft. buildSvgForSlug sets
+  // the palette from disk on entry, so stash these for it to merge.
+  let draftColors = null;
+  const rawColors = fields.get("colors");
+  if (rawColors) {
+    try {
+      draftColors = sanitizeClassColors(JSON.parse(String(rawColors)));
+    } catch {
+      draftColors = null;
+    }
+  }
+
+  let draftTheme = null;
+  const rawTheme = fields.get("theme");
+  if (rawTheme) {
+    try {
+      draftTheme = sanitizePrintTheme(JSON.parse(String(rawTheme)));
+    } catch {
+      draftTheme = null;
+    }
+  }
+
   return buildPrintSvgResponse({
     request: asGetRequest(request, fields),
     slug: String(fields.get("slug") || "").toLowerCase(),
     barangaySlug: barangaySlug || null,
     orientation: String(fields.get("orientation") || "portrait"),
     overrides,
+    colors: draftColors,
+    theme: draftTheme,
   });
 }
