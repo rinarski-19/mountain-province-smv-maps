@@ -25,7 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MAX_CLASS_VALUE,
-  MAX_LABEL_LENGTH,
+  maxLengthFor,
   PRINT_LABEL_DEFAULTS,
   normalizePrintSettings,
   printLabelGroups,
@@ -1486,7 +1486,7 @@ export default function PrintPanel({
                       </span>
                       <input
                         type="text"
-                        maxLength={MAX_LABEL_LENGTH}
+                        maxLength={maxLengthFor(field.key)}
                         title={`Currently prints: ${publishedLabelFor(field.key)}`}
                         placeholder={publishedLabelFor(field.key)}
                         value={draft.labels?.[field.key] ?? ""}
