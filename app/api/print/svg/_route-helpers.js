@@ -4,6 +4,10 @@ import {
   buildSvgForSlug,
   clampPrintZoom,
 } from "../../../../lib/print-svg-builder.js";
+import {
+  LANDMARK_KIND_OPTIONS,
+  PROVIDER_POI_KINDS,
+} from "../../../../lib/landmark-icons.js";
 import { getMunicipalityConfig } from "../../../../lib/municipalities.js";
 
 import { KNOWN_PRINT_SLUGS } from "../../../../lib/print-slugs.js";
@@ -32,6 +36,20 @@ function clampBufferM(value) {
   return Math.min(value, MAX_SMV_BUFFER_M);
 }
 
+export function parseLandmarkKinds(raw) {
+  if (raw == null) return [];
+  const value = String(raw).trim().toLowerCase();
+  if (value === "" || value === "0" || value === "false") return [];
+  if (value === "all") return LANDMARK_KIND_OPTIONS.map((o) => o.value);
+  // The public-service set the provider filter already allows.
+  if (value === "1" || value === "true") return [...PROVIDER_POI_KINDS];
+  const known = new Set(LANDMARK_KIND_OPTIONS.map((o) => o.value));
+  return value
+    .split(",")
+    .map((k) => k.trim())
+    .filter((k) => known.has(k));
+}
+
 export function parsePrintOptions(request, orientation = null) {
   const url = new URL(request.url);
   const rawBuffer = url.searchParams.get("smvBuffer");
@@ -43,6 +61,15 @@ export function parsePrintOptions(request, orientation = null) {
     smvBufferM: rawBuffer == null ? undefined : clampBufferM(parseFloat(rawBuffer)),
     // ?zoom=1.4 draws the subject 40% larger; edges fall off the page.
     zoom: clampPrintZoom(url.searchParams.get("zoom")),
+    // ?landmarks=1 includes the provider/OSM landmarks. Off by default:
+    // whole-LGU sheets carry hundreds of them (Bauko 491, Bontoc 612) and
+    // at A3 they overwhelm the SMV bands the sheet exists to show.
+    // Custom, LGU-authored landmarks always print regardless.
+    // ?landmarks=1 (or true) prints the civic set; ?landmarks=all prints
+    // every kind; ?landmarks=school,govt prints exactly those. Absent or
+    // 0 prints none, which is the long-standing default. Custom,
+    // LGU-authored landmarks always print regardless.
+    landmarkKinds: parseLandmarkKinds(url.searchParams.get("landmarks")),
     showBuildingFootprints:
       rawBuildings == null
         ? undefined

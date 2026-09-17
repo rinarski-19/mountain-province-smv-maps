@@ -172,6 +172,10 @@ export default function PrintPanel({
   const [smvBuffer, setSmvBuffer] = useState("");
   const [showBuildings, setShowBuildings] = useState(true);
   const [showLocations, setShowLocations] = useState(false);
+  // Provider/OSM landmarks — schools, churches, markets. Off by default:
+  // they cluster around the poblacion and can sit over barangay names.
+  // Custom, LGU-authored landmarks always print regardless of this.
+  const [showLandmarks, setShowLandmarks] = useState(false);
   // Percent, as typed. 100 = fit the subject to the page, which is what
   // every sheet did before this control existed.
   const [zoomPct, setZoomPct] = useState(100);
@@ -449,6 +453,7 @@ export default function PrintPanel({
     const zoom = clampZoomPct(zoomPct) / 100;
     if (Math.abs(zoom - 1) > 0.001) params.set("zoom", String(zoom));
     if (showLocations) params.set("locations", "1");
+    if (showLandmarks) params.set("landmarks", "1");
     const qs = params.toString();
     return qs ? `?${qs}` : "";
   };
@@ -1049,6 +1054,20 @@ export default function PrintPanel({
                   />
                   <span>LOCATIONS panel (per-class location text)</span>
                 </label>
+                <label className="print-panel__check">
+                  <input
+                    type="checkbox"
+                    checked={showLandmarks}
+                    onChange={(event) => setShowLandmarks(event.target.checked)}
+                  />
+                  <span>Landmarks (barangay &amp; municipal halls, schools, churches, hospitals)</span>
+                </label>
+                {showLandmarks && (
+                  <small className="print-panel__inline-warning">
+                    Pins cluster around the poblacion and can sit over barangay
+                    names. Your own added landmarks always print regardless.
+                  </small>
+                )}
               </fieldset>
             </>
           )}
@@ -1612,6 +1631,7 @@ export default function PrintPanel({
           <input type="hidden" name="zoom" value={clampZoomPct(zoomPct) / 100} />
           <input type="hidden" name="buildings" value={showBuildings ? "1" : "0"} />
           <input type="hidden" name="locations" value={showLocations ? "1" : "0"} />
+          <input type="hidden" name="landmarks" value={showLandmarks ? "1" : "0"} />
           {/* Omitted entirely when the palette never loaded — see
               paletteLoaded above. */}
           {paletteLoaded && (

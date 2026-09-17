@@ -132,3 +132,42 @@ describe("live theme registry", () => {
     assert.deepEqual(offenders, [], offenders.join("\n"));
   });
 });
+
+describe("provider landmarks on the printed sheet", () => {
+  test("a barangay hall survives even when the provider mis-tags it", async () => {
+    // Regression: Google tags 6 of Bauko's 11 barangay halls as
+    // "business", so filtering on the provider's kind dropped them before
+    // the name was considered — 0 of 11 printed. This module already
+    // treats the name as the more reliable signal for government places.
+    const { filterProviderPoiFeatureCollection, normalizeLandmarkKind } =
+      await mod("lib/landmark-icons.js");
+    const fc = {
+      type: "FeatureCollection",
+      features: [
+        { properties: { name: "Bila Barangay Hall", kind: "business" }, geometry: null },
+        { properties: { name: "Bauko Municipal Hall", kind: "govt" }, geometry: null },
+        { properties: { name: "Some Sari-sari Store", kind: "business" }, geometry: null },
+        { properties: { name: "Tourist Viewpoint", kind: "tourism" }, geometry: null },
+      ],
+    };
+    const kept = filterProviderPoiFeatureCollection(fc).features;
+    const names = kept.map((f) => f.properties.name);
+    assert.ok(names.includes("Bila Barangay Hall"), "mis-tagged barangay hall was dropped");
+    assert.ok(names.includes("Bauko Municipal Hall"));
+    assert.ok(!names.includes("Some Sari-sari Store"), "an ordinary business must not print");
+    assert.ok(!names.includes("Tourist Viewpoint"), "tourism must not print");
+
+    // A rescued hall must draw with the government icon, not a business one.
+    const hall = kept.find((f) => f.properties.name === "Bila Barangay Hall");
+    assert.equal(normalizeLandmarkKind(hall.properties.kind), "govt");
+  });
+
+  test("the sheet prints no provider landmarks unless asked", async () => {
+    const { parseLandmarkKinds } = await mod("app/api/print/svg/_route-helpers.js");
+    assert.deepEqual(parseLandmarkKinds(null), []);
+    assert.deepEqual(parseLandmarkKinds("0"), []);
+    assert.deepEqual(parseLandmarkKinds("bogus"), []);
+    assert.ok(parseLandmarkKinds("1").includes("govt"));
+    assert.deepEqual(parseLandmarkKinds("school,govt").sort(), ["govt", "school"]);
+  });
+});
