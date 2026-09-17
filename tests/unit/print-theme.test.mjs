@@ -162,6 +162,45 @@ describe("provider landmarks on the printed sheet", () => {
     assert.equal(normalizeLandmarkKind(hall.properties.kind), "govt");
   });
 
+  test("a health facility survives even when the provider mis-tags it", async () => {
+    // Regression: real Barangay Health Stations and Rural Health Units
+    // arrive tagged "business" or "govt", so Bauko printed 1 of 6 and
+    // Tadian 0 of 2 — in municipalities with no hospital the BHS/RHU IS
+    // the health facility. Co-ops and staff associations carrying a
+    // hospital's name must NOT be rescued, or the hospital double-pins.
+    const { filterProviderPoiFeatureCollection, isHealthFacilityName, normalizeLandmarkKind } =
+      await mod("lib/landmark-icons.js");
+
+    for (const name of [
+      "Banao Barangay Health Station",
+      "BARLIG RHU",
+      "Paracelis Rural Health Unit",
+      "Luis Hora Memorial Regional Hospital",
+    ]) {
+      assert.ok(isHealthFacilityName(name), `should be a facility: ${name}`);
+    }
+    for (const name of [
+      "Luis Hora Memorial Regional Hospital Employees Association",
+      "Bontoc General Hospital Multipurpose Cooperative",
+      "Abatan Generic Pharmacy",
+      "Tadian Pharmacy and Merchandising",
+    ]) {
+      assert.ok(!isHealthFacilityName(name), `should NOT be a facility: ${name}`);
+    }
+
+    const fc = {
+      type: "FeatureCollection",
+      features: [
+        { properties: { name: "Butac BhS", kind: "business" }, geometry: null },
+        { properties: { name: "Bontoc General Hospital Multipurpose Cooperative", kind: "business" }, geometry: null },
+      ],
+    };
+    const kept = filterProviderPoiFeatureCollection(fc).features;
+    assert.deepEqual(kept.map((f) => f.properties.name), ["Butac BhS"]);
+    // And it draws with the hospital icon, not a business one.
+    assert.equal(normalizeLandmarkKind(kept[0].properties.kind), "hospital");
+  });
+
   test("the sheet prints no provider landmarks unless asked", async () => {
     const { parseLandmarkKinds } = await mod("app/api/print/svg/_route-helpers.js");
     assert.deepEqual(parseLandmarkKinds(null), []);
