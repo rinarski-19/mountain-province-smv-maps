@@ -3042,3 +3042,10 @@ body.is-printing .map-wrapper {
   color: #b45309;
   font-weight: 600;
 }
+
+/* Pan axis labels sit left of their slider. */
+.print-panel__pan-axis {
+  flex: 0 0 66px;
+  font-size: 11px;
+  color: var(--text-muted);
+}

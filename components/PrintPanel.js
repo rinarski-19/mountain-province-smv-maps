@@ -31,7 +31,7 @@ import {
   printLabelGroups,
 } from "@/lib/print-labels";
 import { basePrintSlug } from "@/lib/print-slugs";
-import { MAX_PRINT_ZOOM, MIN_PRINT_ZOOM } from "@/lib/print-zoom";
+import { MAX_PRINT_PAN, MAX_PRINT_ZOOM, MIN_PRINT_ZOOM } from "@/lib/print-zoom";
 import {
   CLASSIFICATION_INFO,
   DEFAULT_CLASS_COLORS,
@@ -76,6 +76,13 @@ function clampZoomPct(raw) {
   const n = typeof raw === "number" ? raw : parseFloat(raw);
   if (!Number.isFinite(n)) return 100;
   return Math.round(Math.min(MAX_PRINT_ZOOM * 100, Math.max(MIN_PRINT_ZOOM * 100, n)));
+}
+
+function clampPanPct(raw) {
+  const n = typeof raw === "number" ? raw : parseFloat(raw);
+  if (!Number.isFinite(n)) return 0;
+  const max = MAX_PRINT_PAN * 100;
+  return Math.round(Math.min(max, Math.max(-max, n)));
 }
 
 function zoomNotice(raw) {
@@ -179,6 +186,11 @@ export default function PrintPanel({
   // Percent, as typed. 100 = fit the subject to the page, which is what
   // every sheet did before this control existed.
   const [zoomPct, setZoomPct] = useState(100);
+  // Pan as a percentage of the page in each axis. 0/0 is centred on the
+  // area, which is what every sheet did before this existed. Only moves
+  // anything once you are zoomed in past the page edges.
+  const [panXPct, setPanXPct] = useState(0);
+  const [panYPct, setPanYPct] = useState(0);
 
   // Baseline = what the printed sheet would say with no draft applied:
   // the valuations file plus whatever is already published.
@@ -314,6 +326,8 @@ export default function PrintPanel({
   useEffect(() => {
     setBarangaySlug("");
     setZoomPct(100);
+    setPanXPct(0);
+    setPanYPct(0);
   }, [slug]);
 
   // Autosave the draft. Writing `{}` would leave a dead key behind, so
@@ -452,6 +466,10 @@ export default function PrintPanel({
     if (!showBuildings) params.set("buildings", "0");
     const zoom = clampZoomPct(zoomPct) / 100;
     if (Math.abs(zoom - 1) > 0.001) params.set("zoom", String(zoom));
+    const px = clampPanPct(panXPct) / 100;
+    const py = clampPanPct(panYPct) / 100;
+    if (Math.abs(px) > 0.001) params.set("panX", String(px));
+    if (Math.abs(py) > 0.001) params.set("panY", String(py));
     if (showLocations) params.set("locations", "1");
     if (showLandmarks) params.set("landmarks", "1");
     const qs = params.toString();
@@ -1037,6 +1055,56 @@ export default function PrintPanel({
                       {zoomNotice(zoomPct)}
                     </small>
                   )}
+                </label>
+                <label className="print-panel__field">
+                  <span>Pan</span>
+                  {[
+                    ["Left / right", panXPct, setPanXPct],
+                    ["Up / down", panYPct, setPanYPct],
+                  ].map(([axisLabel, value, setValue]) => (
+                    <span className="print-panel__zoom" key={axisLabel}>
+                      <small className="print-panel__pan-axis">{axisLabel}</small>
+                      <input
+                        type="range"
+                        aria-label={`Pan ${axisLabel}`}
+                        min={-MAX_PRINT_PAN * 100}
+                        max={MAX_PRINT_PAN * 100}
+                        step="5"
+                        value={clampPanPct(value)}
+                        onChange={(event) => setValue(Number(event.target.value))}
+                      />
+                      <input
+                        type="number"
+                        className="print-panel__zoom-num"
+                        aria-label={`Pan ${axisLabel} percent`}
+                        min={-MAX_PRINT_PAN * 100}
+                        max={MAX_PRINT_PAN * 100}
+                        step="5"
+                        value={value}
+                        onChange={(event) => setValue(event.target.value)}
+                        onBlur={(event) => setValue(clampPanPct(event.target.value))}
+                      />
+                      <span className="print-panel__zoom-unit">%</span>
+                    </span>
+                  ))}
+                  <span className="print-panel__zoom">
+                    <button
+                      type="button"
+                      className="print-panel__reset-one"
+                      disabled={clampPanPct(panXPct) === 0 && clampPanPct(panYPct) === 0}
+                      onClick={() => {
+                        setPanXPct(0);
+                        setPanYPct(0);
+                      }}
+                    >
+                      Centre
+                    </button>
+                    <small>
+                      Moves the map off centre, as a percentage of the page.
+                      Only useful above 100% zoom — at a fit the area already
+                      sits inside the paper.
+                    </small>
+                  </span>
                 </label>
                 <label className="print-panel__check">
                   <input
@@ -1629,6 +1697,8 @@ export default function PrintPanel({
           <input type="hidden" name="orientation" value={orientation} />
           <input type="hidden" name="smvBuffer" value={smvBuffer} />
           <input type="hidden" name="zoom" value={clampZoomPct(zoomPct) / 100} />
+          <input type="hidden" name="panX" value={clampPanPct(panXPct) / 100} />
+          <input type="hidden" name="panY" value={clampPanPct(panYPct) / 100} />
           <input type="hidden" name="buildings" value={showBuildings ? "1" : "0"} />
           <input type="hidden" name="locations" value={showLocations ? "1" : "0"} />
           <input type="hidden" name="landmarks" value={showLandmarks ? "1" : "0"} />

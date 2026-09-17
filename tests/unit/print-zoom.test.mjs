@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { mod } from "../helpers/paths.mjs";
 
 const {
+  MAX_PRINT_PAN,
+  clampPrintPan,
   DEFAULT_PRINT_ZOOM,
   MAX_PRINT_ZOOM,
   MIN_PRINT_ZOOM,
@@ -29,6 +31,56 @@ describe("clampPrintZoom", () => {
     for (const bad of [0, -2, "abc", "", null, undefined, NaN, Infinity, {}]) {
       assert.equal(clampPrintZoom(bad), DEFAULT_PRINT_ZOOM, `bad input: ${String(bad)}`);
     }
+  });
+});
+
+describe("clampPrintPan", () => {
+  test("passes values within range through", () => {
+    for (const v of [-1, -0.5, 0, 0.25, 1]) assert.equal(clampPrintPan(v), v);
+  });
+
+  test("clamps beyond the range rather than rejecting", () => {
+    assert.equal(clampPrintPan(9), MAX_PRINT_PAN);
+    assert.equal(clampPrintPan(-9), -MAX_PRINT_PAN);
+  });
+
+  test("anything unusable means centred, never a blank sheet", () => {
+    for (const bad of ["abc", "", null, undefined, NaN, {}]) {
+      assert.equal(clampPrintPan(bad), 0, `bad input: ${String(bad)}`);
+    }
+  });
+});
+
+describe("pan in the rendered sheet", () => {
+  test("shifts the drawing by the requested fraction of the frame, and only that axis", async () => {
+    const { buildSvgForSlug } = await mod("lib/print-svg-builder.js");
+    const { PUBLIC_DATA } = await import("../helpers/paths.mjs");
+    const centre = (svg) => {
+      const i = svg.indexOf('<g id="municipal-boundary"');
+      const b = svg.slice(i, svg.indexOf("</g>", i));
+      const xs = [], ys = [];
+      for (const m of b.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)) { xs.push(+m[1]); ys.push(+m[2]); }
+      return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+    };
+    const at = (panX, panY) =>
+      centre(buildSvgForSlug("sadanga", PUBLIC_DATA, { zoom: 2, panX, panY }).svg);
+
+    const [x0, y0] = at(0, 0);
+    const [x1, y1] = at(0.25, 0);
+    const [x2, y2] = at(0, 0.25);
+
+    assert.ok(x1 > x0, "positive panX must move the map right");
+    assert.ok(Math.abs(y1 - y0) < 0.01, "panX must not move the map vertically");
+    assert.ok(y2 > y0, "positive panY must move the map down");
+    assert.ok(Math.abs(x2 - x0) < 0.01, "panY must not move the map horizontally");
+
+    // Symmetric, and recorded on the root for traceability.
+    const [xm] = at(-0.25, 0);
+    assert.ok(Math.abs((x1 - x0) - (x0 - xm)) < 0.01, "pan must be symmetric");
+    assert.match(
+      buildSvgForSlug("sadanga", PUBLIC_DATA, { panX: 0.3, panY: -0.2 }).svg,
+      /data-pan="0\.3,-0\.2"/
+    );
   });
 });
 
