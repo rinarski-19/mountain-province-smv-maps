@@ -3088,13 +3088,22 @@ body.is-printing .map-wrapper {
   max-width: min(100%, calc(46vh * 420 / 297));
 }
 
-.print-framer__sheet {
+/* Two stacked layers: the map moves with a drag, the furniture does not. */
+.print-framer__layer {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.print-framer__layer--furniture {
+  /* Above the map, and never transformed. */
+  z-index: 1;
 }
 
 .print-framer__note {

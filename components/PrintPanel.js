@@ -481,8 +481,9 @@ export default function PrintPanel({
     return qs ? `?${qs}` : "";
   };
 
-  const framerUrl = () => {
+  const framerUrl = (layer) => {
     const params = new URLSearchParams();
+    if (layer) params.set("layer", layer);
     const zoom = clampZoomPct(zoomPct) / 100;
     if (Math.abs(zoom - 1) > 0.001) params.set("zoom", String(zoom));
     const px = clampPanPct(panXPct) / 100;
@@ -1090,7 +1091,8 @@ export default function PrintPanel({
                 </label>
                 {framing && (
                   <PrintFramer
-                    src={framerUrl()}
+                    mapSrc={framerUrl("map")}
+                    furnitureSrc={framerUrl("furniture")}
                     orientation={orientation}
                     panX={clampPanPct(panXPct) / 100}
                     panY={clampPanPct(panYPct) / 100}

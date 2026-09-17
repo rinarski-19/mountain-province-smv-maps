@@ -6,18 +6,19 @@
 //
 // Pan is a pure translation of the drawn map, so a drag can be previewed
 // by translating the already-rendered sheet — no re-render per frame.
-// That is what makes this cheap enough to be live: one fetch per zoom
-// change, then CSS transforms while the pointer is down.
+// That is what makes this cheap enough to be live.
 //
-// The translation is only exact for the map itself. The legend, compass
-// and signature block are fixed furniture and do not move when panning,
-// so once the pointer is released the sheet is re-fetched with the real
-// pan applied and the preview becomes literal.
+// The sheet is served in two layers (see lib/print-layers.js): the map,
+// and the fixed furniture — legend, compass, signature, page border. Only
+// the map layer is transformed, because only the map moves when panning.
+// Dragging the whole sheet showed the legend sliding around, which never
+// happens on paper.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export default function PrintFramer({
-  src,
+  mapSrc,
+  furnitureSrc,
   orientation,
   panX,
   panY,
@@ -36,7 +37,7 @@ export default function PrintFramer({
     setDrag({ x: 0, y: 0 });
     setLoading(true);
     setFailed(false);
-  }, [src]);
+  }, [mapSrc]);
 
   const onPointerDown = useCallback(
     (event) => {
@@ -100,11 +101,12 @@ export default function PrintFramer({
           </p>
         ) : (
           <>
+            {/* Map layer — the only thing a drag moves. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              className="print-framer__sheet"
-              src={src}
-              alt="Print sheet preview"
+              className="print-framer__layer print-framer__layer--map"
+              src={mapSrc}
+              alt="Print sheet map preview"
               draggable={false}
               style={{ transform: `translate(${drag.x}px, ${drag.y}px)` }}
               onLoad={() => setLoading(false)}
@@ -113,13 +115,22 @@ export default function PrintFramer({
                 setFailed(true);
               }}
             />
+            {/* Furniture layer — fixed to the paper, never transformed. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="print-framer__layer print-framer__layer--furniture"
+              src={furnitureSrc}
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+            />
             {loading && <p className="print-framer__note">Rendering preview…</p>}
           </>
         )}
       </div>
       <small className="print-framer__hint">
-        Drag the sheet to move the map. Release to apply — the preview then
-        reloads so the legend and signature sit where they really will.
+        Drag to move the map. The legend, compass and signature stay fixed
+        on the paper, exactly as they print.
       </small>
     </div>
   );

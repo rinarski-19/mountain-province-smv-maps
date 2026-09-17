@@ -107,3 +107,59 @@ describe("zoom in the rendered sheet", () => {
     assert.match(at(99), new RegExp(`data-zoom="${MAX_PRINT_ZOOM}"`));
   });
 });
+
+describe("print layer split", () => {
+  test("the map layer drops the furniture and keeps the paper", async () => {
+    // The drag-to-frame preview transforms only the map: the legend,
+    // compass, signature and page border are fixed to the paper and do
+    // not move when panning. Dragging the whole sheet showed the legend
+    // sliding around, which never happens in print.
+    const { buildSvgForSlug } = await mod("lib/print-svg-builder.js");
+    const { extractPrintLayer, FURNITURE_GROUP_IDS } = await mod("lib/print-layers.js");
+    const { PUBLIC_DATA } = await import("../helpers/paths.mjs");
+    const svg = buildSvgForSlug("sadanga", PUBLIC_DATA, {}).svg;
+
+    const map = extractPrintLayer(svg, "map");
+    for (const id of FURNITURE_GROUP_IDS) {
+      assert.ok(!map.includes(`<g id="${id}"`), `map layer still has ${id}`);
+    }
+    assert.ok(map.includes('<g id="municipal-boundary"'), "map layer lost the map");
+    assert.match(map, /^<svg/);
+    assert.match(map.trimEnd(), /<\/svg>$/);
+    // Keeps the paper rect: it is the background the furniture sits over.
+    assert.match(map, /<rect x="0" y="0"/);
+  });
+
+  test("the furniture layer keeps only furniture, on a transparent ground", async () => {
+    const { buildSvgForSlug } = await mod("lib/print-svg-builder.js");
+    const { extractPrintLayer } = await mod("lib/print-layers.js");
+    const { PUBLIC_DATA } = await import("../helpers/paths.mjs");
+    const svg = buildSvgForSlug("sadanga", PUBLIC_DATA, {}).svg;
+
+    const furniture = extractPrintLayer(svg, "furniture");
+    assert.ok(furniture.includes('<g id="legend"'));
+    assert.ok(furniture.includes('<g id="prepared-by"'));
+    assert.ok(!furniture.includes('<g id="municipal-boundary"'), "furniture layer carries map");
+    assert.ok(!furniture.includes('<g id="water"'));
+    // No paper rect, or it would hide the map layer beneath it.
+    assert.ok(!/<rect x="0" y="0"/.test(furniture), "furniture layer is opaque");
+    assert.match(furniture, /^<svg/);
+    assert.match(furniture.trimEnd(), /<\/svg>$/);
+    // Nested groups (the compass rose) must not truncate the block early.
+    assert.ok(furniture.includes('<g id="compass-rose"'));
+    assert.equal(
+      (furniture.match(/<g/g) || []).length,
+      (furniture.match(/<\/g>/g) || []).length,
+      "unbalanced groups"
+    );
+  });
+
+  test("an unknown layer returns the sheet unchanged", async () => {
+    const { extractPrintLayer, isPrintLayer } = await mod("lib/print-layers.js");
+    assert.equal(extractPrintLayer("<svg>x</svg>", "bogus"), "<svg>x</svg>");
+    assert.equal(extractPrintLayer("<svg>x</svg>", null), "<svg>x</svg>");
+    assert.equal(isPrintLayer("map"), true);
+    assert.equal(isPrintLayer("furniture"), true);
+    assert.equal(isPrintLayer("bogus"), false);
+  });
+});

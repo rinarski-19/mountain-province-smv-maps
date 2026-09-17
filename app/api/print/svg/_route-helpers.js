@@ -11,6 +11,10 @@ import {
 } from "../../../../lib/landmark-icons.js";
 import { getMunicipalityConfig } from "../../../../lib/municipalities.js";
 
+import {
+  extractPrintLayer,
+  isPrintLayer,
+} from "../../../../lib/print-layers.js";
 import { KNOWN_PRINT_SLUGS } from "../../../../lib/print-slugs.js";
 
 export { KNOWN_PRINT_SLUGS };
@@ -238,7 +242,11 @@ export function buildPrintSvgResponse({
 
   try {
     const { svg } = buildSvgForSlug(slug, publicDataDir, options);
-    return new Response(svg, {
+    // ?layer=map / ?layer=furniture serve the sheet in two halves so the
+    // drag-to-frame preview can move the map without the legend.
+    const layer = new URL(request.url).searchParams.get("layer");
+    const body = isPrintLayer(layer) ? extractPrintLayer(svg, layer) : svg;
+    return new Response(body, {
       status: 200,
       headers: {
         "Content-Type": "image/svg+xml; charset=utf-8",
