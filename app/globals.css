@@ -3049,3 +3049,68 @@ body.is-printing .map-wrapper {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* Drag-to-frame preview. */
+.print-framer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.print-framer__box {
+  position: relative;
+  width: 100%;
+  /* Bounded so the preview fits the scrollable panel body. At full A3
+     aspect a portrait preview is ~520px tall, which pushed most of the
+     drag target below the clip — you could not reach it to drag. */
+  max-height: 46vh;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 2px solid var(--divider);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  cursor: grab;
+  touch-action: none;
+}
+
+.print-framer__box:active {
+  cursor: grabbing;
+}
+
+/* A3 aspect, so the preview is the shape of the paper. */
+.print-framer__box--portrait {
+  aspect-ratio: 297 / 420;
+  max-width: min(100%, calc(46vh * 297 / 420));
+}
+
+.print-framer__box--landscape {
+  aspect-ratio: 420 / 297;
+  max-width: min(100%, calc(46vh * 420 / 297));
+}
+
+.print-framer__sheet {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.print-framer__note {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface-soft);
+}
+
+.print-framer__hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-subtle);
+}

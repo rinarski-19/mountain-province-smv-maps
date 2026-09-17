@@ -44,6 +44,7 @@ import {
   sanitizePrintTheme,
 } from "@/lib/print-theme";
 import { useFocusTrap } from "@/lib/use-focus-trap";
+import PrintFramer from "./PrintFramer";
 import { useAccess } from "./AccessContext";
 
 const DRAFT_KEY_PREFIX = "smv-print-draft-v1:";
@@ -191,6 +192,10 @@ export default function PrintPanel({
   // anything once you are zoomed in past the page edges.
   const [panXPct, setPanXPct] = useState(0);
   const [panYPct, setPanYPct] = useState(0);
+  // The drag preview fetches a whole sheet (a few hundred KB for a
+  // barangay, ~4 MB for a municipality), so it is opt-in rather than
+  // loading every time the panel opens.
+  const [framing, setFraming] = useState(false);
 
   // Baseline = what the printed sheet would say with no draft applied:
   // the valuations file plus whatever is already published.
@@ -474,6 +479,24 @@ export default function PrintPanel({
     if (showLandmarks) params.set("landmarks", "1");
     const qs = params.toString();
     return qs ? `?${qs}` : "";
+  };
+
+  const framerUrl = () => {
+    const params = new URLSearchParams();
+    const zoom = clampZoomPct(zoomPct) / 100;
+    if (Math.abs(zoom - 1) > 0.001) params.set("zoom", String(zoom));
+    const px = clampPanPct(panXPct) / 100;
+    const py = clampPanPct(panYPct) / 100;
+    if (Math.abs(px) > 0.001) params.set("panX", String(px));
+    if (Math.abs(py) > 0.001) params.set("panY", String(py));
+    if (!showBuildings) params.set("buildings", "0");
+    if (showLandmarks) params.set("landmarks", "1");
+    const qs = params.toString();
+    return (
+      `/api/print/svg/${orientation}/${encodeURIComponent(slug)}` +
+      (barangaySlug ? `/${encodeURIComponent(barangaySlug)}` : "") +
+      (qs ? `?${qs}` : "")
+    );
   };
 
   const printUrl = () =>
@@ -1047,8 +1070,9 @@ export default function PrintPanel({
                     </button>
                   </span>
                   <small>
-                    100% fits the whole area to the page. Zoom is centred —
-                    there is no panning.
+                    100% fits the whole area to the page. Above it, use the
+                    preview or the pan sliders below to choose what stays on
+                    the sheet.
                   </small>
                   {zoomNotice(zoomPct) && (
                     <small className="print-panel__inline-warning">
@@ -1056,6 +1080,26 @@ export default function PrintPanel({
                     </small>
                   )}
                 </label>
+                <label className="print-panel__check">
+                  <input
+                    type="checkbox"
+                    checked={framing}
+                    onChange={(event) => setFraming(event.target.checked)}
+                  />
+                  <span>Drag to frame (loads a preview of the sheet)</span>
+                </label>
+                {framing && (
+                  <PrintFramer
+                    src={framerUrl()}
+                    orientation={orientation}
+                    panX={clampPanPct(panXPct) / 100}
+                    panY={clampPanPct(panYPct) / 100}
+                    onPanChange={(nx, ny) => {
+                      setPanXPct(clampPanPct(nx * 100));
+                      setPanYPct(clampPanPct(ny * 100));
+                    }}
+                  />
+                )}
                 <label className="print-panel__field">
                   <span>Pan</span>
                   {[
