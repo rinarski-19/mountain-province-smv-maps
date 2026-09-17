@@ -31,7 +31,13 @@ import {
   printLabelGroups,
 } from "@/lib/print-labels";
 import { basePrintSlug } from "@/lib/print-slugs";
-import { MAX_PRINT_PAN, MAX_PRINT_ZOOM, MIN_PRINT_ZOOM } from "@/lib/print-zoom";
+import {
+  MAX_CLASS_LABEL_SCALE,
+  MAX_PRINT_PAN,
+  MAX_PRINT_ZOOM,
+  MIN_CLASS_LABEL_SCALE,
+  MIN_PRINT_ZOOM,
+} from "@/lib/print-zoom";
 import {
   CLASSIFICATION_INFO,
   DEFAULT_CLASS_COLORS,
@@ -79,6 +85,19 @@ function clampZoomPct(raw) {
   return Math.round(Math.min(MAX_PRINT_ZOOM * 100, Math.max(MIN_PRINT_ZOOM * 100, n)));
 }
 
+// Percent, like the zoom box. 100 = the size class codes printed at
+// before this control existed.
+function clampLabelPct(raw) {
+  const n = typeof raw === "number" ? raw : parseFloat(raw);
+  if (!Number.isFinite(n)) return 100;
+  return Math.round(
+    Math.min(
+      MAX_CLASS_LABEL_SCALE * 100,
+      Math.max(MIN_CLASS_LABEL_SCALE * 100, n)
+    )
+  );
+}
+
 function clampPanPct(raw) {
   const n = typeof raw === "number" ? raw : parseFloat(raw);
   if (!Number.isFinite(n)) return 0;
@@ -92,6 +111,19 @@ function zoomNotice(raw) {
   if (n > MAX_PRINT_ZOOM * 100) return `Capped at ${MAX_PRINT_ZOOM * 100}%.`;
   if (n < MIN_PRINT_ZOOM * 100) return `Raised to the ${MIN_PRINT_ZOOM * 100}% minimum.`;
   if (n > 100) return "Above 100% the edges of the area fall off the sheet.";
+  return null;
+}
+
+function labelNotice(raw) {
+  const n = typeof raw === "number" ? raw : parseFloat(raw);
+  if (!Number.isFinite(n)) return "Not a number — printing at 100%.";
+  if (n > MAX_CLASS_LABEL_SCALE * 100)
+    return `Capped at ${MAX_CLASS_LABEL_SCALE * 100}%.`;
+  if (n < MIN_CLASS_LABEL_SCALE * 100)
+    return `Raised to the ${MIN_CLASS_LABEL_SCALE * 100}% minimum.`;
+  // The honest trade-off: bigger type does not relayout the map, so a
+  // code that no longer fits its own zone is dropped rather than moved.
+  if (n > 150) return "Large codes will not fit the smallest zones, which are then left unlabelled.";
   return null;
 }
 
@@ -191,6 +223,9 @@ export default function PrintPanel({
   // area, which is what every sheet did before this existed. Only moves
   // anything once you are zoomed in past the page edges.
   const [panXPct, setPanXPct] = useState(0);
+  // Class-code type size, percent. See clampClassLabelScale — 100 is the
+  // size every sheet printed at before this became adjustable.
+  const [labelPct, setLabelPct] = useState(100);
   const [panYPct, setPanYPct] = useState(0);
   // The drag preview fetches a whole sheet (a few hundred KB for a
   // barangay, ~4 MB for a municipality), so it is opt-in rather than
@@ -477,6 +512,10 @@ export default function PrintPanel({
     if (Math.abs(py) > 0.001) params.set("panY", String(py));
     if (showLocations) params.set("locations", "1");
     if (showLandmarks) params.set("landmarks", "1");
+    const labelScale = clampLabelPct(labelPct) / 100;
+    if (Math.abs(labelScale - 1) > 0.001) {
+      params.set("labelScale", String(labelScale));
+    }
     const qs = params.toString();
     return qs ? `?${qs}` : "";
   };
@@ -492,6 +531,10 @@ export default function PrintPanel({
     if (Math.abs(py) > 0.001) params.set("panY", String(py));
     if (!showBuildings) params.set("buildings", "0");
     if (showLandmarks) params.set("landmarks", "1");
+    const labelScale = clampLabelPct(labelPct) / 100;
+    if (Math.abs(labelScale - 1) > 0.001) {
+      params.set("labelScale", String(labelScale));
+    }
     const qs = params.toString();
     return (
       `/api/print/svg/${orientation}/${encodeURIComponent(slug)}` +
@@ -1078,6 +1121,50 @@ export default function PrintPanel({
                   {zoomNotice(zoomPct) && (
                     <small className="print-panel__inline-warning">
                       {zoomNotice(zoomPct)}
+                    </small>
+                  )}
+                </label>
+                <label className="print-panel__field">
+                  <span>Class code size</span>
+                  <span className="print-panel__zoom">
+                    <input
+                      type="range"
+                      min={MIN_CLASS_LABEL_SCALE * 100}
+                      max={MAX_CLASS_LABEL_SCALE * 100}
+                      step="5"
+                      value={clampLabelPct(labelPct)}
+                      onChange={(event) => setLabelPct(Number(event.target.value))}
+                    />
+                    <input
+                      type="number"
+                      className="print-panel__zoom-num"
+                      aria-label="Class code size percent"
+                      min={MIN_CLASS_LABEL_SCALE * 100}
+                      max={MAX_CLASS_LABEL_SCALE * 100}
+                      step="5"
+                      value={labelPct}
+                      onChange={(event) => setLabelPct(event.target.value)}
+                      onBlur={(event) => setLabelPct(clampLabelPct(event.target.value))}
+                    />
+                    <span className="print-panel__zoom-unit">%</span>
+                    <button
+                      type="button"
+                      className="print-panel__reset-one"
+                      disabled={clampLabelPct(labelPct) === 100}
+                      onClick={() => setLabelPct(100)}
+                    >
+                      Reset
+                    </button>
+                  </span>
+                  <small>
+                    Size of the C-1 / R-4 codes printed on the zones. Each code
+                    is still fitted to its own zone, so this moves the whole
+                    range rather than setting one size &mdash; bigger codes
+                    label fewer zones, smaller codes label more.
+                  </small>
+                  {labelNotice(labelPct) && (
+                    <small className="print-panel__inline-warning">
+                      {labelNotice(labelPct)}
                     </small>
                   )}
                 </label>
@@ -1745,6 +1832,11 @@ export default function PrintPanel({
           <input type="hidden" name="zoom" value={clampZoomPct(zoomPct) / 100} />
           <input type="hidden" name="panX" value={clampPanPct(panXPct) / 100} />
           <input type="hidden" name="panY" value={clampPanPct(panYPct) / 100} />
+          <input
+            type="hidden"
+            name="labelScale"
+            value={clampLabelPct(labelPct) / 100}
+          />
           <input type="hidden" name="buildings" value={showBuildings ? "1" : "0"} />
           <input type="hidden" name="locations" value={showLocations ? "1" : "0"} />
           <input type="hidden" name="landmarks" value={showLandmarks ? "1" : "0"} />

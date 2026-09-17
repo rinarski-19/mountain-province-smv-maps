@@ -139,3 +139,61 @@ describe("override layering", () => {
     }
   });
 });
+
+// The control the assessors asked for: make the class codes on the zones
+// bigger or smaller. Asserting on the rendered glyph sizes rather than on
+// the query plumbing, because the plumbing was already in place twice
+// before while the type on the page never moved.
+describe("class code size", () => {
+  // Codes look like "C-1" / "R-4". Excludes the legend, whose chips carry
+  // the same strings at a fixed size and must NOT follow this setting.
+  function codeSizes(svg) {
+    const start = svg.indexOf('<g id="zone-class-labels"');
+    // Guard rather than slice(-1): a renamed group would otherwise make
+    // every assertion below pass against an empty set.
+    assert.notEqual(start, -1, "zone-class-labels group missing from the sheet");
+    const group = svg.slice(start, svg.indexOf("</g>", start));
+    const sizes = [];
+    const re = /<text[^>]*font-size="([\d.]+)"[^>]*>([^<]*)<\/text>/g;
+    for (const m of group.matchAll(re)) {
+      if (/^[A-Z]+-\d+$/.test(m[2].trim())) sizes.push(Number(m[1]));
+    }
+    return sizes.sort((a, b) => a - b);
+  }
+  const median = (a) => a[Math.floor(a.length / 2)];
+
+  const small = codeSizes(render({ classLabelScale: 0.5 }));
+  const normal = codeSizes(render({ classLabelScale: 1 }));
+  const large = codeSizes(render({ classLabelScale: 2 }));
+
+  test("renders class codes at every scale", () => {
+    for (const set of [small, normal, large]) assert.ok(set.length > 0);
+  });
+
+  test("the scale actually moves the type on the page", () => {
+    assert.ok(
+      median(small) < median(normal),
+      `expected smaller median than ${median(normal)}, got ${median(small)}`
+    );
+    assert.ok(
+      median(large) > median(normal),
+      `expected larger median than ${median(normal)}, got ${median(large)}`
+    );
+  });
+
+  // The documented trade-off: a code that no longer fits its zone is
+  // dropped rather than spilling outside it.
+  test("bigger codes label fewer zones, smaller codes label more", () => {
+    assert.ok(small.length >= normal.length);
+    assert.ok(large.length <= normal.length);
+  });
+
+  test("omitting the option prints exactly what scale 1 prints", () => {
+    assert.deepEqual(codeSizes(render()), normal);
+  });
+
+  test("junk falls back to the default rather than blanking the sheet", () => {
+    assert.deepEqual(codeSizes(render({ classLabelScale: "abc" })), normal);
+    assert.deepEqual(codeSizes(render({ classLabelScale: 0 })), normal);
+  });
+});

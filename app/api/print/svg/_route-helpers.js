@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   buildSvgForSlug,
+  clampClassLabelScale,
   clampPrintPan,
   clampPrintZoom,
 } from "../../../../lib/print-svg-builder.js";
@@ -69,6 +70,8 @@ export function parsePrintOptions(request, orientation = null) {
     // ?panX / ?panY shift the map off centre, as a fraction of the page.
     panX: clampPrintPan(url.searchParams.get("panX")),
     panY: clampPrintPan(url.searchParams.get("panY")),
+    // ?labelScale=1.5 enlarges the class codes drawn on the zones.
+    classLabelScale: clampClassLabelScale(url.searchParams.get("labelScale")),
     // ?landmarks=1 includes the provider/OSM landmarks. Off by default:
     // whole-LGU sheets carry hundreds of them (Bauko 491, Bontoc 612) and
     // at A3 they overwhelm the SMV bands the sheet exists to show.

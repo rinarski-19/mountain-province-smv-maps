@@ -33,7 +33,16 @@ export const revalidate = 0;
 function asGetRequest(request, fields) {
   const url = new URL(request.url);
   url.search = "";
-  for (const key of ["smvBuffer", "buildings", "locations", "zoom", "landmarks", "panX", "panY"]) {
+  for (const key of [
+    "smvBuffer",
+    "buildings",
+    "locations",
+    "zoom",
+    "landmarks",
+    "panX",
+    "panY",
+    "labelScale",
+  ]) {
     const value = fields.get(key);
     if (value != null && value !== "") url.searchParams.set(key, String(value));
   }

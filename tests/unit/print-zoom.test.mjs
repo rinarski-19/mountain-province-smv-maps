@@ -10,6 +10,10 @@ const {
   MAX_PRINT_ZOOM,
   MIN_PRINT_ZOOM,
   clampPrintZoom,
+  DEFAULT_CLASS_LABEL_SCALE,
+  MAX_CLASS_LABEL_SCALE,
+  MIN_CLASS_LABEL_SCALE,
+  clampClassLabelScale,
 } = await mod("lib/print-zoom.js");
 
 describe("clampPrintZoom", () => {
@@ -161,5 +165,34 @@ describe("print layer split", () => {
     assert.equal(isPrintLayer("map"), true);
     assert.equal(isPrintLayer("furniture"), true);
     assert.equal(isPrintLayer("bogus"), false);
+  });
+});
+
+describe("clampClassLabelScale", () => {
+  test("passes sensible values through", () => {
+    for (const v of [0.5, 0.75, 1, 1.5, 2, 3]) {
+      assert.equal(clampClassLabelScale(v), v);
+    }
+  });
+
+  test("accepts numeric strings, as a query param arrives", () => {
+    assert.equal(clampClassLabelScale("1.5"), 1.5);
+  });
+
+  test("clamps beyond the bounds rather than rejecting", () => {
+    assert.equal(clampClassLabelScale(99), MAX_CLASS_LABEL_SCALE);
+    assert.equal(clampClassLabelScale(0.01), MIN_CLASS_LABEL_SCALE);
+  });
+
+  // A junk ?labelScale must print the ordinary sheet, not a blank or
+  // zero-height one.
+  test("falls back to the default for junk, zero and negatives", () => {
+    for (const v of ["", "abc", null, undefined, NaN, 0, -2, {}]) {
+      assert.equal(clampClassLabelScale(v), DEFAULT_CLASS_LABEL_SCALE);
+    }
+  });
+
+  test("the default is the size sheets printed at before it was adjustable", () => {
+    assert.equal(DEFAULT_CLASS_LABEL_SCALE, 1);
   });
 });

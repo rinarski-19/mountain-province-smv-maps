@@ -318,4 +318,76 @@ describe("print workbench", { skip: skipReason }, () => {
       await ctx.close();
     }
   });
+
+  // The size control has to reach the sheet, not just the panel. Two
+  // earlier settings shipped with the plumbing in place while the type
+  // on the page never moved, so this asserts on the rendered glyphs.
+  //
+  // Compares two real sheets rather than checking one against a fixed
+  // millimetre threshold: the default size varies by barangay, so any
+  // single number here would pass without the feature working.
+  test("the class code size control changes the type on the sheet", async () => {
+    const { ctx, page } = await openPage();
+    try {
+      await unlockFully(page);
+      await page.click('button[aria-label="Print sheet options"]');
+      await page.waitForSelector(".print-panel");
+      // A barangay that actually carries SMV zones — the zone-class-labels
+      // group is absent entirely where there are none, and the medians
+      // below would then be measuring nothing.
+      await page.selectOption(".print-panel select >> nth=0", "abatan");
+
+      const box = page.locator('input[aria-label="Class code size percent"]');
+      await box.waitFor();
+      assert.equal(await box.inputValue(), "100", "defaults to 100%");
+
+      // Median class-code type size on a freshly opened sheet.
+      async function medianAt(percent) {
+        await box.fill(String(percent));
+        await box.blur();
+        await page.waitForTimeout(300);
+        const [sheet] = await Promise.all([
+          ctx.waitForEvent("page", { timeout: 90_000 }),
+          page.click(".print-panel__button--primary"),
+        ]);
+        await sheet.waitForLoadState("domcontentloaded");
+        await page.waitForTimeout(3000);
+        const recorded = await sheet.evaluate(() =>
+          document.documentElement.getAttribute("data-label-scale")
+        );
+        assert.equal(
+          recorded,
+          String(percent / 100),
+          `sheet did not record the requested ${percent}% size`
+        );
+        const median = await sheet.evaluate(() => {
+          const g = document.getElementById("zone-class-labels");
+          if (!g) return null;
+          const sizes = [...g.querySelectorAll("text")]
+            .filter((t) => /^[A-Z]+-\d+$/.test(t.textContent.trim()))
+            .map((t) => parseFloat(t.getAttribute("font-size")))
+            .sort((a, b) => a - b);
+          return sizes.length ? sizes[Math.floor(sizes.length / 2)] : null;
+        });
+        await sheet.close();
+        assert.ok(median !== null, `no class codes on the ${percent}% sheet`);
+        return median;
+      }
+
+      const normal = await medianAt(100);
+      const large = await medianAt(200);
+      const small = await medianAt(60);
+
+      assert.ok(
+        large > normal,
+        `200% should print larger codes than 100% (${large} vs ${normal})`
+      );
+      assert.ok(
+        small < normal,
+        `60% should print smaller codes than 100% (${small} vs ${normal})`
+      );
+    } finally {
+      await ctx.close();
+    }
+  });
 });
