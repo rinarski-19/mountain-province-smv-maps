@@ -1,7 +1,7 @@
 {
   "_comment": "Print overrides for the A3 SMV sheet. Written by /api/print-settings/<slug>. classValues overlay <slug>_valuations.json; labels overlay PRINT_LABEL_DEFAULTS in lib/print-labels.js.",
   "slug": "barlig",
-  "updated_at": "2026-09-16T06:56:29.245Z",
+  "updated_at": "2026-09-17T00:56:27.949Z",
   "classValues": {
     "C-1": 1860,
     "R-1": 1860,
@@ -14,7 +14,9 @@
     "R-8": 500
   },
   "labels": {
-    "preparedByName": "RINAR DENGWAS                                 RANDY A FABA-A",
-    "preparedByTitle": "PROGRAMMER                      TM AIDE"
+    "preparedByName": "RINAR DENGWAS",
+    "preparedByTitle": "PROGRAMMER",
+    "preparedByName2": "ROXANNE C. SOLIBA",
+    "preparedByTitle2": "TM AIDE"
   }
 }
