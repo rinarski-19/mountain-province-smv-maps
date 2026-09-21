@@ -1,8 +1,8 @@
 {
   "_comment": "Province-wide SMV class colors. Written by /api/palette. Overlays CLASSIFICATION_INFO in lib/classifications.js; only classes that differ from the stock palette are stored.",
-  "updated_at": "2026-09-21T01:22:41.603Z",
+  "updated_at": "2026-09-21T01:45:47.453Z",
   "colors": {
-    "INSTITUTIONAL": "#2c32e2",
+    "INSTITUTIONAL": "#1219e2",
     "R-8": "#fff700",
     "R-6": "#fbff00",
     "R-9": "#fbff00",
