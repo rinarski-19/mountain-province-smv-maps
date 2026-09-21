@@ -1,0 +1,10 @@
+{
+  "_comment": "Print overrides for the A3 SMV sheet. Written by /api/print-settings/<slug>. classValues overlay <slug>_valuations.json; labels overlay PRINT_LABEL_DEFAULTS in lib/print-labels.js.",
+  "slug": "bontoc",
+  "updated_at": "2026-09-21T01:46:56.687Z",
+  "classValues": {},
+  "labels": {
+    "preparedByName2": "WENDELL W. PASPAS",
+    "preparedByTitle2": "TM III"
+  }
+}
