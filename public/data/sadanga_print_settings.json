@@ -1,0 +1,15 @@
+{
+  "_comment": "Print overrides for the A3 SMV sheet. Written by /api/print-settings/<slug>. classValues overlay <slug>_valuations.json; labels overlay PRINT_LABEL_DEFAULTS in lib/print-labels.js.",
+  "slug": "sadanga",
+  "updated_at": "2026-09-21T01:56:15.246Z",
+  "classValues": {
+    "C-1": 2310,
+    "R-1": 2310,
+    "R-2": 1900,
+    "R-3": 1570,
+    "R-4": 1230,
+    "R-5": 960,
+    "R-6": 790
+  },
+  "labels": {}
+}
