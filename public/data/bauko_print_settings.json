@@ -1,0 +1,22 @@
+{
+  "_comment": "Print overrides for the A3 SMV sheet. Written by /api/print-settings/<slug>. classValues overlay <slug>_valuations.json; labels overlay PRINT_LABEL_DEFAULTS in lib/print-labels.js.",
+  "slug": "bauko",
+  "updated_at": "2026-09-21T00:51:22.362Z",
+  "classValues": {
+    "R-1": 5300,
+    "C-2": 4200,
+    "C-1": 5300,
+    "C-3": 3140,
+    "R-2": 4200,
+    "R-3": 3140,
+    "R-4": 2300,
+    "R-5": 1950,
+    "R-6": 1680,
+    "R-7": 1300,
+    "R-8": 1100,
+    "R-9": 850,
+    "R-10": 650,
+    "R-11": 500
+  },
+  "labels": {}
+}
