@@ -1,0 +1,17 @@
+{
+  "_comment": "Print overrides for the A3 SMV sheet. Written by /api/print-settings/<slug>. classValues overlay <slug>_valuations.json; labels overlay PRINT_LABEL_DEFAULTS in lib/print-labels.js.",
+  "slug": "paracelis",
+  "updated_at": "2026-09-22T01:09:51.535Z",
+  "classValues": {
+    "C-1": 2000,
+    "R-1": 2000,
+    "R-2": 1600,
+    "R-3": 1300,
+    "R-4": 1090,
+    "R-5": 900,
+    "R-6": 700,
+    "R-7": 600,
+    "R-8": 470
+  },
+  "labels": {}
+}
